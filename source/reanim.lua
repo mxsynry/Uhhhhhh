@@ -1579,6 +1579,7 @@ do -- homepage
 		"\"Dreams come true!\"",
 		"Idea originated from a dream.",
 		"If you love this program, join my Discord!",
+		"boredgal was here..",
 	}
 	local text3 = nil
 	local function changequote()
