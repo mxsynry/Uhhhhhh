@@ -672,7 +672,7 @@ pcall(function()
 	end
 	for _,file in listfiles("UhhhhhhReanim/Muzik") do
 		if isfile(file) and file:sub(-4, -1) == ".mp3" then
-			table.insert(future, {file, file:sub(21, -4)})
+			table.insert(future, {file, file:sub(21, -5)})
 		end
 	end
 	if #future > 0 then
@@ -8447,22 +8447,27 @@ local function AddModule(func)
 		elseif m.ModuleType == "DANCE" then
 			return AddDance(m)
 		else
-			--error("Unknown ModuleType for Module!")
+			return nil, "Unknown ModuleType for Module!"
 		end
 	else
-		--error("Module return value is not a table. Got " .. typeof(m) .. " instead.")
+		return nil, "Module return value is not a table. Got " .. typeof(m) .. " instead."
 	end
 end
 local function AddModules(list)
 	local names = {}
+	local logging = ""
 	if type(list) == "table" then
 		for i=1, #list do
-			local name = AddModule(list[i])
+			local name, logging2 = AddModule(list[i])
 			if name then table.insert(names, name) end
+			if logging2 then
+				logging ..= "\n[ERROR] M" .. i .. ": " .. logging2
+			end
 			task.wait()
 		end
 	end
-	return names
+	logging ..= "\n[LOG] Loaded " .. #names .. " modules."
+	return names, logging
 end
 task.spawn(function()
 	local function SaveConfig(m)
@@ -9088,7 +9093,8 @@ local function ForceModuleReload(force)
 		xpcall(function()
 			local func, comperr = loadstring(data, "Uhhhhhh :: VANILLA " .. x)
 			if func then
-				AddModules(func())
+				local names, logging = AddModules(func())
+				InitLogsText.Text ..= logging
 			elseif comperr then
 				error("COMPILE FAILED: " .. comperr)
 			end
@@ -9108,7 +9114,9 @@ local function ForceModuleReload(force)
 				InitLogsText.Text ..= "\n[LOG] Loadstringing USER " .. x .. "..."
 				local func, comperr = loadstring(data, "Uhhhhhh :: " .. x)
 				if func then
-					UserModulesListor[x] = AddModules(func())
+					local names, logging = AddModules(func())
+					UserModulesListor[x] = names
+					InitLogsText.Text ..= logging
 				elseif comperr then
 					error("COMPILE FAILED: " .. comperr)
 				end
