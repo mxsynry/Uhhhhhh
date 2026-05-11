@@ -770,6 +770,8 @@ else
 		"skids are now taking credit of this entire script, meaning its so good           ",
 		-- nonono i cant advertise that anymore "whenever i see hat reanimation nowadays i check to see if they are collidable    ",
 		"skids, be alert, go to weao.xyz for your roblox hacks!            ",
+		"                                             ok.                         ",
+		"hey steve why is this better than genesis fe?                     ",
 	}
 	scrolltexts = scrolltexts[math.random(1, #scrolltexts)]
 	local fade = TweenService:Create(UIMainFrame, TweenInfo.new(5), {BackgroundTransparency = 0.5})
@@ -8457,6 +8459,8 @@ local function AddModules(list)
 			end
 			task.wait()
 		end
+	else
+		logging ..= "\n[LOG] Module return value is not a table array of module functions. Skipping."
 	end
 	logging ..= "\n[LOG] Loaded " .. #names .. " modules."
 	return names, logging
