@@ -258,6 +258,19 @@ Util.IsGuiVisible = function(guiObject)
 	end
 	return true
 end
+Util.IsGuiInteractable = function(guiObject)
+	if not guiObject or not guiObject:IsA("GuiObject") then return false end
+	while guiObject do
+		if not guiObject.Visible or not guiObject.Interactable then
+			return false
+		end
+		guiObject = guiObject:FindFirstAncestorWhichIsA("GuiObject")
+	end
+	return true
+end
+Util.WillGuiSinkInput = function(guiObject)
+	return Util.IsGuiInteractable(guiObject) and (guiObject.Active or guiObject:IsA("GuiButton"))
+end
 Util.UDim2ToVector2Scale = function(x)
 	return Vector2.new(x.X.Scale, x.Y.Scale)
 end
@@ -3464,6 +3477,29 @@ do
 	local function IsInArea(pos, tl, br)
 		return pos.X >= tl.X and pos.Y >= tl.Y and pos.X <= br.X and pos.Y <= br.Y
 	end
+	local function WillSinkToWorld(pos)
+		local playerGui = Player:FindFirstChildOfClass("PlayerGui")
+		local touchGui
+		if playerGui then
+			touchGui = playerGui:FindFirstChild("TouchGui")
+		end
+		local corestuff = CoreGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
+		for _,v in corestuff do
+			if Util.WillGuiSinkInput(v) then
+				return false
+			end
+		end
+		local plrstuff = playerGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
+		for _,v in plrstuff do
+			if v:IsDescendantOf(touchGui) then
+				return true
+			end
+			if Util.WillGuiSinkInput(v) then
+				return false
+			end
+		end
+		return true
+	end
 	local function IsInThumbstickArea(pos)
 		local playerGui = Player:FindFirstChildOfClass("PlayerGui")
 		if playerGui then
@@ -3531,7 +3567,7 @@ do
 			if input.KeyCode == Enum.KeyCode.ButtonA then
 				self.Inputs.GP.JB = true
 			end
-			if input.UserInputType == Enum.UserInputType.Touch then
+			if input.UserInputType == Enum.UserInputType.Touch and WillSinkToWorld(input.Position) then
 				if self.Inputs.TC.DJ == nil and IsInThumbstickArea(input.Position) then
 					self.Inputs.TC.DJ = input
 					self.Inputs.TC.LP = input.Position
