@@ -1222,6 +1222,12 @@ local UIMainWindow, WindowContent do
 			"currentangle v5",
 			"patchma hub by <font color=\"#0000FF\">MyWorld</font>",
 			"Genesis FE with extra steps",
+			"Gugu Gaga",
+			"Half Life 3 Releaser",
+			"hatdrop hub",
+			"uhhhh hub",
+			"Emperyan Reanimate",
+			"<font color=\"#0000FF\">IM BLUE BADA DEE BADA DIE</font>",
 		}
 		if os.date("%m") == "12" and math.random(4) == 1 then
 			quotes = {
@@ -1625,6 +1631,10 @@ do -- homepage
 		"Idea originated from a dream.",
 		"If you love this program, join my Discord!",
 		"boredgal was here..",
+		"gugu gaga ultimate",
+		"Kleiner me to start!",
+		"Spongebob squarepants",
+		"I'm a Razor 1911 'fan' btw!",
 	}
 	local text3 = nil
 	local text3mustchange = false
