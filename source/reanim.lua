@@ -4835,27 +4835,8 @@ function LimbReanimator.Start()
 			local RCHumanoid = ReanimCharacter:FindFirstChildOfClass("Humanoid")
 			local RCRootPart = ReanimCharacter:FindFirstChild("HumanoidRootPart")
 			local RCTorso = ReanimCharacter:FindFirstChild("Torso")
-			if RCRootPart and RCTorso then
-				if LimbReanimator.Mode == 1 then
-					rootcf = CFrame.new(rootposition2)
-				end
-				if LimbReanimator.Mode == 2 or workspace.StreamingEnabled then
-					rootcf = CFrame.new(RCRootPart.Position + Vector3.new(0, -16, 0))
-				end
-				if LimbReanimator.Mode == 3 then
-					rootcf = RCRootPart.CFrame
-				end
-				if LimbReanimator.Mode == 4 then
-					rootcf = RCTorso.CFrame
-				end
-				if LimbReanimator.Velocity == 1 then
-					rootvel = RCRootPart.Velocity
-				elseif LimbReanimator.Velocity == 2 then
-					rootvel = Vector3.new(0, 16384, 0)
-				end
-				if Camera then
-					Camera.CameraSubject = RCHumanoid
-				end
+			if Camera then
+				Camera.CameraSubject = RCHumanoid
 			end
 			for _,v in BaseParts do
 				v.CanCollide = false
@@ -4887,6 +4868,25 @@ function LimbReanimator.Start()
 			if Character and Humanoid and RootPart then
 				RunService.Heartbeat:Wait()
 				local t = os.clock()
+				if RCRootPart and RCTorso then
+					if LimbReanimator.Mode == 1 then
+						rootcf = CFrame.new(rootposition2)
+					end
+					if LimbReanimator.Mode == 2 or workspace.StreamingEnabled then
+						rootcf = CFrame.new(RCRootPart.Position + Vector3.new(0, -16, 0))
+					end
+					if LimbReanimator.Mode == 3 then
+						rootcf = RCRootPart.CFrame
+					end
+					if LimbReanimator.Mode == 4 then
+						rootcf = RCTorso.CFrame
+					end
+					if LimbReanimator.Velocity == 1 then
+						rootvel = RCRootPart.Velocity
+					elseif LimbReanimator.Velocity == 2 then
+						rootvel = Vector3.new(0, 16384, 0)
+					end
+				end
 				local flingtarget = LimbReanimator.FlingTargets[1]
 				if flingtarget then
 					if flingtarget.Time then
@@ -4917,10 +4917,12 @@ function LimbReanimator.Start()
 				else
 					pcall(sethiddenproperty, Humanoid, "NetworkHumanoidState", Enum.HumanoidStateType[({"Running", "PlatformStanding", "Jumping", "Ragdoll", "Seated", "Physics"})[math.random(1, 6)]])
 				end
-				RunService.PreRender:Wait()
-				if Reanimate:ShouldRotationType() then
-					Reanimate:CameraLockCharacter()
-				end
+			end
+			RunService.PreRender:Wait()
+			if Reanimate:ShouldRotationType() then
+				Reanimate:CameraLockCharacter()
+			end
+			if ReanimCharacter then
 				UpdateTransforms(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf)
 			end
 		end
