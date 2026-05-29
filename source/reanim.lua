@@ -1393,10 +1393,12 @@ local UIMainWindow, WindowContent do
 				local screen = Util.GetScreenSize()
 				local ch = (Vector2.new(input.Position.X, input.Position.Y) + SCREENGUI.AbsolutePosition) / screen
 				local pos = ch + offset
-				local imjolly = Util.UDim2ToVector2Offset(UIMainWindow.Size).Y * -0.5 / screen.Y
+				local dowsize = Util.UDim2ToVector2Offset(UIMainWindow.Size)
+				local imjollx = (dowsize.X * 0.5 - 100) / screen.X
+				local imjolly = dowsize.Y * -0.5 / screen.Y
 				local boxy = 31 / screen.Y
 				pos = Vector2.new(
-					math.clamp(pos.X, 0, 1),
+					math.clamp(pos.X, -imjollx, 1 + imjollx),
 					math.clamp(pos.Y, -imjolly, 1 - imjolly - boxy)
 				)
 				UIMainWindow.Position = Util.Vector2ToUDim2Scale(pos)
@@ -5529,7 +5531,7 @@ function HatReanimator.Start()
 		for _,v in HatRefs do if v.PH then v.PH:Destroy() end end
 		table.clear(Hat2HatRefs)
 		table.clear(HatRefs)
-		HatMap = {}
+		table.clear(HatMap)
 		local function addhat(limb, data)
 			if data and data[2] then
 				data = data[2]
@@ -6689,8 +6691,10 @@ function HatReanimator.Start()
 	local letitgo = 0
 	while not Reanimate.Stopping do
 		RunService.PreSimulation:Wait()
+		debug.profilebegin("Uhhhhhh > Reanimate")
 		workspace.FallenPartsDestroyHeight = 0/0
 		SetSimulationRadius()
+		debug.profilebegin("Uhhhhhh > CharacterCheck")
 		local ReanimOkay = false
 		local Character = Player.Character
 		local ReanimCharacter = Reanimate.Character
@@ -6747,12 +6751,16 @@ function HatReanimator.Start()
 				end
 			end
 		end
+		debug.profileend()
+		debug.profilebegin("Uhhhhhh > BaseParts")
 		local RCRootPart = ReanimCharacter and ReanimCharacter:FindFirstChild("HumanoidRootPart")
 		local ltm = Reanimate.LocalTransparencyModifier
 		for _,v in BaseParts do
 			v.CanCollide = false
 			v.LocalTransparencyModifier = ltm
 		end
+		debug.profileend()
+		debug.profilebegin("Uhhhhhh > ReanimOkay")
 		local t = os.clock()
 		local slocked = {}
 		if ReanimOkay then
@@ -6768,6 +6776,7 @@ function HatReanimator.Start()
 				local toolactivate = false
 				local toolactivated = nil
 				local handlethese = {}
+				debug.profilebegin("Uhhhhhh > CharTools")
 				for _,v in CharTools do
 					local handle = v:FindFirstChild("Handle")
 					if handle and handle:IsA("BasePart") then
@@ -6887,6 +6896,8 @@ function HatReanimator.Start()
 					local FakeTool = ReanimCharacter:FindFirstChildOfClass("Tool")
 					if FakeTool then FakeTool:Destroy() end
 				end
+				debug.profileend()
+				debug.profilebegin("Uhhhhhh > FlingLogic")
 				local flingtarget = nil
 				local flingcf, flinged = CFrame.identity, true
 				if t > letitgo then
@@ -6969,6 +6980,8 @@ function HatReanimator.Start()
 						end
 					end
 				end
+				debug.profileend()
+				debug.profilebegin("Uhhhhhh > Alignments")
 				for _,hat in CharHats do
 					local handle = hat:FindFirstChild("Handle")
 					if handle and handle:IsA("BasePart") then
@@ -7015,6 +7028,7 @@ function HatReanimator.Start()
 						end
 					end
 				end
+				debug.profileend()
 			end
 		else
 			if CurrentCharacter then
@@ -7022,6 +7036,7 @@ function HatReanimator.Start()
 				--replicatesignal(Player.ConnectDiedSignalBackend)
 			end
 		end
+		debug.profilebegin("Uhhhhhh > Placeholders")
 		for _,ref in HatRefs do
 			local ph = ref.PH
 			if ph then
@@ -7043,7 +7058,9 @@ function HatReanimator.Start()
 				end
 			end
 		end
+		debug.profileend()
 		RunService.PreRender:Wait()
+		debug.profilebegin("Uhhhhhh > PreRender")
 		if RCRootPart and Reanimate:ShouldRotationType() then
 			Reanimate:CameraLockCharacter()
 		end
@@ -7065,6 +7082,8 @@ function HatReanimator.Start()
 				end
 			end
 		end
+		debug.profileend()
+		debug.profileend()
 	end
 	ResetHatRefs()
 	for _,v in HatRefs do if v.PH then v.PH:Destroy() end end
