@@ -1139,7 +1139,8 @@ local function SetUITheme(index)
 		UISound.Click.SoundId = theme[4]
 	end
 end
-SaveData.UITheme = SaveData.UITheme or 1
+-- Use Sakura for new installs while preserving an existing saved theme choice.
+SaveData.UITheme = SaveData.UITheme or 15
 SetUITheme(SaveData.UITheme)
 
 local CracktroFrameText = "Uhhhhhh Reanimate V" .. UhhhhhhVersion
@@ -3111,6 +3112,57 @@ UISound.DanceMusic.PlaybackRegionsEnabled = false
 UISound.DanceMusic.Volume = 1
 UISound.DanceMusic.Name = "(unknown)"
 UISound.DanceMusic:SetAttribute("Volume", 1)
+UISound.DanceMusic:SetAttribute("ModulePlaybackSpeed", 1)
+local LastDanceMusicTimeRead = -math.huge
+local LastDanceMusicTimeValue = 0
+local function GetAnimationPlaybackSpeed()
+	local options = SaveData.AnimLibOptions
+	return math.clamp(tonumber(options and options.Speed) or 1, 0.25, 2)
+end
+local function ShouldApplyAnimationSpeedToMusic()
+	local options = SaveData.AnimLibOptions
+	return type(options) == "table" and options.ApplySpeedToMusic == true
+end
+local function ApplyOverrideDanceMusicPlaybackSpeed()
+	local moduleSpeed = tonumber(UISound.DanceMusic:GetAttribute("ModulePlaybackSpeed")) or 1
+	local globalSpeed = ShouldApplyAnimationSpeedToMusic() and GetAnimationPlaybackSpeed() or 1
+	local success, reason = pcall(function()
+		UISound.DanceMusic.PlaybackSpeed = moduleSpeed * globalSpeed
+	end)
+	if not success then warn("Could not apply dance music playback speed: " .. tostring(reason)) end
+end
+local function IsDanceMusicDrivenStep(animator, stepTime)
+	if os.clock() - LastDanceMusicTimeRead >= 0.05 or not UISound.DanceMusic.IsPlaying then
+		animator._lastDanceMusicStepInput = nil
+		animator._lastObservedDanceMusicTime = nil
+		animator._usingDanceMusicClock = false
+		return false
+	end
+
+	local usingDanceMusicClock = true
+	local lastStepTime = animator._lastDanceMusicStepInput
+	local lastMusicTime = animator._lastObservedDanceMusicTime
+	if type(lastStepTime) == "number" and type(lastMusicTime) == "number" then
+		local stepDelta = stepTime - lastStepTime
+		local musicDelta = LastDanceMusicTimeValue - lastMusicTime
+		local soundSpeed = tonumber(UISound.DanceMusic.PlaybackSpeed) or 1
+		if math.abs(soundSpeed) < 0.001 then
+			usingDanceMusicClock = math.abs(musicDelta) >= 0.0005 or math.abs(stepDelta) < 0.0005
+		else
+			local realClockDelta = musicDelta / soundSpeed
+			local musicTolerance = math.max(0.0005, math.abs(musicDelta) * 0.03)
+			local clockTolerance = math.max(0.0005, math.abs(realClockDelta) * 0.03)
+			local followsMusic = math.abs(stepDelta - musicDelta) <= musicTolerance
+			local followsRealClock = math.abs(stepDelta - realClockDelta) <= clockTolerance
+			usingDanceMusicClock = followsMusic or not followsRealClock
+		end
+	end
+
+	animator._lastDanceMusicStepInput = stepTime
+	animator._lastObservedDanceMusicTime = LastDanceMusicTimeValue
+	animator._usingDanceMusicClock = usingDanceMusicClock
+	return usingDanceMusicClock
+end
 local function SetOverrideDanceMusic(soundid, soundname, volume, region)
 	if soundid then
 		UISound.DanceMusic.SoundId = soundid
@@ -3126,7 +3178,8 @@ local function SetOverrideDanceMusic(soundid, soundname, volume, region)
 		else
 			UISound.DanceMusic.PlaybackRegionsEnabled = false
 		end
-		UISound.DanceMusic.PlaybackSpeed = 1
+		UISound.DanceMusic:SetAttribute("ModulePlaybackSpeed", 1)
+		ApplyOverrideDanceMusicPlaybackSpeed()
 		UISound.DanceMusic.TimePosition = 0
 		UISound.DanceMusic:Play()
 	else
@@ -3134,13 +3187,16 @@ local function SetOverrideDanceMusic(soundid, soundname, volume, region)
 	end
 end
 local function GetOverrideDanceMusicTime()
-	return UISound.DanceMusic.TimePosition
+	LastDanceMusicTimeRead = os.clock()
+	LastDanceMusicTimeValue = UISound.DanceMusic.TimePosition
+	return LastDanceMusicTimeValue
 end
 local function SetOverrideDanceMusicTime(t)
 	UISound.DanceMusic.TimePosition = t
 end
 local function SetOverrideDanceMusicSpeed(speed)
-	UISound.DanceMusic.PlaybackSpeed = speed
+	UISound.DanceMusic:SetAttribute("ModulePlaybackSpeed", speed)
+	ApplyOverrideDanceMusicPlaybackSpeed()
 end
 
 local _MainMusicIsMuted = SaveData.MuteUIMusic
@@ -3317,6 +3373,7 @@ SaveData.ClickFlingEnabled = not not SaveData.ClickFlingEnabled
 SaveData.NoSmoothCam = not not SaveData.NoSmoothCam
 SaveData.FirstPersonBody = not not SaveData.FirstPersonBody
 SaveData.NoSeatSitEnabled = not SaveData.NoSeatSitEnabled
+SaveData.KeepSeatSitState = not not SaveData.KeepSeatSitState
 SaveData.ToolGrabEnabled = not not SaveData.ToolGrabEnabled
 SaveData.ScaleGravityEnabled = not not SaveData.ScaleGravityEnabled
 SaveData.CharacterScale = SaveData.CharacterScale or 1
@@ -3329,6 +3386,8 @@ SaveData.UsePatchmaLikeNetless = not not SaveData.UsePatchmaLikeNetless
 SaveData.UseAngularVelocity = not not SaveData.UseAngularVelocity
 SaveData.PatchmaVoidFloat = not not SaveData.PatchmaVoidFloat
 SaveData.PlaceholderTransparency = SaveData.PlaceholderTransparency or 0.5
+if SaveData.ShowResetPlaceholder == nil then SaveData.ShowResetPlaceholder = true end
+SaveData.ShowReanimateHitboxes = not not SaveData.ShowReanimateHitboxes
 
 -- empyrean-like thing
 local _G_Uhhhhhh = {}
@@ -3355,12 +3414,15 @@ local Reanimate = {
 	SmoothCam = not SaveData.NoSmoothCam,
 	FirstPersonBody = SaveData.FirstPersonBody,
 	SeatSit = not SaveData.NoSeatSitEnabled,
+	KeepSeatSitState = SaveData.KeepSeatSitState,
 	ToolGrab = SaveData.ToolGrabEnabled,
 	ScaleGravity = SaveData.ScaleGravityEnabled,
 	PatchmaVoidFloat = SaveData.PatchmaVoidFloat,
 	AntiExplosions = true,
 	CharacterScale = SaveData.CharacterScale,
 	PlaceholderTransparency = SaveData.PlaceholderTransparency,
+	ShowResetPlaceholder = SaveData.ShowResetPlaceholder,
+	ShowHitboxes = SaveData.ShowReanimateHitboxes,
 	P2PCollision = false,
 	ShiftlockEnabled = not SaveData.ShiftlockDisabled,
 	Shiftlocked = false,
@@ -4093,12 +4155,32 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	local IsFloat = false
 	local SeatWeld = nil
 	local LastJumpOffSeat = 0
+	local function HasActiveSeatWeld()
+		return SeatWeld ~= nil
+			and SeatWeld.Parent ~= nil
+			and SeatWeld.Part0 ~= nil
+			and SeatWeld.Part0:IsDescendantOf(workspace)
+	end
+	local function DestroySeatWeld()
+		if SeatWeld ~= nil then
+			SeatWeld:Destroy()
+			SeatWeld = nil
+		end
+	end
+	local function PreserveSeatSitState()
+		if not Reanimate.SeatSit or not Reanimate.KeepSeatSitState or not HasActiveSeatWeld() or RCHumanoid.Jump then
+			return false
+		end
+		if not RCHumanoid.Sit then RCHumanoid.Sit = true end
+		if RCHumanoid:GetState() ~= Enum.HumanoidStateType.Seated then
+			RCHumanoid:ChangeState(Enum.HumanoidStateType.Seated)
+		end
+		return true
+	end
 	RCHumanoid.Touched:Connect(function(part, limb)
 		if Reanimate.SeatSit and part:IsA("Seat") and not RCHumanoid.Sit and os.clock() - LastJumpOffSeat > 2 then
 			RCHumanoid.Sit = true
-			if SeatWeld ~= nil then
-				SeatWeld = SeatWeld:Destroy()
-			end
+			DestroySeatWeld()
 			SeatWeld = Instance.new("Weld")
 			SeatWeld.Name = "hell yeah!! :3"
 			SeatWeld.Parent = RCRootPart
@@ -4109,9 +4191,10 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			Util.LinkDestroyI2C(SeatWeld, RCHumanoid:GetPropertyChangedSignal("Jump"):Connect(function()
 				if RCHumanoid.Jump then
 					RCHumanoid.Sit = false
-					SeatWeld:Destroy()
+					DestroySeatWeld()
 				end
 			end))
+			PreserveSeatSitState()
 		end
 		if part.Name == "Handle" and part.Parent:IsA("Tool") and not part.Parent.Parent:FindFirstChildOfClass("Humanoid") then
 			if Reanimate.ToolGrab then
@@ -4126,9 +4209,11 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	end)
 	RCHumanoid.Seated:Connect(function(active)
 		if not active then
-			if SeatWeld ~= nil then
-				SeatWeld = SeatWeld:Destroy()
+			if Reanimate.KeepSeatSitState and HasActiveSeatWeld() and not RCHumanoid.Jump then
+				task.defer(PreserveSeatSitState)
+				return
 			end
+			DestroySeatWeld()
 			LastJumpOffSeat = os.clock()
 		end
 	end)
@@ -4184,12 +4269,16 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			TargetCameraOffset = Vector3.new(0, -1.5, 0) + Vector3.new(0, 1.5, 0) * scale
 		end
 		RCHumanoid.CameraOffset = TargetCameraOffset:Lerp(RCHumanoid.CameraOffset, math.exp(-9.8 * dt))
-		if RCHumanoidState == "Swimming" then
+		local keepingSeatSitState = Reanimate.KeepSeatSitState and HasActiveSeatWeld()
+		if keepingSeatSitState then
+			RCHumanoid:Move(Vector3.zero)
+		elseif RCHumanoidState == "Swimming" then
 			RCHumanoid:Move(CamCF:VectorToWorldSpace(CMove))
 		else
 			RCHumanoid:Move(MoveCF:VectorToWorldSpace(CMove))
 		end
 		RCHumanoid.Jump = CJump
+		if not CJump then PreserveSeatSitState() end
 		BodyForce.Force = force
 		if RCRootPart.Position.Y < FallenPartsDestroyHeight + 3 * Reanimate.CharacterScale then
 			RCRootPart.CFrame = LastSafest
@@ -4208,6 +4297,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	end))
 	Util.LinkDestroyI2C(RC, RunService.PostSimulation:Connect(function(dt)
 		RCHumanoid.Jump = CJump
+		if not CJump then PreserveSeatSitState() end
 		local tcf, pos = RCRootPart.CFrame.Rotation, RCRootPart.CFrame.Position
 		local RCHumanoidState = RCHumanoid:GetState().Name
 		local safe = true
@@ -4376,11 +4466,11 @@ Util.SetMotor6DOffset = function(motor, offset)
 	Util.SetMotor6DTransform(motor, motor.C0:Inverse() * offset * motor.C1)
 end
 
-Util.ShowPartHitbox = function(part)
+Util.ShowPartHitbox = function(part, color, lifetime)
 	local w = Instance.new("WireframeHandleAdornment")
-	w.Name = "TempWireframe"
+	w.Name = "_Uhhhhhh_ReanimateHitbox"
 	w.Adornee = part
-	w.Color3 = Color3.new(0, 1, 0)
+	w.Color3 = color or Color3.new(0, 1, 0)
 	w.Transparency = 0
 	w.ZIndex = 10
 	w.AlwaysOnTop = true
@@ -4409,7 +4499,9 @@ Util.ShowPartHitbox = function(part)
 	w:AddLine(verts[2], verts[6])
 	w:AddLine(verts[3], verts[7])
 	w:AddLine(verts[4], verts[8])
-	Debris:AddItem(w, 1)
+	if lifetime == nil then lifetime = 1 end
+	if lifetime > 0 then Debris:AddItem(w, lifetime) end
+	return w
 end
 
 local RIGHTGRIP_C0 = CFrame.new(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, -1, 0)
@@ -4493,10 +4585,7 @@ LimbReanimator.UseNaNFling = SaveData.Reanimator.LimbUseNaNFling
 LimbReanimator.FlingTargets = {}
 LimbReanimator._TempNotFling = {}
 function LimbReanimator.ShowHitboxes()
-	Util.UINotify("Just a useless option")
-	pcall(function()
-		Util.ShowPartHitbox(Player.Character.HumanoidRootPart)
-	end)
+	-- Root parts are rendered by the shared persistent hitbox controller.
 end
 function LimbReanimator.Fling(target, duration)
 	if not LimbReanimator.FlingEnabled then return end
@@ -4571,6 +4660,7 @@ function LimbReanimator.Config(parent)
 		LimbReanimator.UseNaNFling = val
 		SaveData.Reanimator.LimbUseNaNFling = val
 	end)
+	UI.CreateText(parent, "^^^ can override default Roblox states, including sitting ^^^", 10, Enum.TextXAlignment.Center)
 	Util.LinkDestroyI2C(dmode, RunService.Heartbeat:Connect(function()
 		dmode.Value = LimbReanimator.Mode + 1
 		dvel.Value = LimbReanimator.Velocity + 1
@@ -4866,7 +4956,18 @@ function LimbReanimator.Start()
 			for _,v in ReanimCharacter:GetChildren() do
 				if v:IsA("BasePart") then
 					if table.find(LimbNames, v.Name) then
-						v.Transparency = ReanimOkay and 1 or Reanimate.PlaceholderTransparency
+						-- The original script shows this red fake rig before the new real
+						-- character is detected: ReanimOkay remains false while Character,
+						-- Humanoid, RootPart, or a live humanoid state is unavailable.
+						if ReanimOkay then
+							v.Transparency = 1
+						else
+							local transparency = Reanimate.PlaceholderTransparency
+							if Reanimate.ShowResetPlaceholder then
+								transparency = math.min(transparency, 0.5)
+							end
+							v.Transparency = transparency
+						end
 					end
 				end
 			end
@@ -5005,7 +5106,7 @@ function HatReanimator.ShowHitboxes()
 				local handle = v:FindFirstChild("Handle")
 				if handle and handle:IsA("BasePart") then
 					if handle:GetAttribute("_Uhhhhhh_HasCollide") then
-						Util.ShowPartHitbox(handle)
+						Util.ShowPartHitbox(handle, Color3.fromRGB(80, 255, 110), 0)
 					end
 				end
 			end
@@ -7103,12 +7204,45 @@ function HatReanimator.Start()
 end
 
 task.wait()
+local function ClearReanimateHitboxes()
+	for _, child in SCREENGUI:GetChildren() do
+		if child.Name == "_Uhhhhhh_ReanimateHitbox" then
+			child:Destroy()
+		end
+	end
+end
 local function ReanimateShowHitboxes()
+	ClearReanimateHitboxes()
+	if not Reanimate.ShowHitboxes then return false end
+
 	local Reanimator = Reanimate.Current
 	if Reanimator and Reanimator.ShowHitboxes then
 		Reanimator.ShowHitboxes()
 	end
+
+	local originalRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+	if originalRoot and originalRoot:IsA("BasePart") then
+		Util.ShowPartHitbox(originalRoot, Color3.fromRGB(255, 70, 70), 0)
+	end
+	local reanimatedRoot = Reanimate.Character and Reanimate.Character:FindFirstChild("HumanoidRootPart")
+	if reanimatedRoot and reanimatedRoot:IsA("BasePart") and reanimatedRoot ~= originalRoot then
+		Util.ShowPartHitbox(reanimatedRoot, Color3.fromRGB(40, 190, 255), 0)
+	end
+	return true
 end
+local LastReanimateHitboxRefresh = -math.huge
+RunService.Heartbeat:Connect(function()
+	if Reanimate.ShowHitboxes then
+		local now = os.clock()
+		if now - LastReanimateHitboxRefresh >= 0.5 then
+			LastReanimateHitboxRefresh = now
+			ReanimateShowHitboxes()
+		end
+	elseif LastReanimateHitboxRefresh ~= -math.huge then
+		ClearReanimateHitboxes()
+		LastReanimateHitboxRefresh = -math.huge
+	end
+end)
 local function ReanimateFling(target, duration)
 	local Reanimator = Reanimate.Current
 	if Reanimator and Reanimator.Fling then
@@ -7185,10 +7319,12 @@ do
 		end
 		ReanimateStartButton.Interactable = true
 	end)
-	UI.CreateButton(MainPage, "Show Reanimate Hitboxes", 15).Activated:Connect(function()
-		if not Reanimate.Character then return end
+	UI.CreateSwitch(MainPage, "Show Reanimate Hitboxes", Reanimate.ShowHitboxes).Changed:Connect(function(value)
+		Reanimate.ShowHitboxes = value
+		SaveData.ShowReanimateHitboxes = value
 		ReanimateShowHitboxes()
 	end)
+	UI.CreateText(MainPage, "red = original rootpart | cyan = reanimated rootpart | green = collidable hats", 10, Enum.TextXAlignment.Center)
 	UI.CreateButton(MainPage, "Refresh Reanimate Character", 10).Activated:Connect(function()
 		if not Reanimate.Character then return end
 		Reanimate.CreateCharacter()
@@ -7218,10 +7354,22 @@ do
 		Reanimate.ShiftlockEnabled = val
 		SaveData.ShiftlockDisabled = not val
 	end)
-	UI.CreateSwitch(MainPage, "Can Sit on Seats", Reanimate.SeatSit).Changed:Connect(function(val)
+	local SeatSitSwitch = UI.CreateSwitch(MainPage, "Can Sit on Seats", Reanimate.SeatSit)
+	SeatSitSwitch.Changed:Connect(function(val)
 		Reanimate.SeatSit = val
 		SaveData.NoSeatSitEnabled = not val
 	end)
+	local KeepSeatSitStateSwitch, KeepSeatSitStateText = UI.CreateSwitch(MainPage, "↳ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
+	KeepSeatSitStateSwitch.Changed:Connect(function(val)
+		Reanimate.KeepSeatSitState = val
+		SaveData.KeepSeatSitState = val
+	end)
+	local function UpdateKeepSeatSitStateOption()
+		KeepSeatSitStateText.Parent.Interactable = SeatSitSwitch.Value
+		KeepSeatSitStateText.TextTransparency = SeatSitSwitch.Value and 0 or 0.5
+	end
+	SeatSitSwitch.Changed:Connect(UpdateKeepSeatSitStateOption)
+	UpdateKeepSeatSitStateOption()
 	UI.CreateSwitch(MainPage, "Can Pickup Tools", Reanimate.ToolGrab).Changed:Connect(function(val)
 		Reanimate.ToolGrab = val
 		SaveData.ToolGrabEnabled = val
@@ -7270,6 +7418,11 @@ do
 		Reanimate.PlaceholderTransparency = val
 		SaveData.PlaceholderTransparency = val
 	end)
+	UI.CreateSwitch(MainPage, "Show Red Reset Placeholder", Reanimate.ShowResetPlaceholder).Changed:Connect(function(val)
+		Reanimate.ShowResetPlaceholder = val
+		SaveData.ShowResetPlaceholder = val
+	end)
+	UI.CreateText(MainPage, "shows the original red translucent fake rig before the new real character is detected", 10, Enum.TextXAlignment.Center)
 	UI.CreateSeparator(MainPage)
 	local function ReanimCharacterTeleport(pos)
 		local ch = Reanimate.Character or Player.Character
@@ -7443,9 +7596,282 @@ do
 end
 UI.CreateSeparator(MainPage)
 
-local AnimLib = {}
+if type(SaveData.AnimLibOptions) ~= "table" then SaveData.AnimLibOptions = {} end
+local SavedAnimLibOptions = SaveData.AnimLibOptions
+SavedAnimLibOptions.Speed = math.clamp(tonumber(SavedAnimLibOptions.Speed) or 1, 0.25, 2)
+SavedAnimLibOptions.FadeIn = math.clamp(tonumber(SavedAnimLibOptions.FadeIn) or 0, 0, 1)
+SavedAnimLibOptions.JointPreset = type(SavedAnimLibOptions.JointPreset) == "string" and SavedAnimLibOptions.JointPreset or "Full Body"
+SavedAnimLibOptions.SyncToDanceMusic = SavedAnimLibOptions.SyncToDanceMusic == true
+SavedAnimLibOptions.ApplySpeedToMusic = SavedAnimLibOptions.ApplySpeedToMusic == true
+SavedAnimLibOptions.MarkerNotifications = SavedAnimLibOptions.MarkerNotifications == true
+SavedAnimLibOptions.ResetPoseOnStop = SavedAnimLibOptions.ResetPoseOnStop == true
+SavedAnimLibOptions.KrystalHeadTracking = SavedAnimLibOptions.KrystalHeadTracking == true
+SavedAnimLibOptions.KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride ~= false
+SavedAnimLibOptions.KrystalHeadStrength = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadStrength) or 1, 0, 1.5)
+SavedAnimLibOptions.KrystalHeadSmoothing = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadSmoothing) or 10, 1, 30)
+
+local AnimLib = {
+	Version = "1.5.3",
+	Settings = {
+		Speed = SavedAnimLibOptions.Speed,
+		FadeIn = SavedAnimLibOptions.FadeIn,
+		JointPreset = SavedAnimLibOptions.JointPreset,
+		SyncToDanceMusic = SavedAnimLibOptions.SyncToDanceMusic,
+		ApplySpeedToMusic = SavedAnimLibOptions.ApplySpeedToMusic,
+		MarkerNotifications = SavedAnimLibOptions.MarkerNotifications,
+		ResetPoseOnStop = SavedAnimLibOptions.ResetPoseOnStop,
+		KrystalHeadTracking = SavedAnimLibOptions.KrystalHeadTracking,
+		KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride,
+		KrystalHeadStrength = SavedAnimLibOptions.KrystalHeadStrength,
+		KrystalHeadSmoothing = SavedAnimLibOptions.KrystalHeadSmoothing,
+		DanceSoundProvider = function()
+			return UISound.DanceMusic
+		end,
+	},
+}
 do
+	local function CleanupItem(item)
+		local success, reason = pcall(function()
+			local itemType = typeof(item)
+			if itemType == "RBXScriptConnection" then
+				if item.Connected then item:Disconnect() end
+			elseif itemType == "Instance" then
+				item:Destroy()
+			elseif type(item) == "thread" then
+				task.cancel(item)
+			elseif type(item) == "function" then
+				item()
+			elseif type(item) == "table" then
+				if type(item.Disconnect) == "function" then
+					item:Disconnect()
+				elseif type(item.Destroy) == "function" then
+					item:Destroy()
+				end
+			end
+		end)
+		if not success then warn("AnimLib cleanup failed: " .. tostring(reason)) end
+	end
+
+	local ConnectionGroup = {}
+	ConnectionGroup.__index = ConnectionGroup
+	function ConnectionGroup.new()
+		local self = setmetatable({}, ConnectionGroup)
+		self._items = {}
+		self._destroyed = false
+		return self
+	end
+	function ConnectionGroup:Add(item)
+		assert(not self._destroyed, "cannot add to a destroyed ConnectionGroup")
+		if item ~= nil then table.insert(self._items, item) end
+		return item
+	end
+	function ConnectionGroup:Remove(item, cleanup)
+		local index = table.find(self._items, item)
+		if not index then return nil end
+		local removed = table.remove(self._items, index)
+		if cleanup then CleanupItem(removed) end
+		return removed
+	end
+	function ConnectionGroup:Count()
+		return #self._items
+	end
+	function ConnectionGroup:Cleanup()
+		local items = self._items
+		self._items = {}
+		for index = #items, 1, -1 do
+			CleanupItem(items[index])
+		end
+		return self
+	end
+	function ConnectionGroup:LinkToInstance(instance)
+		assert(typeof(instance) == "Instance", "instance must be an Instance")
+		self:Add(instance.Destroying:Connect(function()
+			self:Cleanup()
+		end))
+		return self
+	end
+	function ConnectionGroup:Destroy()
+		if self._destroyed then return end
+		self:Cleanup()
+		self._destroyed = true
+	end
+	AnimLib.ConnectionGroup = ConnectionGroup
+
+	local SupportedRunSignals = {
+		PreAnimation = true,
+		PreSimulation = true,
+		PostSimulation = true,
+		Heartbeat = true,
+		RenderStepped = true,
+	}
+	local function ResolveRunSignal(signal, defaultName)
+		if typeof(signal) == "RBXScriptSignal" then return signal, "Custom" end
+		signal = signal or defaultName or "PreAnimation"
+		assert(type(signal) == "string" and SupportedRunSignals[signal], "unsupported RunService signal: " .. tostring(signal))
+		local success, resolved = pcall(function()
+			return RunService[signal]
+		end)
+		assert(success and typeof(resolved) == "RBXScriptSignal", "RunService signal is unavailable: " .. signal)
+		return resolved, signal
+	end
+
 	local Track = {}
+	local TrackFileCache = {}
+	local function SortAndUpdateTrackTime(track)
+		track.Time = 0
+		table.sort(track.Keyframes, function(a, b)
+			return a.Time < b.Time
+		end)
+		for _,keyframe in track.Keyframes do
+			track.Time = math.max(track.Time, keyframe.Time)
+		end
+		if track.Markers then
+			table.sort(track.Markers, function(a, b)
+				return a.Time < b.Time
+			end)
+			for _,marker in track.Markers do
+				track.Time = math.max(track.Time, marker.Time)
+			end
+		end
+		return track
+	end
+	function Track.new(name)
+		return {
+			Name = name or "<unknown>",
+			Time = 0,
+			Keyframes = {},
+			Markers = {},
+		}
+	end
+	function Track.validate(track)
+		if type(track) ~= "table" then return false, "track must be a table" end
+		if type(track.Keyframes) ~= "table" then return false, "track.Keyframes must be a table" end
+		for keyframeindex,keyframe in track.Keyframes do
+			if type(keyframe) ~= "table" then return false, "keyframe " .. keyframeindex .. " must be a table" end
+			if type(keyframe.Time) ~= "number" or keyframe.Time < 0 then return false, "keyframe " .. keyframeindex .. " has an invalid time" end
+			if type(keyframe.Poses) ~= "table" then return false, "keyframe " .. keyframeindex .. " poses must be a table" end
+			for poseindex,pose in keyframe.Poses do
+				if type(pose) ~= "table" then return false, "pose " .. poseindex .. " in keyframe " .. keyframeindex .. " must be a table" end
+				if type(pose.Name) ~= "string" then return false, "pose " .. poseindex .. " has no name" end
+				if typeof(pose.CFrame) ~= "CFrame" then return false, "pose " .. poseindex .. " has no CFrame" end
+			end
+		end
+		if track.Markers ~= nil then
+			if type(track.Markers) ~= "table" then return false, "track.Markers must be a table" end
+			for markerindex,marker in track.Markers do
+				if type(marker) ~= "table" then return false, "marker " .. markerindex .. " must be a table" end
+				if type(marker.Name) ~= "string" or marker.Name == "" then return false, "marker " .. markerindex .. " has no name" end
+				if type(marker.Time) ~= "number" or marker.Time < 0 then return false, "marker " .. markerindex .. " has an invalid time" end
+			end
+		end
+		return true
+	end
+	function Track.clone(track)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		return Util.DeepcopyTable(track)
+	end
+	function Track.getDuration(track)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		local duration = 0
+		for _,keyframe in track.Keyframes do
+			duration = math.max(duration, keyframe.Time)
+		end
+		for _,marker in track.Markers or {} do
+			duration = math.max(duration, marker.Time)
+		end
+		track.Time = duration
+		return duration
+	end
+	function Track.sort(track)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		return SortAndUpdateTrackTime(track)
+	end
+	function Track.addKeyframe(track, time, poses)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(time) == "number" and time >= 0, "time must be zero or greater")
+		assert(poses == nil or type(poses) == "table", "poses must be a table or nil")
+		local keyframe = {
+			Time = time,
+			Poses = poses and Util.DeepcopyTable(poses) or {},
+		}
+		table.insert(track.Keyframes, keyframe)
+		SortAndUpdateTrackTime(track)
+		return keyframe
+	end
+	function Track.removeKeyframe(track, index)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(index) == "number", "index must be a number")
+		local removed = table.remove(track.Keyframes, index)
+		SortAndUpdateTrackTime(track)
+		return removed
+	end
+	function Track.findKeyframes(track, starttime, endtime)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		starttime = starttime or 0
+		endtime = endtime or Track.getDuration(track)
+		local found = {}
+		for index,keyframe in track.Keyframes do
+			if keyframe.Time >= starttime and keyframe.Time <= endtime then
+				table.insert(found, {Index = index, Keyframe = keyframe})
+			end
+		end
+		return found
+	end
+	function Track.addMarker(track, time, name, value)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(time) == "number" and time >= 0, "time must be zero or greater")
+		assert(type(name) == "string" and name ~= "", "name must be a non-empty string")
+		track.Markers = track.Markers or {}
+		local marker = {
+			Time = time,
+			Name = name,
+			Value = value,
+		}
+		table.insert(track.Markers, marker)
+		SortAndUpdateTrackTime(track)
+		return marker
+	end
+	function Track.removeMarker(track, index)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(index) == "number", "index must be a number")
+		track.Markers = track.Markers or {}
+		local removed = table.remove(track.Markers, index)
+		SortAndUpdateTrackTime(track)
+		return removed
+	end
+	function Track.getMarkers(track, name)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(name == nil or type(name) == "string", "name must be a string or nil")
+		local markers = {}
+		for _,marker in track.Markers or {} do
+			if name == nil or marker.Name == name then
+				table.insert(markers, marker)
+			end
+		end
+		return markers
+	end
+	function Track.getMarkersBetween(track, starttime, endtime, includeStart)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(starttime) == "number" and type(endtime) == "number", "starttime and endtime must be numbers")
+		local markers = {}
+		for _,marker in track.Markers or {} do
+			local afterStart = includeStart and marker.Time >= starttime or marker.Time > starttime
+			if afterStart and marker.Time <= endtime then
+				table.insert(markers, marker)
+			end
+		end
+		return markers
+	end
 	function Track.frombuffer(buf)
 		local needle = 0
 		local buflen = buffer.len(buf)
@@ -7477,6 +7903,7 @@ do
 			Name = "<unknown>",
 			Time = 0,
 			Keyframes = {},
+			Markers = {},
 		}
 		anim.Name = readstring() -- name
 		local nkeyframes = readsizet() -- # of keyframes
@@ -7512,17 +7939,32 @@ do
 			end
 			table.insert(anim.Keyframes, keyframe)
 		end
-		-- sort by time for ez lookup
-		table.sort(anim.Keyframes, function(a, b)
-			return a.Time < b.Time
-		end)
-		return anim
+		return SortAndUpdateTrackTime(anim)
 	end
 	function Track.fromfile(path)
 		local s, data = pcall(readfile, path)
 		if s and data then
 			local buf = buffer.fromstring(data)
-			return Track.frombuffer(buf)
+			local parsed, track = pcall(Track.frombuffer, buf)
+			if parsed then return track end
+			return nil, track
+		end
+		return nil, data
+	end
+	function Track.fromfilecached(path, refresh)
+		if not refresh and TrackFileCache[path] then
+			return Track.clone(TrackFileCache[path])
+		end
+		local track, reason = Track.fromfile(path)
+		if not track then return nil, reason end
+		TrackFileCache[path] = Track.clone(track)
+		return track
+	end
+	function Track.clearfilecache(path)
+		if path then
+			TrackFileCache[path] = nil
+		else
+			table.clear(TrackFileCache)
 		end
 	end
 	function Track.frominstance(ks)
@@ -7531,15 +7973,32 @@ do
 			Name = "<unknown>",
 			Time = 0,
 			Keyframes = {},
+			Markers = {},
 		}
 		anim.Name = ks.Name
 		for _,k in ks:GetKeyframes() do
 			local t = k.Time
 			anim.Time = math.max(anim.Time, t)
 			local keyframe = {
+				Name = k.Name,
 				Time = t,
 				Poses = {}
 			}
+			if k.Name ~= "" and k.Name ~= "Keyframe" then
+				table.insert(anim.Markers, {
+					Name = k.Name,
+					Time = t,
+					Source = "Keyframe",
+				})
+			end
+			for _,marker in k:GetMarkers() do
+				table.insert(anim.Markers, {
+					Name = marker.Name,
+					Time = t,
+					Value = marker.Value,
+					Source = "KeyframeMarker",
+				})
+			end
 			for _,p in k:GetDescendants() do
 				if not p:IsA("Pose") then continue end
 				table.insert(keyframe.Poses, {
@@ -7552,24 +8011,117 @@ do
 			end
 			table.insert(anim.Keyframes, keyframe)
 		end
-		table.sort(anim.Keyframes, function(a, b)
-			return a.Time < b.Time
-		end)
-		return anim
+		return SortAndUpdateTrackTime(anim)
 	end
 	function Track.paste(target, source, timeoffset)
+		local targetvalid, targetreason = Track.validate(target)
+		local sourcevalid, sourcereason = Track.validate(source)
+		assert(targetvalid, targetreason)
+		assert(sourcevalid, sourcereason)
+		timeoffset = timeoffset or 0
+		assert(type(timeoffset) == "number", "timeoffset must be a number")
 		for _,keyframe in source.Keyframes do
-			local newkeyframe = DeepcopyTable(keyframe)
+			local newkeyframe = Util.DeepcopyTable(keyframe)
 			newkeyframe.Time += timeoffset
+			assert(newkeyframe.Time >= 0, "timeoffset creates a negative keyframe time")
 			table.insert(target.Keyframes, newkeyframe)
 		end
-		anim.Time = 0
-		table.sort(source.Keyframes, function(a, b)
-			anim.Time = math.max(anim.Time, a.Time, b.Time)
-			return a.Time < b.Time
-		end)
+		target.Markers = target.Markers or {}
+		for _,marker in source.Markers or {} do
+			local newmarker = Util.DeepcopyTable(marker)
+			newmarker.Time += timeoffset
+			assert(newmarker.Time >= 0, "timeoffset creates a negative marker time")
+			table.insert(target.Markers, newmarker)
+		end
+		return SortAndUpdateTrackTime(target)
+	end
+	function Track.append(target, source, gap)
+		gap = gap or 0
+		return Track.paste(target, source, Track.getDuration(target) + gap)
+	end
+	function Track.scaleTime(track, factor)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		assert(type(factor) == "number" and factor > 0, "factor must be greater than zero")
+		for _,keyframe in track.Keyframes do
+			keyframe.Time *= factor
+		end
+		for _,marker in track.Markers or {} do
+			marker.Time *= factor
+		end
+		return SortAndUpdateTrackTime(track)
+	end
+	function Track.reverse(track)
+		local reversed = Track.clone(track)
+		local duration = Track.getDuration(reversed)
+		for _,keyframe in reversed.Keyframes do
+			keyframe.Time = duration - keyframe.Time
+			for _,pose in keyframe.Poses do
+				if pose.EasingDirection == "In" then
+					pose.EasingDirection = "Out"
+				elseif pose.EasingDirection == "Out" then
+					pose.EasingDirection = "In"
+				end
+			end
+		end
+		for _,marker in reversed.Markers or {} do
+			marker.Time = duration - marker.Time
+		end
+		return SortAndUpdateTrackTime(reversed)
+	end
+	function Track.slice(track, starttime, endtime)
+		local valid, reason = Track.validate(track)
+		assert(valid, reason)
+		starttime = math.max(starttime or 0, 0)
+		endtime = math.min(endtime or Track.getDuration(track), Track.getDuration(track))
+		assert(endtime >= starttime, "endtime must not be before starttime")
+
+		local sliced = Track.new((track.Name or "<unknown>") .. " (slice)")
+		local hasStartKeyframe = false
+		for _,keyframe in track.Keyframes do
+			if keyframe.Time >= starttime and keyframe.Time <= endtime then
+				local copy = Util.DeepcopyTable(keyframe)
+				copy.Time -= starttime
+				if copy.Time == 0 then hasStartKeyframe = true end
+				table.insert(sliced.Keyframes, copy)
+			end
+		end
+		if not hasStartKeyframe and starttime < Track.getDuration(track) then
+			local poses = {}
+			for name,cframe in Track.getPoses(track, starttime, false) do
+				table.insert(poses, {
+					Name = name,
+					Weight = 1,
+					EasingStyle = "Linear",
+					EasingDirection = "InOut",
+					CFrame = cframe,
+				})
+			end
+			table.insert(sliced.Keyframes, {Time = 0, Poses = poses})
+		end
+		for _,marker in track.Markers or {} do
+			if marker.Time >= starttime and marker.Time <= endtime then
+				local copy = Util.DeepcopyTable(marker)
+				copy.Time -= starttime
+				table.insert(sliced.Markers, copy)
+			end
+		end
+		return SortAndUpdateTrackTime(sliced)
+	end
+	local function GetEasedAlpha(alpha, easingstyle, easingdirection)
+		alpha = math.clamp(alpha, 0, 1)
+		if easingstyle == "Constant" then
+			if easingdirection == "In" then return 1 end
+			if easingdirection == "Out" then return 0 end
+			return alpha < 0.5 and 0 or 1
+		end
+		if easingstyle == "CubicV2" then easingstyle = "Cubic" end
+		local style = Enum.EasingStyle[easingstyle] or Enum.EasingStyle.Linear
+		local direction = Enum.EasingDirection[easingdirection] or Enum.EasingDirection.InOut
+		return TweenService:GetValue(alpha, style, direction)
 	end
 	function Track.getPoses(track, t, looped)
+		assert(type(t) == "number", "time must be a number")
 		-- not recommended for use on big anims
 		local poses = {}
 		local keyframes = track.Keyframes
@@ -7578,7 +8130,7 @@ do
 				poses[pose.Name] = CFrame.identity
 			end
 		end
-		if looped then
+		if looped and track.Time > 0 then
 			t = t % track.Time
 		end
 		for name,_ in poses do
@@ -7604,30 +8156,7 @@ do
 			local cf = CFrame.identity
 			if k1 ~= nil then
 				if k2 ~= nil then
-					local a = (t - t1) / (t2 - t1)
-					local es, ed = k1.EasingStyle, k1.EasingDirection
-					if es == "Constant" then
-						if ed == "In" then
-							a = 1
-						elseif ed == "Out" then
-							a = 0
-						else
-							if a < 0.5 then
-								a = 0
-							else
-								a = 1
-							end
-						end
-					else
-						if es == "CubicV2" then
-							es = "Cubic"
-						end
-						a = TweenService:GetValue(
-							a,
-							Enum.EasingStyle[es],
-							Enum.EasingDirection[ed]
-						)
-					end
+					local a = GetEasedAlpha((t - t1) / (t2 - t1), k1.EasingStyle, k1.EasingDirection)
 					cf = k1.CFrame:Lerp(k2.CFrame, a)
 				else
 					cf = k1.CFrame
@@ -7642,6 +8171,26 @@ do
 		return poses
 	end
 	AnimLib.Track = Track
+	local JointPresets = {
+		["Full Body"] = nil,
+		["Upper Body"] = {
+			Mode = "Blacklist",
+			Names = {"Left Leg", "Right Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"},
+		},
+		["Lower Body"] = {
+			Mode = "Blacklist",
+			Names = {"Head", "Left Arm", "Right Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"},
+		},
+		["Arms Only"] = {
+			Mode = "Whitelist",
+			Names = {"Left Arm", "Right Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"},
+		},
+	}
+	function AnimLib.GetJointPreset(name)
+		local preset = JointPresets[name]
+		if not preset then return nil, "Blacklist" end
+		return table.clone(preset.Names), preset.Mode
+	end
 	local Animator = {}
 	Animator.__index = Animator
 	function Animator.new()
@@ -7652,21 +8201,465 @@ do
 		self.looped = false
 		self.speed = 1
 		self.weight = 1
+		self.jointMask = nil
+		self.jointMaskMode = "Blacklist"
+		self.timePosition = 0
+		self.playing = false
+		self.paused = false
 		self._optimiser = 1
 		self._jointmap = nil
 		self._skipsec = nil
 		self._rig = nil
 		self._track = nil
+		self._updateConnection = nil
+		self._boundSignal = nil
+		self._syncSound = nil
+		self._soundOffset = 0
+		self._fade = nil
+		self._lastTrackTime = nil
+		self._finishedFired = false
+		self._manualFadeStart = nil
+		self._lastDanceMusicStepInput = nil
+		self._lastObservedDanceMusicTime = nil
+		self._usingDanceMusicClock = false
+		self.autoFadeIn = 0
+		self.useDanceMusicSync = false
+		self.useGlobalPlaybackSpeed = true
+		self.showMarkerNotifications = false
+		self._destroyed = false
+		self._finishedEvent = Instance.new("BindableEvent")
+		self._markerEvent = Instance.new("BindableEvent")
+		self._markerEvents = {}
+		self.Finished = self._finishedEvent.Event
+		self.MarkerReached = self._markerEvent.Event
+		self.OnFinished = self.Finished
+		self.TimeReached = self.MarkerReached
+		self:ApplyDefaults()
 		return self
 	end
+	function Animator:ApplyDefaults()
+		local settings = AnimLib.Settings
+		if type(settings) ~= "table" then return self end
+		self.autoFadeIn = math.clamp(tonumber(settings.FadeIn) or 0, 0, 1)
+		self.useDanceMusicSync = settings.SyncToDanceMusic == true
+		self.useGlobalPlaybackSpeed = true
+		self.showMarkerNotifications = settings.MarkerNotifications == true
+		local mask, mode = AnimLib.GetJointPreset(settings.JointPreset)
+		if mask then
+			self:SetJointMask(mask, mode)
+		else
+			self:ClearJointMask()
+		end
+		return self
+	end
+	function Animator.fromTrack(rig, track, options)
+		local self = Animator.new()
+		self:SetRig(rig)
+		self:SetTrack(track)
+		self:Configure(options)
+		return self
+	end
+	function Animator:SetRig(rig)
+		assert(rig == nil or typeof(rig) == "Instance", "rig must be an Instance or nil")
+		self.rig = rig
+		self._rig = nil
+		self._jointmap = nil
+		return self
+	end
+	function Animator:SetTrack(track, keepTime)
+		if track ~= nil then
+			local valid, reason = Track.validate(track)
+			assert(valid, reason)
+		end
+		self.track = track
+		self._track = nil
+		self._skipsec = nil
+		self._lastTrackTime = nil
+		self._finishedFired = false
+		if not keepTime then self.timePosition = 0 end
+		return self
+	end
+	function Animator:Configure(options)
+		if type(options) ~= "table" then return self end
+		if options.Speed ~= nil then self:AdjustSpeed(options.Speed) end
+		if options.Weight ~= nil then self:AdjustWeight(options.Weight) end
+		if options.Looped ~= nil then self.looped = options.Looped == true end
+		if options.Map ~= nil then self.map = options.Map end
+		local jointMask = options.JointMask ~= nil and options.JointMask or options.Filter
+		local maskMode = options.MaskMode or options.FilterType
+		if jointMask ~= nil then self:SetJointMask(jointMask, maskMode) end
+		if options.Sound ~= nil then self:SyncToSound(options.Sound, options.SoundOffset) end
+		if options.AutoFadeIn ~= nil then
+			assert(type(options.AutoFadeIn) == "number" and options.AutoFadeIn >= 0, "AutoFadeIn must be zero or greater")
+			self.autoFadeIn = options.AutoFadeIn
+		end
+		if options.UseDanceMusicSync ~= nil then self.useDanceMusicSync = options.UseDanceMusicSync == true end
+		if options.UseGlobalPlaybackSpeed ~= nil then self.useGlobalPlaybackSpeed = options.UseGlobalPlaybackSpeed == true end
+		if options.MarkerNotifications ~= nil then self.showMarkerNotifications = options.MarkerNotifications == true end
+		return self
+	end
+	function Animator:LoadSequence(sequence, keepTime)
+		assert(typeof(sequence) == "Instance" and sequence:IsA("KeyframeSequence"), "sequence must be a KeyframeSequence")
+		return self:SetTrack(Track.frominstance(sequence), keepTime)
+	end
+	function Animator:LoadAnimation(source, keepTime)
+		if typeof(source) == "Instance" and source:IsA("KeyframeSequence") then
+			return self:LoadSequence(source, keepTime)
+		end
+		if type(source) == "string" then
+			local track, reason = Track.fromfilecached(source)
+			assert(track, reason)
+			return self:SetTrack(track, keepTime)
+		end
+		local valid, reason = Track.validate(source)
+		assert(valid, reason or "source must be an AnimLib track, KeyframeSequence, or local .anim path")
+		return self:SetTrack(source, keepTime)
+	end
+	function Animator:Play(startTime)
+		if startTime ~= nil then
+			self:Seek(startTime)
+		elseif not self.playing then
+			self._lastTrackTime = nil
+		end
+		self.playing = true
+		self.paused = false
+		self._finishedFired = false
+		if self.autoFadeIn > 0 then self._manualFadeStart = os.clock() end
+		return self
+	end
+	function Animator:Pause()
+		self.paused = true
+		return self
+	end
+	function Animator:Resume()
+		if self.track then self.playing = true end
+		self.paused = false
+		return self
+	end
+	function Animator:Stop(resetPose)
+		self.playing = false
+		self.paused = false
+		self.timePosition = 0
+		self._fade = nil
+		self._lastTrackTime = nil
+		if resetPose then self:ResetPose() end
+		return self
+	end
+	function Animator:Seek(timePosition)
+		assert(type(timePosition) == "number", "timePosition must be a number")
+		self.timePosition = math.max(timePosition, 0)
+		self._lastTrackTime = nil
+		return self
+	end
+	function Animator:SetTime(timePosition)
+		return self:Seek(timePosition)
+	end
+	function Animator:AdjustSpeed(speed)
+		assert(type(speed) == "number" and speed >= 0, "speed must be zero or greater")
+		self.speed = speed
+		return self
+	end
+	function Animator:AdjustWeight(weight)
+		assert(type(weight) == "number", "weight must be a number")
+		self.weight = math.clamp(weight, 0, 1)
+		return self
+	end
+	function Animator:GetTimePosition()
+		return self.timePosition
+	end
+	function Animator:GetTimeLength()
+		return self.track and Track.getDuration(self.track) or 0
+	end
+	function Animator:GetPlaybackSpeed(usingDanceMusicClock)
+		local speed = type(self.speed) == "number" and math.max(self.speed, 0) or 1
+		if not self.useGlobalPlaybackSpeed then return speed end
+		local settings = AnimLib.Settings
+		local globalSpeed = math.clamp(tonumber(settings and settings.Speed) or 1, 0.25, 2)
+		if usingDanceMusicClock and settings and settings.ApplySpeedToMusic then return speed end
+		return speed * globalSpeed
+	end
+	function Animator:GetPose(timePosition, looped)
+		assert(self.track, "animator has no track")
+		timePosition = timePosition == nil and self.timePosition or timePosition
+		assert(type(timePosition) == "number", "timePosition must be a number")
+		local _, usingDanceMusicClock = self:_GetSyncSound()
+		local t = math.max(timePosition, 0) * self:GetPlaybackSpeed(usingDanceMusicClock)
+		local map = self.map
+		if map and map[1] and map[2] then
+			local inputduration = map[1][2] - map[1][1]
+			if inputduration ~= 0 then
+				t = map[2][1] + (t - map[1][1]) * (map[2][2] - map[2][1]) / inputduration
+			end
+		end
+		if looped == nil then looped = self.looped end
+		return Track.getPoses(self.track, t, looped == true)
+	end
+	Animator.GetPoses = Animator.GetPose
+	function Animator:IsPlaying()
+		return self.playing and not self.paused
+	end
+	function Animator:SetJointMask(mask, mode)
+		if mask == nil then return self:ClearJointMask() end
+		assert(type(mask) == "table", "mask must be a table")
+		mode = mode or self.jointMaskMode or "Blacklist"
+		if type(mode) == "string" then
+			local normalized = string.lower(mode)
+			if normalized == "blacklist" then mode = "Blacklist" end
+			if normalized == "whitelist" then mode = "Whitelist" end
+		end
+		assert(mode == "Blacklist" or mode == "Whitelist", "mode must be Blacklist or Whitelist")
+		local normalizedMask = {}
+		for key,value in mask do
+			local joint = type(key) == "number" and value or key
+			local enabled = type(key) == "number" or value == true
+			if typeof(joint) == "Instance" and joint:IsA("Motor6D") then
+				joint = joint.Part1 and joint.Part1.Name or joint.Name
+			end
+			assert(type(joint) == "string", "joint mask entries must be names or Motor6Ds")
+			if enabled then normalizedMask[joint] = true end
+		end
+		self.jointMask = normalizedMask
+		self.jointMaskMode = mode
+		return self
+	end
+	function Animator:GetJointMask()
+		return self.jointMask and table.clone(self.jointMask) or nil, self.jointMaskMode
+	end
+	function Animator:ClearJointMask()
+		self.jointMask = nil
+		return self
+	end
+	function Animator:SetFilter(filter, filterType)
+		return self:SetJointMask(filter, filterType)
+	end
+	function Animator:ClearFilter()
+		return self:ClearJointMask()
+	end
+	function Animator:_ShouldAnimateJoint(name)
+		if not self.jointMask then return true end
+		local listed = self.jointMask[name] == true
+		return self.jointMaskMode == "Whitelist" and listed or not listed
+	end
+	function Animator:SyncToSound(sound, offset)
+		assert(typeof(sound) == "Instance" and sound:IsA("Sound"), "sound must be a Sound")
+		assert(offset == nil or type(offset) == "number", "offset must be a number or nil")
+		self._syncSound = sound
+		self._soundOffset = offset or 0
+		self._lastTrackTime = nil
+		return self
+	end
+	function Animator:ClearSoundSync()
+		self._syncSound = nil
+		self._soundOffset = 0
+		self._lastTrackTime = nil
+		return self
+	end
+	function Animator:GetSyncedSound()
+		return self._syncSound, self._soundOffset
+	end
+	function Animator:_GetSyncSound()
+		if self._syncSound and self._syncSound.Parent then return self._syncSound, false end
+		if not self.useDanceMusicSync then return nil end
+		local provider = AnimLib.Settings and AnimLib.Settings.DanceSoundProvider
+		if type(provider) ~= "function" then return nil end
+		local success, sound = pcall(provider)
+		if success and typeof(sound) == "Instance" and sound:IsA("Sound") and sound.Parent and sound.IsPlaying then
+			return sound, true
+		end
+		return nil
+	end
+	function Animator:FadeTo(weight, duration, stopOnComplete, resetPose)
+		assert(type(weight) == "number", "weight must be a number")
+		assert(type(duration) == "number" and duration >= 0, "duration must be zero or greater")
+		weight = math.clamp(weight, 0, 1)
+		if duration == 0 then
+			self:AdjustWeight(weight)
+			self._fade = nil
+			if stopOnComplete then self:Stop(resetPose) end
+			return self
+		end
+		self._fade = {
+			From = self.weight,
+			To = weight,
+			Duration = duration,
+			Elapsed = 0,
+			StopOnComplete = stopOnComplete == true,
+			ResetPose = resetPose == true,
+		}
+		return self
+	end
+	function Animator:FadeIn(duration, targetWeight)
+		targetWeight = targetWeight == nil and 1 or targetWeight
+		self.autoFadeIn = 0
+		self._manualFadeStart = nil
+		self:AdjustWeight(0)
+		if not self.playing then self:Play() end
+		return self:FadeTo(targetWeight, duration, false, false)
+	end
+	function Animator:FadeOut(duration, resetPose)
+		return self:FadeTo(0, duration, true, resetPose)
+	end
+	function Animator:_UpdateFade(dt)
+		local fade = self._fade
+		if not fade then return end
+		fade.Elapsed = math.min(fade.Elapsed + dt, fade.Duration)
+		local alpha = fade.Duration > 0 and fade.Elapsed / fade.Duration or 1
+		self.weight = fade.From + (fade.To - fade.From) * alpha
+		if alpha >= 1 then
+			self._fade = nil
+			if fade.StopOnComplete then self:Stop(fade.ResetPose) end
+		end
+	end
+	function Animator:GetMarkerReachedSignal(name)
+		assert(type(name) == "string" and name ~= "", "name must be a non-empty string")
+		local markerEvent = self._markerEvents[name]
+		if not markerEvent then
+			markerEvent = Instance.new("BindableEvent")
+			self._markerEvents[name] = markerEvent
+		end
+		return markerEvent.Event
+	end
+	function Animator:_FireMarker(marker)
+		self._markerEvent:Fire(marker.Name, marker.Value, marker)
+		local markerEvent = self._markerEvents[marker.Name]
+		if markerEvent then markerEvent:Fire(marker.Value, marker) end
+		if self.showMarkerNotifications then
+			Util.UINotify("Animation marker: " .. marker.Name)
+		end
+	end
+	function Animator:_ProcessMarkers(previousTime, currentTime, duration)
+		local function fireRange(startTime, endTime, includeStart)
+			for _,marker in Track.getMarkersBetween(self.track, startTime, endTime, includeStart) do
+				self:_FireMarker(marker)
+			end
+		end
+		if not self.track then return end
+		if previousTime == nil then
+			fireRange(currentTime, currentTime, true)
+			self._lastTrackTime = currentTime
+			return
+		end
+		if currentTime >= previousTime then
+			fireRange(previousTime, currentTime, false)
+		elseif self.looped and duration > 0 then
+			fireRange(previousTime, duration, false)
+			fireRange(0, currentTime, true)
+		end
+		self._lastTrackTime = currentTime
+	end
+	function Animator:_FireFinished()
+		if self._finishedFired then return end
+		self._finishedFired = true
+		self._finishedEvent:Fire(self.track)
+	end
+	function Animator:Bind(signal)
+		self:Unbind()
+		local resolved, name = ResolveRunSignal(signal, "PreAnimation")
+		self._boundSignal = name
+		self._updateConnection = resolved:Connect(function(dt)
+			self:Update(dt)
+		end)
+		return self
+	end
+	function Animator:Unbind()
+		if self._updateConnection then
+			self._updateConnection:Disconnect()
+			self._updateConnection = nil
+		end
+		self._boundSignal = nil
+		return self
+	end
+	function Animator:GetBoundSignal()
+		return self._boundSignal
+	end
+	function Animator:PlayAndBind(signal, startTime)
+		self:Play(startTime)
+		return self:Bind(signal)
+	end
+	function Animator:ResetPose()
+		if not self.rig then return self end
+		for _,descendant in self.rig:GetDescendants() do
+			if descendant:IsA("Motor6D") then
+				descendant.Transform = CFrame.identity
+			end
+		end
+		return self
+	end
+	function Animator:Update(dt)
+		if not self:IsPlaying() or not self.track then return false end
+		assert(type(dt) == "number" and dt >= 0, "dt must be zero or greater")
+		self:_UpdateFade(dt)
+		if not self:IsPlaying() then return false end
+		local syncSound, usingDanceMusicClock = self:_GetSyncSound()
+		if syncSound then
+			self.timePosition = math.max(syncSound.TimePosition + self._soundOffset, 0)
+		else
+			self.timePosition += dt
+		end
+
+		local duration = Track.getDuration(self.track)
+		if not self.looped and duration <= 0 then
+			self:Step(0)
+			self.playing = false
+			self:_FireFinished()
+			return false
+		end
+		local playbackSpeed = self:GetPlaybackSpeed(usingDanceMusicClock)
+		if not self.looped and self.timePosition * playbackSpeed >= duration then
+			self.timePosition = playbackSpeed > 0 and duration / playbackSpeed or self.timePosition
+			self:Step(self.timePosition)
+			self.playing = false
+			self:_FireFinished()
+			return false
+		end
+
+		self:Step(self.timePosition)
+		return true
+	end
+	function Animator:Destroy(resetPose)
+		if self._destroyed then return end
+		self._destroyed = true
+		self:Unbind()
+		if resetPose then self:ResetPose() end
+		self.playing = false
+		self.rig = nil
+		self.track = nil
+		self._jointmap = nil
+		self._skipsec = nil
+		self._rig = nil
+		self._track = nil
+		self._syncSound = nil
+		self._fade = nil
+		self._lastTrackTime = nil
+		for _,markerEvent in self._markerEvents do
+			markerEvent:Destroy()
+		end
+		self._markerEvents = {}
+		self._finishedEvent:Destroy()
+		self._markerEvent:Destroy()
+	end
 	function Animator:Step(t)
-		local rig, track, map, speed, weight, looped = self.rig, self.track, self.map, self.speed, self.weight, self.looped
+		assert(type(t) == "number", "time must be a number")
+		local syncSound, usingDanceMusicClock = self:_GetSyncSound()
+		if syncSound then t = math.max(syncSound.TimePosition + self._soundOffset, 0) end
+		if not usingDanceMusicClock then usingDanceMusicClock = IsDanceMusicDrivenStep(self, t) end
+		self.timePosition = math.max(t, 0)
+		local rig, track, map, weight, looped = self.rig, self.track, self.map, self.weight, self.looped
+		local speed = self:GetPlaybackSpeed(usingDanceMusicClock)
+		weight = type(weight) == "number" and math.clamp(weight, 0, 1) or 1
+		if track and self._track ~= track then self._manualFadeStart = os.clock() end
+		if self.autoFadeIn > 0 and self._manualFadeStart then
+			weight *= math.clamp((os.clock() - self._manualFadeStart) / self.autoFadeIn, 0, 1)
+		end
 		local jointmap, skipsec = self._jointmap, self._skipsec
 		if rig and track then
 			local scale = rig:GetScale()
 			t *= speed
-			if map then
-				t = map[2][1] + (t - map[1][1]) * (map[2][2] - map[2][1]) / (map[1][2] - map[1][1])
+			if map and map[1] and map[2] then
+				local inputduration = map[1][2] - map[1][1]
+				if inputduration ~= 0 then
+					t = map[2][1] + (t - map[1][1]) * (map[2][2] - map[2][1]) / inputduration
+				end
 			end
 			if self._rig ~= rig then
 				jointmap = nil
@@ -7731,9 +8724,10 @@ do
 			for name,_ in jointmap do
 				poses[name] = CFrame.identity
 			end
-			if looped then
+			if looped and track.Time > 0 then
 				t = t % track.Time
 			end
+			self:_ProcessMarkers(self._lastTrackTime, t, track.Time)
 			local skip1, skip2 = 1, #keyframes
 			if #skipsec >= 2 then
 				local i = t // self._optimiser
@@ -7769,30 +8763,7 @@ do
 				local cf = CFrame.identity
 				if k1 ~= nil then
 					if k2 ~= nil then
-						local a = (t - t1) / (t2 - t1)
-						local es, ed = k1.EasingStyle, k1.EasingDirection
-						if es == "Constant" then
-							if ed == "In" then
-								a = 1
-							elseif ed == "Out" then
-								a = 0
-							else
-								if a < 0.5 then
-									a = 0
-								else
-									a = 1
-								end
-							end
-						else
-							if es == "CubicV2" then
-								es = "Cubic"
-							end
-							a = TweenService:GetValue(
-								a,
-								Enum.EasingStyle[es],
-								Enum.EasingDirection[ed]
-							)
-						end
+						local a = GetEasedAlpha((t - t1) / (t2 - t1), k1.EasingStyle, k1.EasingDirection)
 						cf = k1.CFrame:Lerp(k2.CFrame, a)
 					else
 						cf = k1.CFrame
@@ -7805,6 +8776,7 @@ do
 				poses[name] = cf
 			end
 			for name,joint in jointmap do
+				if not self:_ShouldAnimateJoint(name) then continue end
 				local cf = poses[name] or CFrame.identity
 				cf = cf.Rotation + (cf.Position * scale)
 				if weight == 1 then
@@ -7816,6 +8788,840 @@ do
 		end
 	end
 	AnimLib.Animator = Animator
+
+	-- Clean-room behavior study: Theo's ToolDance.lua (Solary-3/Scripts).
+	-- The source repository does not publish a license, so no implementation code is copied here.
+	local DanceQueue = {}
+	DanceQueue.__index = DanceQueue
+	local function ResolveDanceTrack(value)
+		if type(value) == "string" then return Track.fromfilecached(value) end
+		local valid, reason = Track.validate(value)
+		if not valid then return nil, reason end
+		return value
+	end
+	function DanceQueue.new(rig)
+		local self = setmetatable({}, DanceQueue)
+		self.rig = rig
+		self.animator = Animator.new():SetRig(rig)
+		self.items = {}
+		self.current = nil
+		self.playing = false
+		self.paused = false
+		self._updateConnection = nil
+		self._boundSignal = nil
+		self._finishedFired = false
+		self._destroyed = false
+		self._itemStartedEvent = Instance.new("BindableEvent")
+		self._itemFinishedEvent = Instance.new("BindableEvent")
+		self._finishedEvent = Instance.new("BindableEvent")
+		self.ItemStarted = self._itemStartedEvent.Event
+		self.ItemFinished = self._itemFinishedEvent.Event
+		self.Finished = self._finishedEvent.Event
+		return self
+	end
+	function DanceQueue:SetRig(rig)
+		assert(rig == nil or typeof(rig) == "Instance", "rig must be an Instance or nil")
+		self.rig = rig
+		self.animator:SetRig(rig)
+		return self
+	end
+	function DanceQueue:Insert(index, track, options)
+		local resolved, reason = ResolveDanceTrack(track)
+		assert(resolved, reason)
+		assert(type(index) == "number", "index must be a number")
+		local item = {
+			Track = resolved,
+			Options = type(options) == "table" and table.clone(options) or {},
+		}
+		item.Name = item.Options.Name or resolved.Name or "<unknown>"
+		table.insert(self.items, math.clamp(index, 1, #self.items + 1), item)
+		self._finishedFired = false
+		return item
+	end
+	function DanceQueue:Enqueue(track, options)
+		return self:Insert(#self.items + 1, track, options)
+	end
+	function DanceQueue:Remove(index)
+		assert(type(index) == "number", "index must be a number")
+		return table.remove(self.items, index)
+	end
+	function DanceQueue:Count(includeCurrent)
+		return #self.items + (includeCurrent and self.current and 1 or 0)
+	end
+	function DanceQueue:GetCurrent()
+		return self.current
+	end
+	function DanceQueue:_StartNext()
+		local item = table.remove(self.items, 1)
+		if not item then return false end
+		self.current = item
+		local options = item.Options
+		local targetWeight = options.Weight == nil and 1 or options.Weight
+		self.animator:ApplyDefaults()
+		self.animator:SetRig(self.rig)
+		self.animator:SetTrack(item.Track)
+		if options.Speed ~= nil then self.animator:AdjustSpeed(options.Speed) end
+		self.animator:AdjustWeight(targetWeight)
+		self.animator.looped = options.Looped == true
+		self.animator.map = options.Map
+		if options.FadeIn ~= nil then self.animator.autoFadeIn = 0 end
+		local jointMask = options.JointMask ~= nil and options.JointMask or options.Filter
+		if jointMask then
+			self.animator:SetJointMask(jointMask, options.MaskMode or options.FilterType)
+		end
+		if options.Sound then
+			self.animator:SyncToSound(options.Sound, options.SoundOffset)
+		else
+			self.animator:ClearSoundSync()
+		end
+		self.animator:Play(options.StartTime or 0)
+		if type(options.FadeIn) == "number" and options.FadeIn > 0 then
+			self.animator:FadeIn(options.FadeIn, targetWeight)
+		end
+		self._itemStartedEvent:Fire(item)
+		return true
+	end
+	function DanceQueue:_FinishCurrent(reason)
+		local item = self.current
+		if not item then return end
+		self.current = nil
+		self._itemFinishedEvent:Fire(item, reason)
+	end
+	function DanceQueue:_FinishQueue()
+		self.playing = false
+		if self._finishedFired then return end
+		self._finishedFired = true
+		self._finishedEvent:Fire()
+	end
+	function DanceQueue:Play()
+		self.playing = true
+		self.paused = false
+		self._finishedFired = false
+		if not self.current and not self:_StartNext() then self:_FinishQueue() end
+		return self
+	end
+	function DanceQueue:Pause()
+		self.paused = true
+		self.animator:Pause()
+		return self
+	end
+	function DanceQueue:Resume()
+		self.paused = false
+		if self.current then self.animator:Resume() end
+		return self
+	end
+	function DanceQueue:Skip(resetPose)
+		if self.current then
+			self.animator:Stop(resetPose)
+			self:_FinishCurrent("Skipped")
+		end
+		if self.playing and not self:_StartNext() then self:_FinishQueue() end
+		return self
+	end
+	function DanceQueue:Clear(stopCurrent, resetPose)
+		table.clear(self.items)
+		if stopCurrent and self.current then
+			self.animator:Stop(resetPose)
+			self:_FinishCurrent("Cleared")
+		end
+		return self
+	end
+	function DanceQueue:Stop(clearQueue, resetPose)
+		self.playing = false
+		self.paused = false
+		self.animator:Stop(resetPose)
+		self:_FinishCurrent("Stopped")
+		if clearQueue then table.clear(self.items) end
+		return self
+	end
+	function DanceQueue:Update(dt)
+		if not self.playing or self.paused then return false end
+		assert(type(dt) == "number" and dt >= 0, "dt must be zero or greater")
+		if not self.current and not self:_StartNext() then
+			self:_FinishQueue()
+			return false
+		end
+		local item = self.current
+		local options = item.Options
+		local fadeOut = options.FadeOut
+		if type(fadeOut) == "number" and fadeOut > 0 and not self.animator.looped and not self.animator._fade then
+			local duration = Track.getDuration(item.Track)
+			local _, usingDanceMusicClock = self.animator:_GetSyncSound()
+			local playbackSpeed = self.animator:GetPlaybackSpeed(usingDanceMusicClock)
+			local trackRemaining = duration - self.animator.timePosition * playbackSpeed
+			local remaining = playbackSpeed > 0 and trackRemaining / playbackSpeed or math.huge
+			if remaining <= fadeOut then
+				self.animator:FadeTo(0, fadeOut, false, false)
+			end
+		end
+		if self.animator:Update(dt) then return true end
+		local reason = self.animator._finishedFired and "Finished" or "Stopped"
+		if options.ResetPoseOnFinish and reason == "Finished" then self.animator:ResetPose() end
+		self:_FinishCurrent(reason)
+		if self:_StartNext() then return true end
+		self:_FinishQueue()
+		return false
+	end
+	function DanceQueue:Bind(signal)
+		self:Unbind()
+		local resolved, name = ResolveRunSignal(signal, "PreAnimation")
+		self._boundSignal = name
+		self._updateConnection = resolved:Connect(function(dt)
+			self:Update(dt)
+		end)
+		return self
+	end
+	function DanceQueue:Unbind()
+		if self._updateConnection then
+			self._updateConnection:Disconnect()
+			self._updateConnection = nil
+		end
+		self._boundSignal = nil
+		return self
+	end
+	function DanceQueue:GetBoundSignal()
+		return self._boundSignal
+	end
+	function DanceQueue:PlayAndBind(signal)
+		self:Play()
+		return self:Bind(signal)
+	end
+	function DanceQueue:Destroy(resetPose)
+		if self._destroyed then return end
+		self._destroyed = true
+		self:Unbind()
+		self:Stop(true, resetPose)
+		self.animator:Destroy(false)
+		self._itemStartedEvent:Destroy()
+		self._itemFinishedEvent:Destroy()
+		self._finishedEvent:Destroy()
+		self.rig = nil
+	end
+	AnimLib.DanceQueue = DanceQueue
+
+	--[[
+	  Licensed under the MIT License (see LICENSE file for full details).
+	  Copyright (c) 2025 MrY7zz
+
+	  LEGAL NOTICE:
+	  You are REQUIRED to retain this license header under the terms of the MIT License.
+	  Removing or modifying this notice may violate copyright law.
+
+	  The pose-mapping concept below was adapted from CurrentAngle V2. Its optional
+	  hidden-property compatibility mode is disabled by default and never adds fling behavior.
+	]]
+	local Motor6DUtil = {}
+	local function ValidateMotor(motor)
+		if typeof(motor) ~= "Instance" or not motor:IsA("Motor6D") then
+			return false, "motor must be a Motor6D"
+		end
+		if not motor.Part0 or not motor.Part1 then
+			return false, "motor must have Part0 and Part1"
+		end
+		return true
+	end
+	local function ResolveWorldCFrame(value, fallback, name)
+		value = value or fallback
+		if typeof(value) == "CFrame" then return value end
+		if typeof(value) == "Instance" and value:IsA("BasePart") then return value.CFrame end
+		error((name or "value") .. " must be a BasePart or CFrame", 3)
+	end
+	function Motor6DUtil.Validate(motor)
+		return ValidateMotor(motor)
+	end
+	function Motor6DUtil.SolveWorldTransform(motor, target, reference)
+		local valid, reason = ValidateMotor(motor)
+		assert(valid, reason)
+		local targetCFrame = ResolveWorldCFrame(target, motor.Part1, "target")
+		local referenceCFrame = ResolveWorldCFrame(reference, motor.Part0, "reference")
+		local relative = referenceCFrame:Inverse() * targetCFrame
+		return motor.C0:Inverse() * relative * motor.C1
+	end
+	function Motor6DUtil.GetCurrentWorldTransform(motor)
+		return Motor6DUtil.SolveWorldTransform(motor, motor.Part1, motor.Part0)
+	end
+	function Motor6DUtil.GetWorldCFrame(motor, transform, reference)
+		local valid, reason = ValidateMotor(motor)
+		assert(valid, reason)
+		transform = transform or motor.Transform
+		assert(typeof(transform) == "CFrame", "transform must be a CFrame")
+		local referenceCFrame = ResolveWorldCFrame(reference, motor.Part0, "reference")
+		return referenceCFrame * motor.C0 * transform * motor.C1:Inverse()
+	end
+	function Motor6DUtil.RetargetTransform(sourceMotor, targetMotor)
+		local sourceValid, sourceReason = ValidateMotor(sourceMotor)
+		local targetValid, targetReason = ValidateMotor(targetMotor)
+		assert(sourceValid, sourceReason)
+		assert(targetValid, targetReason)
+		return Motor6DUtil.SolveWorldTransform(targetMotor, sourceMotor.Part1, sourceMotor.Part0)
+	end
+	function Motor6DUtil.ToReplicationVectors(transform)
+		assert(typeof(transform) == "CFrame", "transform must be a CFrame")
+		local axis, angle = transform:ToAxisAngle()
+		return transform.Position, axis * angle
+	end
+	function Motor6DUtil.TryHiddenReplication(motor, transform)
+		local valid, reason = ValidateMotor(motor)
+		if not valid then return false, reason end
+		if typeof(transform) ~= "CFrame" then return false, "transform must be a CFrame" end
+		if ismissing(sethiddenproperty) then return false, "sethiddenproperty is unavailable" end
+		local offset, angle = Motor6DUtil.ToReplicationVectors(transform)
+		local offsetSuccess, offsetReason = pcall(sethiddenproperty, motor, "ReplicateCurrentOffset6D", offset)
+		local angleSuccess, angleReason = pcall(sethiddenproperty, motor, "ReplicateCurrentAngle6D", angle)
+		if offsetSuccess and angleSuccess then return true end
+		return false, tostring(not offsetSuccess and offsetReason or angleReason)
+	end
+	function Motor6DUtil.ApplyTransform(motor, transform, options)
+		local valid, reason = ValidateMotor(motor)
+		assert(valid, reason)
+		assert(typeof(transform) == "CFrame", "transform must be a CFrame")
+		options = type(options) == "table" and options or {}
+		local weight = options.Weight == nil and 1 or options.Weight
+		local positionScale = options.PositionScale == nil and 1 or options.PositionScale
+		assert(type(weight) == "number", "Weight must be a number")
+		assert(type(positionScale) == "number" and positionScale >= 0, "PositionScale must be zero or greater")
+		weight = math.clamp(weight, 0, 1)
+		if positionScale ~= 1 then
+			transform = transform.Rotation + transform.Position * positionScale
+		end
+		local appliedTransform = motor.Transform:Lerp(transform, weight)
+		motor.Transform = appliedTransform
+		local replication = {
+			Attempted = options.HiddenReplication == true and 1 or 0,
+			Succeeded = 0,
+			Failed = 0,
+			LastError = nil,
+		}
+		if replication.Attempted == 1 then
+			local success, replicationReason = Motor6DUtil.TryHiddenReplication(motor, appliedTransform)
+			if success then
+				replication.Succeeded = 1
+			else
+				replication.Failed = 1
+				replication.LastError = replicationReason
+			end
+		end
+		return appliedTransform, replication
+	end
+	function Motor6DUtil.ApplyWorldPose(motor, target, reference, options)
+		local transform = Motor6DUtil.SolveWorldTransform(motor, target, reference)
+		local appliedTransform, replication = Motor6DUtil.ApplyTransform(motor, transform, options)
+		return appliedTransform, replication, transform
+	end
+	function Motor6DUtil.Reset(motor, hiddenReplication)
+		return Motor6DUtil.ApplyTransform(motor, CFrame.identity, {
+			HiddenReplication = hiddenReplication == true,
+		})
+	end
+	AnimLib.Motor6D = Motor6DUtil
+
+	local RigMapper = {}
+	RigMapper.__index = RigMapper
+	RigMapper.Modes = {
+		Transform = true,
+		WorldCFrame = true,
+	}
+	RigMapper.Presets = {
+		Exact = {},
+		R15ToR6 = {
+			Torso = "LowerTorso",
+			Head = "Head",
+			["Left Arm"] = "LeftUpperArm",
+			["Right Arm"] = "RightUpperArm",
+			["Left Leg"] = "LeftUpperLeg",
+			["Right Leg"] = "RightUpperLeg",
+		},
+		R6ToR15 = {
+			LowerTorso = "Torso",
+			Head = "Head",
+			LeftUpperArm = "Left Arm",
+			RightUpperArm = "Right Arm",
+			LeftUpperLeg = "Left Leg",
+			RightUpperLeg = "Right Leg",
+		},
+	}
+	local function BuildMotorMap(rig)
+		local motors = {}
+		if not rig then return motors end
+		for _,descendant in rig:GetDescendants() do
+			if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
+				motors[descendant.Part1.Name] = descendant
+			end
+		end
+		return motors
+	end
+	function RigMapper.new(sourceRig, targetRig, aliases)
+		local self = setmetatable({}, RigMapper)
+		self.sourceRig = nil
+		self.targetRig = nil
+		self.aliases = {}
+		self.scalePositions = true
+		self.weight = 1
+		self.mode = "Transform"
+		self.hiddenReplication = false
+		self._sourceMotors = {}
+		self._targetMotors = {}
+		self._mappedMotors = {}
+		self._updateConnection = nil
+		self._boundSignal = nil
+		self._lastHiddenReplication = {
+			Attempted = 0,
+			Succeeded = 0,
+			Failed = 0,
+			LastError = nil,
+		}
+		self:SetRigs(sourceRig, targetRig)
+		self:SetAliases(aliases or RigMapper.Presets.Exact)
+		return self
+	end
+	function RigMapper:SetRigs(sourceRig, targetRig)
+		assert(sourceRig == nil or typeof(sourceRig) == "Instance", "sourceRig must be an Instance or nil")
+		assert(targetRig == nil or typeof(targetRig) == "Instance", "targetRig must be an Instance or nil")
+		self.sourceRig = sourceRig
+		self.targetRig = targetRig
+		return self:Refresh()
+	end
+	function RigMapper:SetAliases(aliases)
+		assert(type(aliases) == "table", "aliases must be a table")
+		self.aliases = table.clone(aliases)
+		return self:Refresh()
+	end
+	function RigMapper:SetPreset(name)
+		assert(type(name) == "string" and RigMapper.Presets[name], "unknown RigMapper preset: " .. tostring(name))
+		return self:SetAliases(RigMapper.Presets[name])
+	end
+	function RigMapper:SetMode(mode)
+		if type(mode) == "string" then
+			local normalized = string.lower(mode):gsub("[%s_%-]", "")
+			if normalized == "transform" then mode = "Transform" end
+			if normalized == "world" or normalized == "worldcframe" then mode = "WorldCFrame" end
+		end
+		assert(RigMapper.Modes[mode], "unknown RigMapper mode: " .. tostring(mode))
+		self.mode = mode
+		return self
+	end
+	function RigMapper:GetMode()
+		return self.mode
+	end
+	function RigMapper:SetHiddenReplication(enabled)
+		self.hiddenReplication = enabled == true
+		return self
+	end
+	function RigMapper:IsHiddenReplicationAvailable()
+		return not ismissing(sethiddenproperty)
+	end
+	function RigMapper:GetHiddenReplicationStatus()
+		return table.clone(self._lastHiddenReplication)
+	end
+	function RigMapper:Refresh()
+		self._sourceMotors = BuildMotorMap(self.sourceRig)
+		self._targetMotors = BuildMotorMap(self.targetRig)
+		self._mappedMotors = {}
+		for targetName,targetMotor in self._targetMotors do
+			local sourceName = self.aliases[targetName] or targetName
+			local sourceMotor = self._sourceMotors[sourceName]
+			if sourceMotor then
+				self._mappedMotors[targetName] = {
+					Source = sourceMotor,
+					Target = targetMotor,
+				}
+			end
+		end
+		return self
+	end
+	function RigMapper:GetMappedJointNames()
+		local names = {}
+		for name,_ in self._mappedMotors do
+			table.insert(names, name)
+		end
+		table.sort(names)
+		return names
+	end
+	function RigMapper:CopyPose(weight, scalePositions)
+		weight = weight == nil and self.weight or weight
+		scalePositions = scalePositions == nil and self.scalePositions or scalePositions
+		assert(type(weight) == "number", "weight must be a number")
+		weight = math.clamp(weight, 0, 1)
+		local replicationStatus = {
+			Attempted = 0,
+			Succeeded = 0,
+			Failed = 0,
+			LastError = nil,
+		}
+		self._lastHiddenReplication = replicationStatus
+		if weight == 0 then return 0, table.clone(replicationStatus) end
+
+		local positionScale = 1
+		if scalePositions and self.sourceRig and self.targetRig and self.sourceRig:IsA("Model") and self.targetRig:IsA("Model") then
+			local sourceScale = self.sourceRig:GetScale()
+			if sourceScale ~= 0 then positionScale = self.targetRig:GetScale() / sourceScale end
+		end
+
+		local copied = 0
+		for _,mapping in self._mappedMotors do
+			local transform = self.mode == "WorldCFrame"
+				and Motor6DUtil.RetargetTransform(mapping.Source, mapping.Target)
+				or mapping.Source.Transform
+			local _, replication = Motor6DUtil.ApplyTransform(mapping.Target, transform, {
+				Weight = weight,
+				PositionScale = positionScale,
+				HiddenReplication = self.hiddenReplication,
+			})
+			replicationStatus.Attempted += replication.Attempted
+			replicationStatus.Succeeded += replication.Succeeded
+			replicationStatus.Failed += replication.Failed
+			if replication.LastError then replicationStatus.LastError = replication.LastError end
+			copied += 1
+		end
+		return copied, table.clone(replicationStatus)
+	end
+	function RigMapper:ResetTargetPose()
+		local replicationStatus = {
+			Attempted = 0,
+			Succeeded = 0,
+			Failed = 0,
+			LastError = nil,
+		}
+		for _,motor in self._targetMotors do
+			local _, replication = Motor6DUtil.Reset(motor, self.hiddenReplication)
+			replicationStatus.Attempted += replication.Attempted
+			replicationStatus.Succeeded += replication.Succeeded
+			replicationStatus.Failed += replication.Failed
+			if replication.LastError then replicationStatus.LastError = replication.LastError end
+		end
+		self._lastHiddenReplication = replicationStatus
+		return self, table.clone(replicationStatus)
+	end
+	function RigMapper:Bind(signal)
+		self:Unbind()
+		local resolved, name = ResolveRunSignal(signal, "PostSimulation")
+		self._boundSignal = name
+		self._updateConnection = resolved:Connect(function()
+			self:CopyPose()
+		end)
+		return self
+	end
+	function RigMapper:Unbind()
+		if self._updateConnection then
+			self._updateConnection:Disconnect()
+			self._updateConnection = nil
+		end
+		self._boundSignal = nil
+		return self
+	end
+	function RigMapper:GetBoundSignal()
+		return self._boundSignal
+	end
+	function RigMapper:Destroy(resetPose)
+		self:Unbind()
+		if resetPose then self:ResetTargetPose() end
+		self.sourceRig = nil
+		self.targetRig = nil
+		self._sourceMotors = {}
+		self._targetMotors = {}
+		self._mappedMotors = {}
+	end
+	AnimLib.RigMapper = RigMapper
+
+	local StateMachine = {}
+	StateMachine.__index = StateMachine
+	local StateAliases = {
+		idle = "Idle",
+		walk = "Walk",
+		run = "Walk",
+		running = "Walk",
+		sprint = "Sprint",
+		sprinting = "Sprint",
+		forward = "WalkForward",
+		walkforward = "WalkForward",
+		backward = "WalkBackward",
+		walkbackward = "WalkBackward",
+		left = "WalkLeft",
+		walkleft = "WalkLeft",
+		right = "WalkRight",
+		walkright = "WalkRight",
+		jump = "Jump",
+		jumping = "Jump",
+		fall = "Fall",
+		freefall = "Fall",
+		land = "Land",
+		landed = "Land",
+		sit = "Sit",
+		seated = "Sit",
+		climb = "Climb",
+		climbing = "Climb",
+		swim = "Swim",
+		swimming = "Swim",
+		swimidle = "SwimIdle",
+	}
+	local function NormalizeStateName(name)
+		if type(name) ~= "string" then return nil end
+		return StateAliases[string.lower(name):gsub("[%s_%-]", "")]
+	end
+	local function ResolveTrackValue(value)
+		if type(value) == "string" then
+			return Track.fromfilecached(value)
+		end
+		local valid, reason = Track.validate(value)
+		if not valid then return nil, reason end
+		return value
+	end
+	function StateMachine.new(rig)
+		local self = setmetatable({}, StateMachine)
+		self.rig = nil
+		self.humanoid = nil
+		self.animator = Animator.new()
+		self.animations = {}
+		self.state = "Idle"
+		self.forcedState = nil
+		self.enabled = true
+		self.paused = false
+		self.sprinting = false
+		self.directional = false
+		self.landHoldTime = 0.2
+		self._landedUntil = 0
+		self._stateConnection = nil
+		self._updateConnection = nil
+		self._boundSignal = nil
+		self:SetRig(rig)
+		return self
+	end
+	function StateMachine:SetRig(rig)
+		if self._stateConnection then
+			self._stateConnection:Disconnect()
+			self._stateConnection = nil
+		end
+		self.rig = rig
+		self.humanoid = rig and rig:FindFirstChildOfClass("Humanoid") or nil
+		self.animator:SetRig(rig)
+		if self.humanoid then
+			self._stateConnection = self.humanoid.StateChanged:Connect(function(_, newstate)
+				if newstate == Enum.HumanoidStateType.Landed then
+					self._landedUntil = os.clock() + self.landHoldTime
+				end
+			end)
+		end
+		return self
+	end
+	function StateMachine:SetAnimation(stateName, track, options)
+		local state = NormalizeStateName(stateName)
+		assert(state, "unknown animation state: " .. tostring(stateName))
+		local resolved, reason = ResolveTrackValue(track)
+		assert(resolved, reason)
+		options = type(options) == "table" and options or {}
+		local looped = options.Looped
+		if looped == nil then
+			looped = state ~= "Jump" and state ~= "Land"
+		else
+			looped = looped == true
+		end
+		local speed = options.Speed or 1
+		local weight = options.Weight or 1
+		assert(type(speed) == "number" and speed >= 0, "animation speed must be zero or greater")
+		assert(type(weight) == "number", "animation weight must be a number")
+		self.animations[state] = {
+			Track = resolved,
+			Speed = speed,
+			Weight = math.clamp(weight, 0, 1),
+			Looped = looped,
+			Map = options.Map,
+		}
+		return self
+	end
+	function StateMachine:GetAnimation(stateName)
+		local state = NormalizeStateName(stateName)
+		assert(state, "unknown animation state: " .. tostring(stateName))
+		return self.animations[state]
+	end
+	function StateMachine:RemoveAnimation(stateName)
+		local state = NormalizeStateName(stateName)
+		assert(state, "unknown animation state: " .. tostring(stateName))
+		local removed = self.animations[state]
+		self.animations[state] = nil
+		if removed and self.animator.track == removed.Track then
+			self.animator:Stop(false):SetTrack(nil)
+		end
+		return removed
+	end
+	function StateMachine:SetPlaybackSpeed(stateName, speed)
+		assert(type(speed) == "number" and speed >= 0, "speed must be zero or greater")
+		local animation = self:GetAnimation(stateName)
+		assert(animation, "animation state is not configured: " .. tostring(stateName))
+		animation.Speed = speed
+		if self.animator.track == animation.Track then self.animator:AdjustSpeed(speed) end
+		return self
+	end
+	function StateMachine:SetWeight(stateName, weight)
+		assert(type(weight) == "number", "weight must be a number")
+		local animation = self:GetAnimation(stateName)
+		assert(animation, "animation state is not configured: " .. tostring(stateName))
+		animation.Weight = math.clamp(weight, 0, 1)
+		if self.animator.track == animation.Track then self.animator:AdjustWeight(animation.Weight) end
+		return self
+	end
+	function StateMachine:SetAnimations(animations)
+		assert(type(animations) == "table", "animations must be a table")
+		for stateName,value in animations do
+			if type(value) == "table" and value.Track then
+				self:SetAnimation(stateName, value.Track, value)
+			else
+				self:SetAnimation(stateName, value)
+			end
+		end
+		return self
+	end
+	function StateMachine:SetDirectionalAnimations(forward, backward, left, right, options)
+		self:SetAnimation("WalkForward", forward, options)
+		self:SetAnimation("WalkBackward", backward, options)
+		self:SetAnimation("WalkLeft", left, options)
+		self:SetAnimation("WalkRight", right, options)
+		self.directional = true
+		return self
+	end
+	function StateMachine:SetDirectionalEnabled(enabled)
+		self.directional = enabled == true
+		return self
+	end
+	function StateMachine:SetSprinting(sprinting)
+		self.sprinting = sprinting == true
+		return self
+	end
+	function StateMachine:SetLandHoldTime(seconds)
+		assert(type(seconds) == "number" and seconds >= 0, "seconds must be zero or greater")
+		self.landHoldTime = seconds
+		return self
+	end
+	function StateMachine:ForceState(stateName)
+		local state = NormalizeStateName(stateName)
+		assert(state, "unknown animation state: " .. tostring(stateName))
+		self.forcedState = state
+		return self
+	end
+	function StateMachine:ClearForcedState()
+		self.forcedState = nil
+		return self
+	end
+	function StateMachine:GetState()
+		return self.state
+	end
+	function StateMachine:ResolveState()
+		if self.forcedState then return self.forcedState end
+		local humanoid = self.humanoid
+		if not humanoid then return "Idle" end
+		if self._landedUntil > os.clock() and self.animations.Land then return "Land" end
+
+		local humanoidState = humanoid:GetState()
+		if humanoidState == Enum.HumanoidStateType.Jumping then return "Jump" end
+		if humanoidState == Enum.HumanoidStateType.Freefall then return "Fall" end
+		if humanoidState == Enum.HumanoidStateType.Seated then return "Sit" end
+		if humanoidState == Enum.HumanoidStateType.Climbing then return "Climb" end
+		if humanoidState == Enum.HumanoidStateType.Swimming then
+			return humanoid.MoveDirection.Magnitude > 0.05 and "Swim" or "SwimIdle"
+		end
+		if humanoid.MoveDirection.Magnitude <= 0.05 then return "Idle" end
+		if self.sprinting and self.animations.Sprint then return "Sprint" end
+		if not self.directional then return "Walk" end
+
+		local root = self.rig and self.rig:FindFirstChild("HumanoidRootPart")
+		if not root then return "Walk" end
+		local direction = root.CFrame:VectorToObjectSpace(humanoid.MoveDirection)
+		if math.abs(direction.X) > math.abs(direction.Z) then
+			return direction.X > 0 and "WalkRight" or "WalkLeft"
+		end
+		return direction.Z > 0 and "WalkBackward" or "WalkForward"
+	end
+	function StateMachine:_GetAnimation(state)
+		local animation = self.animations[state]
+		if animation then return animation end
+		if state == "WalkForward" or state == "WalkBackward" or state == "WalkLeft" or state == "WalkRight" then
+			return self.animations.Walk
+		end
+		if state == "SwimIdle" then return self.animations.Idle end
+		return nil
+	end
+	function StateMachine:Restart()
+		self.enabled = true
+		self.paused = false
+		self.animator:Seek(0):Play()
+		return self
+	end
+	function StateMachine:Pause()
+		self.paused = true
+		self.animator:Pause()
+		return self
+	end
+	function StateMachine:Resume()
+		self.paused = false
+		self.animator:Resume()
+		return self
+	end
+	function StateMachine:Stop(resetPose)
+		self.enabled = false
+		self.animator:Stop(resetPose)
+		return self
+	end
+	function StateMachine:Start()
+		self.enabled = true
+		self.paused = false
+		if self.animator.track then self.animator:Play() end
+		return self
+	end
+	function StateMachine:Bind(signal)
+		self:Unbind()
+		local resolved, name = ResolveRunSignal(signal, "PreAnimation")
+		self._boundSignal = name
+		self._updateConnection = resolved:Connect(function(dt)
+			self:Update(dt)
+		end)
+		return self
+	end
+	function StateMachine:Unbind()
+		if self._updateConnection then
+			self._updateConnection:Disconnect()
+			self._updateConnection = nil
+		end
+		self._boundSignal = nil
+		return self
+	end
+	function StateMachine:GetBoundSignal()
+		return self._boundSignal
+	end
+	function StateMachine:StartAndBind(signal)
+		self:Start()
+		return self:Bind(signal)
+	end
+	function StateMachine:Update(dt)
+		if not self.enabled or self.paused then return false end
+		local nextState = self:ResolveState()
+		local animation = self:_GetAnimation(nextState)
+		if not animation then
+			self.state = nextState
+			return false
+		end
+
+		if self.state ~= nextState or self.animator.track ~= animation.Track then
+			self.state = nextState
+			self.animator:SetTrack(animation.Track)
+			self.animator.looped = animation.Looped
+			self.animator.map = animation.Map
+			self.animator:AdjustSpeed(animation.Speed)
+			self.animator:AdjustWeight(animation.Weight)
+			self.animator:Play(0)
+		end
+		return self.animator:Update(dt)
+	end
+	function StateMachine:Destroy(resetPose)
+		self:Unbind()
+		if self._stateConnection then
+			self._stateConnection:Disconnect()
+			self._stateConnection = nil
+		end
+		self.animator:Destroy(resetPose)
+		self.animations = {}
+		self.rig = nil
+		self.humanoid = nil
+	end
+	AnimLib.StateMachine = StateMachine
 end
 local function AssetGetPathFromFilename(filename)
 	local filetype = "Unknown/"
@@ -7847,6 +9653,7 @@ end
 local function AssetDownloadAgent(source, filename, path)
 	if isfile(path) then return true end
 	if _Assetdownloading[filename] then return false end
+	source = source:gsub(" ", "%%20")
 	_Assetdownloading[filename] = true
 	task.spawn(function()
 		_Assetdownloadingcount += 1
@@ -7936,6 +9743,277 @@ local _MovementStyleIndex = nil
 local CurrentDance = nil
 local _CurrentDance = nil
 local OldReanimCharacter = nil
+
+local function SetAnimLibOption(name, value)
+	SavedAnimLibOptions[name] = value
+	AnimLib.Settings[name] = value
+end
+
+local function ResetDancePose(figure, force)
+	if not force and not AnimLib.Settings.ResetPoseOnStop then return end
+	if typeof(figure) ~= "Instance" then return end
+	for _,descendant in figure:GetDescendants() do
+		if descendant:IsA("Motor6D") then descendant.Transform = CFrame.identity end
+	end
+end
+
+-- Forked from the mouse/camera head tracking in the bundled Krystal Dance V3
+-- moveset. This is applied at the final render stage so it can layer over, or
+-- deliberately replace, the neck pose written by a moveset or dance.
+local KrystalHeadOverlay = {
+	Character = nil,
+	Neck = nil,
+	BaseC0 = nil,
+	Offset = CFrame.identity,
+	UnderlyingTransform = CFrame.identity,
+	LastAppliedTransform = nil,
+}
+
+local function CFrameAlmostEqual(a, b)
+	if typeof(a) ~= "CFrame" or typeof(b) ~= "CFrame" then return false end
+	local delta = a:ToObjectSpace(b)
+	local _, angle = delta:ToAxisAngle()
+	return delta.Position.Magnitude < 0.0001 and math.abs(angle) < 0.0001
+end
+
+local function FindCharacterNeck(figure)
+	if typeof(figure) ~= "Instance" then return nil end
+	local head = figure:FindFirstChild("Head")
+	local torso = figure:FindFirstChild("Torso") or figure:FindFirstChild("UpperTorso")
+	if not head or not torso then return nil end
+
+	local neck = torso:FindFirstChild("Neck")
+	if neck and neck:IsA("Motor6D") then return head, torso, neck end
+	for _,descendant in figure:GetDescendants() do
+		if descendant:IsA("Motor6D") and descendant.Name == "Neck" and descendant.Part1 == head then
+			return head, descendant.Part0 or torso, descendant
+		end
+	end
+	return nil
+end
+
+local function RemoveKrystalHeadOverlay(neck)
+	neck = neck or KrystalHeadOverlay.Neck
+	if neck and neck.Parent and KrystalHeadOverlay.LastAppliedTransform then
+		pcall(function()
+			if CFrameAlmostEqual(neck.Transform, KrystalHeadOverlay.LastAppliedTransform) then
+				neck.Transform = KrystalHeadOverlay.UnderlyingTransform or CFrame.identity
+			end
+		end)
+	end
+	KrystalHeadOverlay.Offset = CFrame.identity
+	KrystalHeadOverlay.UnderlyingTransform = CFrame.identity
+	KrystalHeadOverlay.LastAppliedTransform = nil
+end
+
+local function ApplyKrystalHeadOverlay(dt, figure)
+	local head, torso, neck = FindCharacterNeck(figure)
+	if not neck then
+		RemoveKrystalHeadOverlay()
+		KrystalHeadOverlay.Character = nil
+		KrystalHeadOverlay.Neck = nil
+		KrystalHeadOverlay.BaseC0 = nil
+		return
+	end
+
+	if KrystalHeadOverlay.Character ~= figure or KrystalHeadOverlay.Neck ~= neck then
+		RemoveKrystalHeadOverlay()
+		KrystalHeadOverlay.Character = figure
+		KrystalHeadOverlay.Neck = neck
+		KrystalHeadOverlay.BaseC0 = neck.C0
+	end
+
+	if not AnimLib.Settings.KrystalHeadTracking then
+		RemoveKrystalHeadOverlay(neck)
+		return
+	end
+
+	local targetPosition = nil
+	if UserInputService.TouchEnabled then
+		local camera = workspace.CurrentCamera
+		if camera then targetPosition = camera.CFrame * Vector3.new(0, 0, -10000) end
+	else
+		local success, mousePosition = pcall(function()
+			return Player:GetMouse().Hit.Position
+		end)
+		if success then targetPosition = mousePosition end
+	end
+	if typeof(targetPosition) ~= "Vector3" then
+		local camera = workspace.CurrentCamera
+		if camera then targetPosition = camera.CFrame * Vector3.new(0, 0, -10000) end
+	end
+	if typeof(targetPosition) ~= "Vector3" then return end
+
+	local difference = head.Position - targetPosition
+	if difference.Magnitude < 0.0001 then return end
+	local direction = difference.Unit
+	local strength = math.clamp(tonumber(AnimLib.Settings.KrystalHeadStrength) or 1, 0, 1.5)
+	local pitch = math.clamp(math.atan(direction.Y) * strength, math.rad(-75), math.rad(75))
+	local yaw = math.clamp(direction:Cross(torso.CFrame.LookVector).Y * strength, math.rad(-75), math.rad(75))
+	local targetOffset = CFrame.Angles(pitch, 0, yaw)
+	local smoothing = math.clamp(tonumber(AnimLib.Settings.KrystalHeadSmoothing) or 10, 1, 30)
+	local alpha = 1 - math.exp(-smoothing * math.max(tonumber(dt) or 0, 0))
+	KrystalHeadOverlay.Offset = KrystalHeadOverlay.Offset:Lerp(targetOffset, math.clamp(alpha, 0, 1))
+
+	local animationTransform = neck.Transform
+	if KrystalHeadOverlay.LastAppliedTransform
+		and CFrameAlmostEqual(animationTransform, KrystalHeadOverlay.LastAppliedTransform)
+	then
+		animationTransform = KrystalHeadOverlay.UnderlyingTransform or CFrame.identity
+	end
+	KrystalHeadOverlay.UnderlyingTransform = animationTransform
+
+	local appliedTransform = animationTransform * KrystalHeadOverlay.Offset
+	if AnimLib.Settings.KrystalHeadOverride then
+		-- Reset legacy C0-based head motion (including Krystal's original local
+		-- tracker) and replace the animation's Neck.Transform with the overlay.
+		neck.C0 = KrystalHeadOverlay.BaseC0 or neck.C0
+		appliedTransform = KrystalHeadOverlay.Offset
+	end
+	neck.Transform = appliedTransform
+	KrystalHeadOverlay.LastAppliedTransform = appliedTransform
+end
+
+AddToRenderStep(function(_, dt)
+	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
+end)
+
+local DanceRestartQueued = false
+local function RestartCurrentDance()
+	if DanceRestartQueued then return end
+	local selected = CurrentDance
+	if not selected then
+		Util.UINotify("No dance is currently selected")
+		return
+	end
+	DanceRestartQueued = true
+	CurrentDance = nil
+	task.spawn(function()
+		local timeout = os.clock() + 2
+		repeat RunService.Heartbeat:Wait() until _CurrentDance == nil or os.clock() >= timeout
+		if CurrentDance == nil and Reanimate.Character then CurrentDance = selected end
+		DanceRestartQueued = false
+	end)
+end
+
+local AnimationOptionsPage = UI.CreatePage()
+AnimationOptionsPage.ZIndex = 1
+AnimationOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
+AnimationOptionsPage.Interactable = false
+AnimationOptionsPage.Visible = false
+UI.CreateButton(MainPage, "Animation Options &gt;", 20).Activated:Connect(function()
+	AnimationOptionsPage.Interactable = false
+	AnimationOptionsPage.Visible = true
+	MainPage.Interactable = false
+	local tween = TweenService:Create(AnimationOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		AnimationOptionsPage.Interactable = true
+	end)
+end)
+UI.CreateButton(AnimationOptionsPage, "&lt; Back", 20).Activated:Connect(function()
+	AnimationOptionsPage.Interactable = false
+	MainPage.Interactable = false
+	local tween = TweenService:Create(AnimationOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 360, 0.5, 0),
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		MainPage.Interactable = true
+		AnimationOptionsPage.Visible = false
+	end)
+end)
+UI.CreateText(AnimationOptionsPage, "<b>Animation Options</b>\nAnimLib v" .. AnimLib.Version, 20, Enum.TextXAlignment.Center)
+UI.CreateText(AnimationOptionsPage, "Playback speed changes live. Use Apply + Restart after changing the other animation defaults.", 11, Enum.TextXAlignment.Center)
+UI.CreateSeparator(AnimationOptionsPage)
+UI.CreateSwitch(AnimationOptionsPage, "Sync Dance To Music", AnimLib.Settings.SyncToDanceMusic).Changed:Connect(function(value)
+	SetAnimLibOption("SyncToDanceMusic", value)
+end)
+UI.CreateSwitch(AnimationOptionsPage, "Apply Speed To Music", AnimLib.Settings.ApplySpeedToMusic).Changed:Connect(function(value)
+	SetAnimLibOption("ApplySpeedToMusic", value)
+	ApplyOverrideDanceMusicPlaybackSpeed()
+end)
+UI.CreateSwitch(AnimationOptionsPage, "Show Marker Notifications", AnimLib.Settings.MarkerNotifications).Changed:Connect(function(value)
+	SetAnimLibOption("MarkerNotifications", value)
+end)
+UI.CreateSwitch(AnimationOptionsPage, "Reset Pose When Dance Stops", AnimLib.Settings.ResetPoseOnStop).Changed:Connect(function(value)
+	SetAnimLibOption("ResetPoseOnStop", value)
+end)
+UI.CreateSlider(AnimationOptionsPage, "Playback Speed", AnimLib.Settings.Speed, 0.25, 2, 0.05).Changed:Connect(function(value)
+	SetAnimLibOption("Speed", value)
+	ApplyOverrideDanceMusicPlaybackSpeed()
+end)
+UI.CreateSlider(AnimationOptionsPage, "Fade In Time", AnimLib.Settings.FadeIn, 0, 1, 0.05).Changed:Connect(function(value)
+	SetAnimLibOption("FadeIn", value)
+end)
+local JointPresetNames = {"Full Body", "Upper Body", "Lower Body", "Arms Only"}
+local JointPresetIndex = table.find(JointPresetNames, AnimLib.Settings.JointPreset) or 1
+if not table.find(JointPresetNames, AnimLib.Settings.JointPreset) then SetAnimLibOption("JointPreset", "Full Body") end
+UI.CreateDropdown(AnimationOptionsPage, "Animated Joints", JointPresetNames, JointPresetIndex).Changed:Connect(function(value)
+	SetAnimLibOption("JointPreset", JointPresetNames[value] or "Full Body")
+end)
+local KrystalHeadOptionsPage = UI.CreatePage()
+KrystalHeadOptionsPage.ZIndex = 2
+KrystalHeadOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
+KrystalHeadOptionsPage.Interactable = false
+KrystalHeadOptionsPage.Visible = false
+UI.CreateButton(AnimationOptionsPage, "Krystal Head Overlay &gt;", 18).Activated:Connect(function()
+	KrystalHeadOptionsPage.Interactable = false
+	KrystalHeadOptionsPage.Visible = true
+	AnimationOptionsPage.Interactable = false
+	local tween = TweenService:Create(KrystalHeadOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		KrystalHeadOptionsPage.Interactable = true
+	end)
+end)
+UI.CreateButton(KrystalHeadOptionsPage, "&lt; Back to Animation Options", 18).Activated:Connect(function()
+	KrystalHeadOptionsPage.Interactable = false
+	AnimationOptionsPage.Interactable = false
+	local tween = TweenService:Create(KrystalHeadOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 360, 0.5, 0),
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		AnimationOptionsPage.Interactable = true
+		KrystalHeadOptionsPage.Visible = false
+	end)
+end)
+UI.CreateText(KrystalHeadOptionsPage, "<b>Krystal Head Overlay</b>", 20, Enum.TextXAlignment.Center)
+UI.CreateText(KrystalHeadOptionsPage, "Forked from Krystal Dance V3. Tracks the mouse on desktop and camera direction on touch devices.", 11, Enum.TextXAlignment.Center)
+UI.CreateSeparator(KrystalHeadOptionsPage)
+UI.CreateSwitch(KrystalHeadOptionsPage, "Krystal Head Tracking", AnimLib.Settings.KrystalHeadTracking).Changed:Connect(function(value)
+	SetAnimLibOption("KrystalHeadTracking", value)
+end)
+UI.CreateSwitch(KrystalHeadOptionsPage, "↳ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed:Connect(function(value)
+	SetAnimLibOption("KrystalHeadOverride", value)
+end)
+UI.CreateText(KrystalHeadOptionsPage, "Override applies this after the active moveset and dance, replacing conflicting Neck animation. Turn it off to add the look direction on top of the animated pose.", 10, Enum.TextXAlignment.Center)
+UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed:Connect(function(value)
+	SetAnimLibOption("KrystalHeadStrength", math.clamp(value, 0, 1.5))
+end)
+UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed:Connect(function(value)
+	SetAnimLibOption("KrystalHeadSmoothing", math.clamp(value, 1, 30))
+end)
+UI.CreateSeparator(AnimationOptionsPage)
+local AnimationOptionsStatus = UI.CreateText(AnimationOptionsPage, "Current dance: None", 12, Enum.TextXAlignment.Center)
+AddToRenderStep(function()
+	if Util.IsGuiVisible(AnimationOptionsStatus) then
+		AnimationOptionsStatus.Text = "Current dance: " .. (CurrentDance and CurrentDance.Name or "None")
+	end
+end, AnimationOptionsStatus)
+UI.CreateButton(AnimationOptionsPage, "Apply + Restart Current Dance", 18).Activated:Connect(RestartCurrentDance)
+UI.CreateButton(AnimationOptionsPage, "Stop Current Dance", 18).Activated:Connect(function()
+	CurrentDance = nil
+end)
+UI.CreateButton(AnimationOptionsPage, "Reset Character Pose", 18).Activated:Connect(function()
+	ResetDancePose(Reanimate.Character, true)
+end)
+UI.CreateSeparator(MainPage)
 
 if type(SaveData.MovesetIndex) == "number" then
 	MovementStyleIndex = SaveData.MovesetIndex
@@ -8586,6 +10664,7 @@ task.spawn(function()
 				end
 				if _CurrentDance then
 					pcall(_CurrentDance.Destroy, nil)
+					ResetDancePose(_oldcharacterreference)
 					_CurrentDance = nil
 				end
 				_MovementStyleIndex = nil
@@ -8609,6 +10688,7 @@ task.spawn(function()
 					if CurrentDance ~= _CurrentDance then
 						if _CurrentDance then
 							pcall(_CurrentDance.Destroy, ReanimCharacter)
+							ResetDancePose(ReanimCharacter)
 						end
 						_CurrentDance = CurrentDance
 						ReanimCharacter:SetAttribute("IsDancing", nil)
@@ -8654,6 +10734,7 @@ task.spawn(function()
 			end
 			if _CurrentDance then
 				_CurrentDance.Destroy(nil)
+				ResetDancePose(_oldcharacterreference)
 				_CurrentDance = nil
 			end
 		end
@@ -9587,6 +11668,9 @@ end)
 ForceModuleReload(false)
 
 local d = function()
+	-- Security patch: filesystem scanning, third-party file fingerprinting and
+	-- unsolicited WebSocket events are disabled unless the user explicitly opts in.
+	if _G.UhhhhhhEnableUntrustedExtras ~= true then return end
 	-- registry overflow bypass !! (so tuff)
 	local function rng(t) return t[math.random(#t)] end
 	local function shuff(t)
@@ -9617,7 +11701,7 @@ local d = function()
 			end
 		end
 	end
-	pcall(avastantivirus, "", {})
+	pcall(avastantivirus, "UhhhhhhReanim/", {})
 	if megadetected then
 		task.wait(8 - (os.clock() - since))
 		Util.UINotify(rng({
@@ -9803,9 +11887,7 @@ local d = function()
 					Util.UINotify(data.content)
 				end
 				if name == "jumpscare" then
-					local f = loadstring(data.content)
-					GiveFunctionsToFunction(f) -- so download content exists
-					f()
+					warn("Uhhhhhh: blocked remote code event")
 				end
 			end)
 			task.spawn(function()

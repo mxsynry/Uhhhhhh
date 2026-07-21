@@ -73,6 +73,8 @@ local a,b,c,g="/STEVE-916-create/Uhhhhhh/","/source/reanim.lua",".github","https
 
    You hate the colors? Change them! Do you want black? Do you want white? Do you want your own? The choice is yours.
 
+   Sakura is the default theme for new save data. An existing saved theme selection is preserved.
+
    <img src="./images/Theme1.jpg" alt="drawing" width="40%"/>
    <img src="./images/Theme2.jpg" alt="drawing" width="40%"/>
    <img src="./images/Theme3.jpg" alt="drawing" width="40%"/>
@@ -179,6 +181,27 @@ Executor's workspace/
 Modules are just luau tables that are created by a function.
 It does impose vulnerabilities, but who cares? Executors already
 execute functions from user strings.
+
+> [!WARNING]
+> Modules execute code with Uhhhhhh's supplied environment and executor capabilities. Review the source and asset URLs before installing a local or marketplace module. The animation API patch disables unsolicited remote extras by default, but it cannot make an intentionally installed third-party module trustworthy.
+
+### Extended animation API
+
+The opt-in `AnimLib` extension adds managed playback, locomotion states, R6/R15 pose retargeting, selectable `RunService` update phases, and automatic connection cleanup. The original `animator:Step(time)` module interface remains compatible. A visible **Animation Options >** page controls music sync, animation speed, optional matching music speed, fade-in, joint presets, marker notices, and stop-time pose reset.
+
+Under **Reanimate Character Settings**, **Can Sit on Seats** now has a saved **↳ Keep Humanoid Sit State** sub-option. When enabled, Uhhhhhh keeps its reanimated humanoid in Roblox's `Sit`/`Seated` state while the custom seat weld is active; jumping still exits the seat normally.
+
+The limb-reanimator config warns that **Use NaN State Fling** can override normal Roblox humanoid states, including sitting. The saved **Show Reanimate Hitboxes** switch continuously outlines the original root part in red, the reanimated root part in cyan, and collidable hat handles in green.
+
+Addon asset URLs containing spaces are escaped before download. This fixes otherwise valid third-party and `MARKET/` paths, but `MARKET/` assets still have to exist under the repository's matching `community/` path.
+
+The repository package now includes the repaired marketplace module sources under `community/`, including Airy's ZIP-file dances, Valtta's port pack, Theo's dances, Noober's pack, and the other reviewed addons. Upload the matching `community/` tree together with `source/reanim.lua`; the in-GUI marketplace reads `community/list.txt`. For a manual local install, copy a module file into `UhhhhhhReanim/Modules/` and press **Reload User Modules**.
+
+**Animation Options > Krystal Head Overlay >** makes Krystal Dance V3's mouse/camera head tracking available over every moveset and dance. Its saved **Override Animated Head** option runs after animation updates so conflicting neck poses cannot replace the tracker; disable override to use it as an additive head layer instead.
+
+The saved **Show Red Reset Placeholder** switch under **Reanimate Character Settings** restores the translucent red fake R6 rig during the reset gap before the new real character, humanoid, root part, and live humanoid state are detected. This preview remains visible even if the general **Placeholders** slider was previously saved at fully transparent. See [`docs/RESET_PLACEHOLDER_AUDIT.md`](./docs/RESET_PLACEHOLDER_AUDIT.md) for the original-source comparison.
+
+See [`docs/ANIMATION_API.md`](./docs/ANIMATION_API.md) for examples, [`docs/MODULE_TIMING_AUDIT.md`](./docs/MODULE_TIMING_AUDIT.md) for the cross-module speed analysis, [`docs/CURRENTANGLE_AUDIT.md`](./docs/CURRENTANGLE_AUDIT.md) for the archived CurrentAngle comparison, [`docs/THEO_DANCE_AUDIT.md`](./docs/THEO_DANCE_AUDIT.md) for the Theo dance-method study, [`docs/FORK_AUDIT.md`](./docs/FORK_AUDIT.md) for the fork diff and merge decisions, and [`docs/RESET_PLACEHOLDER_AUDIT.md`](./docs/RESET_PLACEHOLDER_AUDIT.md) for the reset-preview restoration.
 
 Modules are returned by a function from a luau script.
 honestly idk how to document this in an understandable way so
@@ -320,7 +343,7 @@ HatReanimator
 		-- recommended to use ipairs when looping through table
 	.GetHatCFrameMeshAndTexture(mesh, tex) -- pass in mesh id and texture id to get hat cframe
 	.GetAttachmentCFrame(name) -- attachment by name
-ReanimateShowHitboxes() -- function to show hitboxes
+ReanimateShowHitboxes() -- refreshes the persistent reanimate hitboxes when their GUI toggle is enabled
 ReanimateFling(target, duration) -- fling target
 -- target can be model, part, Vector3 or CFrame
 -- duration can be 0 for fling to last a frame
@@ -338,12 +361,29 @@ SetOverrideDanceMusicSpeed(speed)
 
 AnimLib -- Uhhhhhh's animation library
 	.Track -- track util
+		.new(name) -- creates an empty track
+		.validate(track) -- returns valid, reason
+		.clone(track) -- deep copy
+		.getDuration(track) -- recalculates duration
+		.sort(track) -- sort keyframes and update duration
+		.addKeyframe(track, time, poses) / .removeKeyframe(track, index)
+		.findKeyframes(track, starttime, endtime)
+		.addMarker(track, time, name, value?) / .removeMarker(track, index)
+		.getMarkers(track, name?) / .getMarkersBetween(track, starttime, endtime, includeStart?)
 		.fromfile(path) -- loads animation from file, must be in STEVE's KeyframeSequence file format
+		.fromfilecached(path, refresh) -- cached load that returns an independent clone
+		.clearfilecache(path?) -- clear one or all cached tracks
 		.frominstance(ks) -- loads animation from a KeyframeSequence
 		.paste(target, source, timeoffset) -- pastes keyframes from source to target, with a time offset
+		.append(target, source, gap) -- paste after target duration
+		.scaleTime(track, factor) -- change timing in place
+		.reverse(track) -- returns a reversed clone
+		.slice(track, starttime, endtime) -- returns a time excerpt
 		.getPoses(track, time, looped) -- used by Animator
 	.Animator -- animator
 		.new() -- creates an animator
+		.fromTrack(rig, track, options) -- configured animator
+			:ApplyDefaults() -- refresh defaults from the Animation Options page
 			.rig -- the character model
 			.track -- the animation track
 			.map -- map input time to animation time
@@ -351,6 +391,57 @@ AnimLib -- Uhhhhhh's animation library
 			.speed -- input time multiplication
 			.weight -- use to blend with other animators, or smoothen animation
 			:Step(time) -- apply pose
+			:Update(dt) -- managed-time playback
+			:Play(starttime?) / :Pause() / :Resume() / :Stop(resetpose?)
+			:Seek(time) / :AdjustSpeed(speed) / :AdjustWeight(weight)
+			:SetTime(time) / :GetTimePosition() / :GetTimeLength() / :GetPlaybackSpeed() / :IsPlaying()
+			:Configure({UseGlobalPlaybackSpeed = false}) -- optional per-animator menu-speed opt-out
+			:LoadAnimation(trackOrPath) / :LoadSequence(keyframeSequence) / :GetPose(time?)
+			:SetJointMask(mask, mode) / :GetJointMask() / :ClearJointMask()
+			:SetFilter(filter, type) / :ClearFilter()
+			:SyncToSound(sound, offset?) / :ClearSoundSync() / :GetSyncedSound()
+			:FadeTo(weight, duration) / :FadeIn(duration, weight?) / :FadeOut(duration, resetpose?)
+			:GetMarkerReachedSignal(name) / .MarkerReached / .Finished
+			:ResetPose() / :Destroy(resetpose?)
+			:Bind(signal?) / :Unbind() / :GetBoundSignal() / :PlayAndBind(signal?, starttime?)
+	.DanceQueue -- sequential Theo-style emote playback
+		.new(rig)
+			:Enqueue(track, options?) / :Insert(index, track, options?) / :Remove(index)
+			:Count(includeCurrent?) / :GetCurrent() / :Skip(resetpose?) / :Clear(stopCurrent?)
+			:Play() / :Pause() / :Resume() / :Stop(clearQueue?, resetpose?) / :Update(dt)
+			:Bind(signal?) / :Unbind() / :PlayAndBind(signal?) / :Destroy(resetpose?)
+			.ItemStarted / .ItemFinished / .Finished
+	.Motor6D -- world-pose solving and application utilities
+		.Validate(motor)
+		.SolveWorldTransform(motor, target, reference)
+		.GetCurrentWorldTransform(motor) / .GetWorldCFrame(motor, transform?, reference?)
+		.RetargetTransform(sourceMotor, targetMotor)
+		.ToReplicationVectors(transform) / .TryHiddenReplication(motor, transform)
+		.ApplyTransform(motor, transform, options?) / .ApplyWorldPose(motor, target, reference, options?)
+		.Reset(motor, hiddenReplication?)
+	.RigMapper -- safe local Motor6D pose copying
+		.new(sourceRig, targetRig, aliases?)
+			:SetRigs(sourceRig, targetRig) / :SetAliases(table) / :SetPreset(name)
+			:SetMode("Transform" or "WorldCFrame") / :GetMode()
+			:SetHiddenReplication(enabled) / :IsHiddenReplicationAvailable()
+			:GetHiddenReplicationStatus()
+			:Refresh() / :CopyPose(weight?, scalePositions?) / :ResetTargetPose()
+			:GetMappedJointNames() / :Bind(signal?) / :Unbind() / :Destroy(resetpose?)
+	.ConnectionGroup -- reusable lifecycle cleanup
+		.new()
+			:Add(item) / :Remove(item, cleanup?) / :Count()
+			:LinkToInstance(instance) / :Cleanup() / :Destroy()
+	.StateMachine -- opt-in automatic locomotion controller
+		.new(rig)
+			:SetAnimation(state, track, options)
+			:GetAnimation(state) / :RemoveAnimation(state)
+			:SetPlaybackSpeed(state, speed) / :SetWeight(state, weight)
+			:SetAnimations(table)
+			:SetDirectionalAnimations(forward, backward, left, right, options)
+			:SetSprinting(enabled)
+			:ForceState(state) / :ClearForcedState()
+			:Bind(signal?) / :Unbind() / :StartAndBind(signal?)
+			:Update(dt) / :Pause() / :Resume() / :Stop(resetpose?) / :Destroy(resetpose?)
 
 -- utils for grabbing assets from Uhhhhhh/Content/...
 AssetGetPathFromFilename(filename) -- used for AnimLib.Track.fromfile
@@ -363,6 +454,8 @@ OnPlayerChatted.Event:Connect(function(player, message) end) -- event when a pla
 HiddenGui -- the reference to the ScreenGui Uhhhhhh uses
 FallenPartsDestroyHeight -- self explanatory
 ```
+
+See [`docs/ANIMATION_API.md`](docs/ANIMATION_API.md) for the complete extended animation API, state-machine example, compatibility notes, and patch details.
 
 ## "i dont understand all this"
 That's why I have made (in v1.0.3) the stuff that gives Empyrean Reanimate (emper chill lowkirkenuinly) the ability to be used in require script convertions!
