@@ -79,6 +79,17 @@ request = request or (http and http.request)
 local function ismissing(func)
 	return not func or type(func) ~= "function"
 end
+
+-- Executor naming differs here: some expose the long form, some expose only
+-- sethiddenprop/gethiddenprop, and a few use underscored aliases. Resolve all
+-- known names before the capability checks so limb replication does not fail
+-- silently just because the executor chose a different spelling.
+Util.HiddenPropertySetterSource = not ismissing(sethiddenproperty) and "sethiddenproperty"
+	or (not ismissing(sethiddenprop) and "sethiddenprop")
+	or (not ismissing(set_hidden_property) and "set_hidden_property")
+	or "none"
+sethiddenproperty = sethiddenproperty or sethiddenprop or set_hidden_property
+gethiddenproperty = gethiddenproperty or gethiddenprop or get_hidden_property
 do
 	local function diefatal(msg)
 		Util.Notify("Executor not supported. " .. msg)
@@ -136,13 +147,15 @@ do
 		if ismissing(setscriptable) then
 			diefatal("Missing `sethiddenproperty` and `setscriptable` function!")
 		elseif ismissing(isscriptable) then
+			Util.HiddenPropertySetterSource = "setscriptable fallback"
 			sethiddenproperty = function(inst, prop, val)
 				setscriptable(inst, prop, true)
 				inst[prop] = val
 				setscriptable(inst, prop, false)
 			end
 		else
-			gethiddenproperty = function(inst, prop, val)
+			Util.HiddenPropertySetterSource = "setscriptable fallback"
+			sethiddenproperty = function(inst, prop, val)
 				local was = isscriptable(inst, prop)
 				if not was then
 					setscriptable(inst, prop, true)
@@ -182,6 +195,34 @@ do
 		-- THIS LITERALLY SHOULDNT HAPPEN
 		diefatal("T-this one shouldn't happen!")
 	end
+end
+
+-- Keep all distinct setters. A compatibility alias can exist but be stubbed
+-- by an executor, so a failed long-form call falls through to the short or
+-- underscored implementation before the joint is declared unsupported.
+Util.HiddenPropertySetters = {}
+do
+	local seen = {}
+	local function register(name, setter)
+		if not ismissing(setter) and not seen[setter] then
+			seen[setter] = true
+			table.insert(Util.HiddenPropertySetters, { Name = name, Set = setter })
+		end
+	end
+	register(Util.HiddenPropertySetterSource, sethiddenproperty)
+	register("sethiddenprop", sethiddenprop)
+	register("set_hidden_property", set_hidden_property)
+end
+Util.TrySetHiddenProperty = function(instance, property, value)
+	local lastError = "no hidden-property setter is available"
+	for _, candidate in Util.HiddenPropertySetters do
+		local success, result = pcall(candidate.Set, instance, property, value)
+		if success and result ~= false then
+			return true, candidate.Name
+		end
+		lastError = success and (candidate.Name .. " returned false") or tostring(result)
+	end
+	return false, lastError
 end
 
 -- WILL THIS FIX CRASHES IDK ????????
@@ -4924,35 +4965,77 @@ Util.GetCharacterJointFrames = function(joint)
 	end
 	return nil, nil
 end
-Util.SetCharacterJointTransform = function(joint, transform)
+Util.CharacterJointReplicationStats = {
+	State = "waiting",
+	Source = Util.HiddenPropertySetterSource,
+	Path = "original R6 writer",
+	LastError = nil,
+	Attempts = 0,
+	Successes = 0,
+	Failures = 0,
+}
+Util.IsR15CharacterJoint = function(joint)
+	if typeof(joint) ~= "Instance" then
+		return false
+	end
+	local character = joint:FindFirstAncestorOfClass("Model")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.RigType == Enum.HumanoidRigType.R15
+end
+Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplication)
 	if not Util.IsCharacterJoint(joint) or typeof(transform) ~= "CFrame" then
 		return false
 	end
-	local applied = pcall(function()
-		joint.Transform = transform
-	end)
+	local applied = false
 	if joint:IsA("Motor6D") then
-		pcall(function()
+		-- R6 is intentionally frozen to STEVE's original writer. R15 support must
+		-- never insert a client-only Transform assignment into the R6 path again.
+		-- Only a Motor6D proven to belong to an R15 Humanoid receives Transform;
+		-- missing/custom rig metadata takes the conservative original R6 path.
+		local r15Path = Util.IsR15CharacterJoint(joint)
+		if r15Path then
+			applied = pcall(function()
+				joint.Transform = transform
+			end)
+		end
+		local desiredApplied = pcall(function()
 			joint.MaxVelocity = 9e9
 			local _, _, desiredAngle = transform:ToEulerAngles(Enum.RotationOrder.ZYX)
 			joint:SetDesiredAngle(desiredAngle)
 		end)
+		applied = applied or desiredApplied
 		local axis, angle = transform:ToAxisAngle()
-		pcall(sethiddenproperty, joint, "ReplicateCurrentOffset6D", transform.Position)
-		pcall(sethiddenproperty, joint, "ReplicateCurrentAngle6D", axis * angle)
+		local offsetSuccess, offsetResult =
+			Util.TrySetHiddenProperty(joint, "ReplicateCurrentOffset6D", transform.Position)
+		local angleSuccess, angleResult =
+			Util.TrySetHiddenProperty(joint, "ReplicateCurrentAngle6D", axis * angle)
+		local stats = Util.CharacterJointReplicationStats
+		stats.Path = r15Path and "R15 Transform + hidden writes" or "original R6 writer"
+		stats.Attempts += 1
+		if offsetSuccess and angleSuccess then
+			stats.State = "accepted"
+			stats.Source = angleResult or offsetResult or stats.Source
+			stats.LastError = nil
+			stats.Successes += 1
+		else
+			stats.State = "failed"
+			stats.LastError = tostring(not offsetSuccess and offsetResult or angleResult)
+			stats.Failures += 1
+		end
 	else
-		pcall(function()
+		applied = pcall(function()
+			joint.Transform = transform
 			joint.IsKinematic = true
 		end)
 	end
 	return applied
 end
-Util.SetCharacterJointOffset = function(joint, offset)
+Util.SetCharacterJointOffset = function(joint, offset, legacyMotorReplication)
 	local c0, c1 = Util.GetCharacterJointFrames(joint)
 	if not c0 or not c1 then
 		return false
 	end
-	return Util.SetCharacterJointTransform(joint, c0:Inverse() * offset * c1)
+	return Util.SetCharacterJointTransform(joint, c0:Inverse() * offset * c1, legacyMotorReplication)
 end
 -- Backward-compatible aliases for community modules written before R15's
 -- AnimationConstraint-based Avatar Joint Upgrade.
@@ -5069,6 +5152,9 @@ SaveData.Reanimator.LimbMode = SaveData.Reanimator.LimbMode or 0
 SaveData.Reanimator.LimbVelocity = SaveData.Reanimator.LimbVelocity or 0
 SaveData.Reanimator.LimbInitMode = SaveData.Reanimator.LimbInitMode or 2
 SaveData.Reanimator.LimbReplicateFPS10 = not not SaveData.Reanimator.LimbReplicateFPS10
+-- Remove the retired toggle from existing saves. Older builds treat a missing
+-- value as enabled, so rolling back still selects their compatible default.
+SaveData.Reanimator.LimbLegacyMotorReplication = nil
 SaveData.Reanimator.LimbRoleplay = not not SaveData.Reanimator.LimbRoleplay
 SaveData.Reanimator.LimbUseNaNFling = not not SaveData.Reanimator.LimbUseNaNFling
 SaveData.Reanimator.LimbFlingVelocityMagnitude = math.clamp(
@@ -5103,9 +5189,18 @@ LimbReanimator.FlingVelocityDirection = SaveData.Reanimator.LimbFlingVelocityDir
 LimbReanimator.FlingTargets = {}
 LimbReanimator._TempNotFling = {}
 LimbReanimator.Status = "Real rig: waiting"
+LimbReanimator.JointBackend = "waiting"
+-- Public binding state is deliberately separate from Player.Character. Some
+-- experiences rebuild a rig in-place or swap Player.Character while the
+-- controller character is also being recreated. Consumers such as the
+-- persistent hitbox display must follow the rig that this reanimator actually
+-- bound, not whichever model happens to be exposed by Player.Character during
+-- that frame.
+LimbReanimator.ActiveRealCharacter = nil
+LimbReanimator.RigGeneration = 0
 LimbReanimator.RebindCurrentRig = function() end
 function LimbReanimator.ShowHitboxes()
-	-- Root parts are rendered by the shared persistent hitbox controller.
+	-- Bound rig centers are rendered by the shared persistent hitbox controller.
 end
 function LimbReanimator.Fling(target, duration)
 	if not LimbReanimator.FlingEnabled then
@@ -5267,6 +5362,8 @@ function LimbReanimator.Config(parent)
 	)
 end
 function LimbReanimator.Start()
+	LimbReanimator.ActiveRealCharacter = nil
+	LimbReanimator.RigGeneration += 1
 	local LimbNames = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
 	local rootposition =
 		Vector3.new(math.random(-65536, 65536), math.random(-70000, -60000), math.random(-65536, 65536))
@@ -5443,9 +5540,14 @@ function LimbReanimator.Start()
 				local p0, p1 = part0.Name, part1.Name
 				for _, map in LimbMapping do
 					if map.Part0 == p0 and map.Part1 == p1 then
-						if not map.Reference or v.ClassName == "AnimationConstraint" then
-							map.Reference = v
+						if v:IsA("Motor6D") then
+							map.MotorReference = v
+						else
+							map.ConstraintReference = v
 						end
+						-- Keep the modern constraint for local R15 evaluation, but retain
+						-- the matching Motor6D as a second routed replication channel.
+						map.Reference = map.ConstraintReference or map.MotorReference
 						return
 					end
 				end
@@ -5526,7 +5628,7 @@ function LimbReanimator.Start()
 	end
 	local lastspawn = 0
 	local function BindRealCharacter(character)
-		if not character or not character:IsA("Model") then
+		if not character or not character:IsA("Model") or character == Reanimate.Character then
 			return false
 		end
 		local camcfr = Camera.CFrame
@@ -5538,6 +5640,8 @@ function LimbReanimator.Start()
 		end)
 		lastspawn = os.clock()
 		ActiveRealCharacter = character
+		LimbReanimator.ActiveRealCharacter = character
+		LimbReanimator.RigGeneration += 1
 		if ActiveDescendantConnection then
 			ActiveDescendantConnection:Disconnect()
 			ActiveDescendantConnection = nil
@@ -5546,6 +5650,8 @@ function LimbReanimator.Start()
 		table.clear(UnknownCharacterJoints)
 		for _, map in LimbMapping do
 			map.Reference = nil
+			map.MotorReference = nil
+			map.ConstraintReference = nil
 			map.CFrame = nil
 		end
 		ActiveDescendantConnection = character.DescendantAdded:Connect(function(v)
@@ -5576,7 +5682,10 @@ function LimbReanimator.Start()
 		return true
 	end
 	LimbReanimator.RebindCurrentRig = function()
-		local character = Player.Character or ActiveRealCharacter
+		local character = Player.Character
+		if not character or character == Reanimate.Character then
+			character = ActiveRealCharacter
+		end
 		if BindRealCharacter(character) then
 			Util.UINotify("Rebinding " .. (character and character.Name or "real rig") .. "...")
 		else
@@ -5640,10 +5749,25 @@ function LimbReanimator.Start()
 			end
 		end
 		for _, map in LimbMapping do
-			local v = map.Reference
+			local constraint = map.ConstraintReference
+			if constraint and not constraint.Parent then
+				constraint = nil
+			end
+			local motor = map.MotorReference
+			if motor and not motor.Parent then
+				motor = nil
+			end
+			local v = constraint or motor or map.Reference
+			if v and not v.Parent then
+				v = nil
+			end
+			map.Reference = v
 			if v and v.Parent then
 				if flingtarget then
 					Util.SetCharacterJointTransform(v, CFrame.identity)
+					if motor and motor ~= v then
+						Util.SetCharacterJointTransform(motor, CFrame.identity)
+					end
 				else
 					local cf = CFrame.identity
 					local p0, p1 =
@@ -5669,6 +5793,9 @@ function LimbReanimator.Start()
 						map.CFrame = cf
 					end
 					Util.SetCharacterJointOffset(v, map.CFrame)
+					if motor and motor ~= v then
+						Util.SetCharacterJointOffset(motor, map.CFrame)
+					end
 				end
 			end
 		end
@@ -5680,6 +5807,9 @@ function LimbReanimator.Start()
 		workspace.FallenPartsDestroyHeight = 0 / 0
 		local ReanimOkay = false
 		local Character, Humanoid, RootPart = Player.Character, nil, nil
+		if Character == Reanimate.Character then
+			Character = ActiveRealCharacter
+		end
 		if Character and Character ~= ActiveRealCharacter then
 			BindRealCharacter(Character)
 		end
@@ -5700,13 +5830,25 @@ function LimbReanimator.Start()
 				end
 				RootPart = Humanoid.RootPart or Character:FindFirstChild("HumanoidRootPart")
 				for _, map in LimbMapping do
-					local joint = map.Reference
+					local motor = map.MotorReference
+					local constraint = map.ConstraintReference
+					local joint = (constraint and constraint.Parent and constraint)
+						or (motor and motor.Parent and motor)
+						or map.Reference
 					if joint and joint.Parent and joint:IsDescendantOf(Character) then
 						mappedJointCount += 1
-						if joint:IsA("Motor6D") then
+						if motor and motor.Parent and motor:IsDescendantOf(Character) then
 							motorJointCount += 1
-						else
+						end
+						if constraint and constraint.Parent and constraint:IsDescendantOf(Character) then
 							constraintJointCount += 1
+						end
+						if not motor and not constraint then
+							if joint:IsA("Motor6D") then
+								motorJointCount += 1
+							else
+								constraintJointCount += 1
+							end
 						end
 					end
 				end
@@ -5726,6 +5868,7 @@ function LimbReanimator.Start()
 		elseif motorJointCount > 0 then
 			jointBackend = "Motor6D"
 		end
+		LimbReanimator.JointBackend = jointBackend
 		local lifeState = IsDeadRealCharacter and "dead; unsupported" or "alive"
 		LimbReanimator.Status = "Real rig: "
 			.. rigName
@@ -5883,6 +6026,8 @@ function LimbReanimator.Start()
 		ActiveDescendantConnection:Disconnect()
 		ActiveDescendantConnection = nil
 	end
+	LimbReanimator.ActiveRealCharacter = nil
+	LimbReanimator.RigGeneration += 1
 	LimbReanimator.RebindCurrentRig = function() end
 	LimbReanimator.Status = "Real rig: stopped"
 	if Player.Character then
@@ -8274,6 +8419,63 @@ function HatReanimator.Start()
 end
 
 task.wait()
+Util.ResolveCharacterHitboxPart = function(character, preferTorso)
+	if typeof(character) ~= "Instance" or not character:IsA("Model") or not character.Parent then
+		return nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = humanoid and humanoid.RootPart or character:FindFirstChild("HumanoidRootPart")
+	if root and (not root:IsA("BasePart") or not root:IsDescendantOf(character)) then
+		root = nil
+	end
+	local torso = nil
+	if preferTorso then
+		-- RootJoint.Part1 identifies the torso currently connected to this rig even
+		-- while an experience is replacing parts in-place and briefly leaves two
+		-- children with the same name in the model.
+		local rootJoint = root and root:FindFirstChild("RootJoint")
+		if rootJoint and Util.IsCharacterJoint(rootJoint) then
+			local _, jointTorso = Util.GetCharacterJointParts(rootJoint)
+			if jointTorso and jointTorso:IsA("BasePart") and jointTorso:IsDescendantOf(character) then
+				torso = jointTorso
+			end
+		end
+		if not torso then
+			if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+				torso = character:FindFirstChild("LowerTorso") or character:FindFirstChild("UpperTorso")
+			else
+				torso = character:FindFirstChild("Torso")
+			end
+		end
+		if not torso then
+			torso = character:FindFirstChild("Torso")
+				or character:FindFirstChild("LowerTorso")
+				or character:FindFirstChild("UpperTorso")
+		end
+		if torso and torso:IsA("BasePart") and torso:IsDescendantOf(character) then
+			return torso
+		end
+	end
+	return root
+end
+Reanimate.ResolveHitboxTargets = function()
+	local reanimator = Reanimate.Current
+	local preferTorso = reanimator == LimbReanimator
+	local originalCharacter = Player.Character
+	if preferTorso then
+		local boundCharacter = LimbReanimator.ActiveRealCharacter
+		if boundCharacter and boundCharacter:IsA("Model") and boundCharacter.Parent then
+			originalCharacter = boundCharacter
+		end
+	end
+	if originalCharacter == Reanimate.Character then
+		originalCharacter = nil
+	end
+	return Util.ResolveCharacterHitboxPart(originalCharacter, preferTorso),
+		-- Cyan remains the controller HumanoidRootPart. Only the red bound-real
+		-- target uses torso resolution in Limb mode.
+		Util.ResolveCharacterHitboxPart(Reanimate.Character, false)
+end
 local function ClearReanimateHitboxes()
 	for _, child in SCREENGUI:GetChildren() do
 		if child.Name == "_Uhhhhhh_ReanimateHitbox" then
@@ -8284,6 +8486,10 @@ end
 local function ReanimateShowHitboxes()
 	ClearReanimateHitboxes()
 	if not Reanimate.ShowHitboxes then
+		Reanimate._HitboxOriginalPart = nil
+		Reanimate._HitboxReanimatedPart = nil
+		Reanimate._HitboxReanimator = nil
+		Reanimate._HitboxRigGeneration = -1
 		return false
 	end
 
@@ -8292,13 +8498,16 @@ local function ReanimateShowHitboxes()
 		Reanimator.ShowHitboxes()
 	end
 
-	local originalRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-	if originalRoot and originalRoot:IsA("BasePart") then
-		Util.ShowPartHitbox(originalRoot, Color3.fromRGB(255, 70, 70), 0)
+	local originalPart, reanimatedPart = Reanimate.ResolveHitboxTargets()
+	Reanimate._HitboxOriginalPart = originalPart
+	Reanimate._HitboxReanimatedPart = reanimatedPart
+	Reanimate._HitboxReanimator = Reanimator
+	Reanimate._HitboxRigGeneration = Reanimator == LimbReanimator and LimbReanimator.RigGeneration or 0
+	if originalPart then
+		Util.ShowPartHitbox(originalPart, Color3.fromRGB(255, 70, 70), 0)
 	end
-	local reanimatedRoot = Reanimate.Character and Reanimate.Character:FindFirstChild("HumanoidRootPart")
-	if reanimatedRoot and reanimatedRoot:IsA("BasePart") and reanimatedRoot ~= originalRoot then
-		Util.ShowPartHitbox(reanimatedRoot, Color3.fromRGB(40, 190, 255), 0)
+	if reanimatedPart and reanimatedPart ~= originalPart then
+		Util.ShowPartHitbox(reanimatedPart, Color3.fromRGB(40, 190, 255), 0)
 	end
 	return true
 end
@@ -8306,13 +8515,25 @@ local LastReanimateHitboxRefresh = -math.huge
 RunService.Heartbeat:Connect(function()
 	if Reanimate.ShowHitboxes then
 		local now = os.clock()
-		if now - LastReanimateHitboxRefresh >= 0.5 then
+		local originalPart, reanimatedPart = Reanimate.ResolveHitboxTargets()
+		local rigGeneration = Reanimate.Current == LimbReanimator and LimbReanimator.RigGeneration or 0
+		if
+			originalPart ~= Reanimate._HitboxOriginalPart
+			or reanimatedPart ~= Reanimate._HitboxReanimatedPart
+			or Reanimate.Current ~= Reanimate._HitboxReanimator
+			or rigGeneration ~= Reanimate._HitboxRigGeneration
+			or now - LastReanimateHitboxRefresh >= 0.5
+		then
 			LastReanimateHitboxRefresh = now
 			ReanimateShowHitboxes()
 		end
 	elseif LastReanimateHitboxRefresh ~= -math.huge then
 		ClearReanimateHitboxes()
 		LastReanimateHitboxRefresh = -math.huge
+		Reanimate._HitboxOriginalPart = nil
+		Reanimate._HitboxReanimatedPart = nil
+		Reanimate._HitboxReanimator = nil
+		Reanimate._HitboxRigGeneration = -1
 	end
 end)
 local function ReanimateFling(target, duration)
@@ -8404,7 +8625,7 @@ do
 	end)
 	UI.CreateText(
 		MainPage,
-		"red = original rootpart | cyan = reanimated rootpart | green = collidable hats",
+		"red = bound real torso/root | cyan = controller rootpart | green = collidable hats",
 		10,
 		Enum.TextXAlignment.Center
 	)
@@ -8843,7 +9064,7 @@ SavedDanceEffectsOptions.AnchorMode = table.find(DanceEffectAnchorModes, SavedDa
 	or "Center of Mass"
 
 local AnimLib = {
-	Version = "1.7.7",
+	Version = "1.8.2",
 	Settings = {
 		Speed = SavedAnimLibOptions.Speed,
 		FadeIn = SavedAnimLibOptions.FadeIn,
@@ -10514,14 +10735,15 @@ do
 		if typeof(transform) ~= "CFrame" then
 			return false, "transform must be a CFrame"
 		end
-		if ismissing(sethiddenproperty) then
-			return false, "sethiddenproperty is unavailable"
+		if #Util.HiddenPropertySetters == 0 then
+			return false, "hidden-property setter is unavailable"
 		end
 		local offset, angle = Motor6DUtil.ToReplicationVectors(transform)
-		local offsetSuccess, offsetReason = pcall(sethiddenproperty, motor, "ReplicateCurrentOffset6D", offset)
-		local angleSuccess, angleReason = pcall(sethiddenproperty, motor, "ReplicateCurrentAngle6D", angle)
+		local offsetSuccess, offsetReason =
+			Util.TrySetHiddenProperty(motor, "ReplicateCurrentOffset6D", offset)
+		local angleSuccess, angleReason = Util.TrySetHiddenProperty(motor, "ReplicateCurrentAngle6D", angle)
 		if offsetSuccess and angleSuccess then
-			return true
+			return true, angleReason or offsetReason
 		end
 		return false, tostring(not offsetSuccess and offsetReason or angleReason)
 	end
