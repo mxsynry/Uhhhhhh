@@ -12675,7 +12675,7 @@ RebuildDanceEffectsBodyPartDropdown = function(partNames)
 		end
 	end
 
-	local selectValue, label = UI.CreateDropdown(DanceEffectsOptionsPage, "↳ Visible Body Parts", choices, 1)
+	local selectValue, label = UI.CreateDropdown(DanceEffectsOptionsPage, "Visible Body Parts", choices, 1)
 	DanceEffectsBodyPartDropdownLabel = label
 	if DanceEffectsBodyPartDropdownLayoutOrder == nil then
 		DanceEffectsBodyPartDropdownLayoutOrder = label.Parent.LayoutOrder
