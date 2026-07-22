@@ -19,7 +19,9 @@ $$      $$$$$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$
 Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
-if _G.UhhhhhhLoaded then return end
+if _G.UhhhhhhLoaded then
+	return
+end
 _G.UhhhhhhLoaded = true
 
 local UhhhhhhVersion = "1.0.9 BETA"
@@ -44,7 +46,7 @@ local Util = {}
 Util.RandomString = function(length)
 	length = length or math.random(32, 256)
 	local str = ""
-	for _=1, length do
+	for _ = 1, length do
 		str ..= string.char(math.random(32, 126))
 	end
 	return str
@@ -63,11 +65,13 @@ Util.Notify = function(text)
 	StarterGui:SetCore("SendNotification", {
 		Title = "Uhhhhhh",
 		Text = text,
-		Duration = 5
+		Duration = 5,
 	})
 end
 
-cloneref = cloneref or function(o) return o end
+cloneref = cloneref or function(o)
+	return o
+end
 getcustomasset = getcustomasset or getsynasset
 gethiddengui = get_hidden_gui or gethui
 request = request or (http and http.request)
@@ -87,13 +91,15 @@ do
 	if ismissing(getcustomasset) then
 		diefatal("Missing `getcustomasset` or `getsynasset` function!")
 	end
-	if ismissing(readfile)
+	if
+		ismissing(readfile)
 		or ismissing(writefile)
 		or ismissing(delfile)
 		or ismissing(isfile)
 		or ismissing(isfolder)
 		or ismissing(makefolder)
-		or ismissing(listfiles) then
+		or ismissing(listfiles)
+	then
 		diefatal("Missing some filesystem functions!")
 	end
 	if ismissing(firetouchinterest) then
@@ -115,9 +121,13 @@ do
 		else
 			gethiddenproperty = function(inst, prop, val)
 				local was = isscriptable(inst, prop)
-				if not was then setscriptable(inst, prop, true) end
+				if not was then
+					setscriptable(inst, prop, true)
+				end
 				local val = inst[prop]
-				if not was then setscriptable(inst, prop, false) end
+				if not was then
+					setscriptable(inst, prop, false)
+				end
 				return val
 			end
 		end
@@ -134,9 +144,13 @@ do
 		else
 			gethiddenproperty = function(inst, prop, val)
 				local was = isscriptable(inst, prop)
-				if not was then setscriptable(inst, prop, true) end
+				if not was then
+					setscriptable(inst, prop, true)
+				end
 				inst[prop] = val
-				if not was then setscriptable(inst, prop, false) end
+				if not was then
+					setscriptable(inst, prop, false)
+				end
 			end
 		end
 	end
@@ -194,8 +208,9 @@ if not game:IsLoaded() then
 	end)
 	notLoaded.Text = "Uhhhhhh is waiting for the game to load"
 	game.Loaded:Wait()
-	for i=1, 60 do
-		while task.wait() > 1 / 10 do end
+	for i = 1, 60 do
+		while task.wait() > 1 / 10 do
+		end
 	end
 	notLoaded:Destroy()
 end
@@ -232,12 +247,15 @@ Util.LinkDestroyI2C = function(a, b)
 	end)
 end
 Util.LinkDestroyI2I = function(a, b)
-	Util.LinkDestroyI2C(b, a.Destroying:Once(function()
-		task.defer(b.Destroy, b)
-	end))
+	Util.LinkDestroyI2C(
+		b,
+		a.Destroying:Once(function()
+			task.defer(b.Destroy, b)
+		end)
+	)
 end
 Util.ClearAllChildrenGui = function(a)
-	for _,v in a:GetChildren() do
+	for _, v in a:GetChildren() do
 		if v:IsA("GuiObject") then
 			v:Destroy()
 		end
@@ -250,7 +268,9 @@ Util.ScaleCFrame = function(cf, scale)
 	return cf + cf.Position * (scale - 1)
 end
 Util.IsGuiVisible = function(guiObject)
-	if not guiObject or not guiObject:IsA("GuiObject") then return false end
+	if not guiObject or not guiObject:IsA("GuiObject") then
+		return false
+	end
 	while guiObject do
 		if not guiObject.Visible then
 			return false
@@ -260,7 +280,9 @@ Util.IsGuiVisible = function(guiObject)
 	return true
 end
 Util.IsGuiInteractable = function(guiObject)
-	if not guiObject or not guiObject:IsA("GuiObject") then return false end
+	if not guiObject or not guiObject:IsA("GuiObject") then
+		return false
+	end
 	while guiObject do
 		if not guiObject.Visible or not guiObject.Interactable then
 			return false
@@ -287,7 +309,8 @@ end
 Util.ForceTextSize = function(inst)
 	if inst:IsA("TextLabel") then
 		local original = inst.TextSize
-		local conn conn = RunService.PreRender:Connect(function()
+		local conn
+		conn = RunService.PreRender:Connect(function()
 			local size = GuiService.PreferredTextSize.Name
 			if size == "Medium" then
 				inst.TextSize = original
@@ -303,15 +326,21 @@ Util.ForceTextSize = function(inst)
 	end
 end
 Util.QueryPlayerSelector = function(query, excludespeaker)
-	if #query == 0 then return end
+	if #query == 0 then
+		return
+	end
 	query = query:lower()
 	local t = {}
-	for _,player in Players:GetPlayers() do
+	for _, player in Players:GetPlayers() do
 		if player ~= Player or not excludespeaker then
 			local a = player.DisplayName:lower():find(query)
 			local b = player.Name:lower():find(query)
-			if a then table.insert(t, {player, 1, a}) end
-			if b then table.insert(t, {player, 0, b}) end
+			if a then
+				table.insert(t, { player, 1, a })
+			end
+			if b then
+				table.insert(t, { player, 0, b })
+			end
 		end
 	end
 	table.sort(t, function(a, b)
@@ -351,10 +380,13 @@ UIMainFrame.BorderSizePixel = 0
 UIMainFrame.ZIndex = 2147483647
 
 local SaveData = {}
+local SaveDataFilename = "UhhhhhhReanim/tree.ehehetilde"
+local SaveSettingsNow = function()
+	return false, "save system is not ready"
+end
 do
 	pcall(makefolder, "UhhhhhhReanim")
 	pcall(writefile, "UhhhhhhReanim/.nomedia", "")
-	local SaveDataFilename = "UhhhhhhReanim/tree.ehehetilde"
 	local s, data = pcall(readfile, SaveDataFilename)
 	if s and data then
 		s, data = pcall(HttpService.JSONDecode, HttpService, data)
@@ -366,8 +398,117 @@ do
 	else
 		pcall(writefile, SaveDataFilename, "{}")
 	end
+	-- Fresh-install profile captured from the supplied configuration. Apply it
+	-- only when the save is empty so updates never overwrite a user's existing
+	-- choices. Runtime caches, window coordinates, CDN state, and module hashes
+	-- are intentionally regenerated instead of being treated as preferences.
+	local FreshInstallDefaultsApplied = false
+	if type(SaveData) ~= "table" then
+		SaveData = {}
+	end
+	if next(SaveData) == nil then
+		FreshInstallDefaultsApplied = true
+		SaveData = {
+			SkipIntro = true,
+			UseAngularVelocity = true,
+			SeatSitEnabled = true,
+			NoSeatSitEnabled = false,
+			FirstPersonBody = false,
+			PlaceholderTransparency = 1,
+			CtrlClickKey = 1,
+			CtrlClickEnabled = true,
+			NoInfiniteJump = false,
+			MuteUISound = false,
+			MuteUIMusic = false,
+			NetlessVelocity = 30,
+			NoclipEnabled = false,
+			UsePatchmaLikeNetless = true,
+			PatchmaVoidFloat = true,
+			KeepSeatSitState = true,
+			NoLoadAnimationHook = false,
+			NoPhysicsRepRootPart = false,
+			MuteReanimMusic = false,
+			MovesetIndex = 2,
+			ClickFlingEnabled = false,
+			ToolGrabEnabled = true,
+			KeybindsEnabled = true,
+			EnableUntrustedExtras = true,
+			CharacterScale = 1,
+			NoSmoothCam = false,
+			UITheme = 15,
+			P2PCollision = false,
+			ScaleGravityEnabled = true,
+			ShiftlockDisabled = false,
+			SelectedReanimator = 1,
+			ShowReanimateHitboxes = true,
+			ShowResetPlaceholder = true,
+			Reanimator = {
+				HatsCollide = true,
+				HatsToolAnim = 0,
+				LimbRoleplay = true,
+				HatsFlingMethod = -1,
+				HatsSpin = false,
+				LimbMode = 4,
+				LimbReplicateFPS10 = true,
+				LimbUseNaNFling = true,
+				HatsFling = false,
+				LimbInitMode = 2,
+				LimbFlingVelocityMagnitude = 10000,
+				LimbFlingVelocityDirection = 1,
+				HatsCollideMethod = 7,
+				IWantAllHats = true,
+				NoToolHolding = false,
+				HatsPatchmahub = false,
+				LimbVelocity = 1,
+				IWantHatCollide = 1,
+				RespawnPosition = 0,
+			},
+			DanceEffectsOptions = {
+				OffsetZ = 0,
+				RotationY = 0,
+				AfterimageSpawnRate = 1.3,
+				AfterimageFadeSpeed = 1.3,
+				AfterimageScale = 0.86,
+				AfterimageTransparency = 55,
+				AfterimageEnabled = false,
+				Accent = "2DED43",
+				VisualizerEnabled = true,
+				OffsetX = 0.3,
+				RotationX = 0,
+				RotationZ = 0,
+				OffsetY = 0,
+				DynamicPosition = true,
+				StayVertical = true,
+				AnchorMode = "Center of Mass",
+				Size = 2,
+			},
+			AnimLibOptions = {
+				KrystalHeadOverride = true,
+				MarkerNotifications = true,
+				ApplySpeedToMusic = true,
+				SyncToDanceMusic = true,
+				JointPreset = "Full Body",
+				KrystalHeadStrength = 1,
+				KrystalHeadTracking = false,
+				Speed = 1,
+				KrystalHeadSmoothing = 30,
+				FadeIn = 0,
+				ResetPoseOnStop = false,
+			},
+		}
+	end
+	SaveSettingsNow = function()
+		local encoded, data = pcall(HttpService.JSONEncode, HttpService, SaveData)
+		if not encoded then
+			return false, data
+		end
+		return pcall(writefile, SaveDataFilename, data)
+	end
 	task.spawn(function()
-		local odata = nil
+		-- An empty save was already written before defaults were known. Seed the
+		-- comparison with a different value so the complete profile is persisted
+		-- on the first save pass even when the user changes nothing.
+		local odata = FreshInstallDefaultsApplied and "" or nil
 		local savefailwarn = false
 		while true do
 			task.wait()
@@ -441,7 +582,7 @@ do
 	}
 	local redownloadeverything = SaveData.CDNVersion ~= CDNVersion
 	local theresassetsmissing = redownloadeverything
-	for _,rfile in AllFileNames do
+	for _, rfile in AllFileNames do
 		local fil = "UhhhhhhReanim/Assets/" .. rfile
 		local s, d = pcall(isfile, fil)
 		if not (s and d) then
@@ -463,7 +604,9 @@ do
 			end
 			if not pcall(function()
 				writefile(fil, game:HttpGet(meta.download_url))
-			end) then skipped += 1 end
+			end) then
+				skipped += 1
+			end
 			downloaded += 1
 		end
 		local Downloading = Util.Instance("TextLabel", UIMainFrame)
@@ -480,14 +623,15 @@ do
 		Downloading.Text = "Fetching Assets metadata..."
 		Util.ForceTextSize(Downloading)
 		TweenService:Create(Downloading, TweenInfo.new(0.5), {
-			Size = UDim2.new(1, 0, 0, 32)
+			Size = UDim2.new(1, 0, 0, 32),
 		}):Play()
 		task.wait(0.5)
-		local s, assetsof = pcall(game.HttpGet, game, "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/uiassets/")
+		local s, assetsof =
+			pcall(game.HttpGet, game, "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/uiassets/")
 		if s and assetsof then
 			s, assetsof = pcall(HttpService.JSONDecode, HttpService, assetsof)
 			if s and assetsof then
-				for i,file in assetsof do
+				for i, file in assetsof do
 					if not table.find(AllFileNames, file.name) then
 						continue
 					end
@@ -523,7 +667,9 @@ Util.GetCDNAsset = function(filename)
 	local s, id = pcall(isfile, path)
 	if s and id then
 		s, id = pcall(getcustomasset, path)
-		if s then return id end
+		if s then
+			return id
+		end
 	end
 	return ""
 end
@@ -549,7 +695,7 @@ Util.MakeTriforce = function(tris, color, dur)
 		local grey = math.max(color.R, color.G, color.B) * 0.5
 		tri.ImageColor3 = Color3.new(grey, grey, grey)
 		TweenService:Create(tri, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
-			ImageColor3 = color
+			ImageColor3 = color,
 		}):Play()
 	end
 	local radius = 0.1
@@ -559,7 +705,7 @@ Util.MakeTriforce = function(tris, color, dur)
 	pivot.BackgroundTransparency = 1
 	pivot.BorderSizePixel = 0
 	local width = 2 * radius * math.sin(math.pi / tris) * 2
-	for i=1, tris do
+	for i = 1, tris do
 		CreateTriangle(pivot, radius, width, (i / tris) * 360, color)
 	end
 	return pivot
@@ -578,9 +724,9 @@ Util.MakeText = function(text)
 	lt ..= "DFJSJJJRJJRJJRGJIIIJGRJJJJJRSIIRIISSIIRIIIHIILJJHJJJSJJJGDDDDDGAAAAAJHJKMOMKJIIIIIISJQNJJJJJJPNLJJGJJJJJGRJJRIIIGJJJNGCRJJRMKJGJIGAJGSDDDDDDJJJJJJGJJJJJFDJJJNQJJJJFDFJJJJFDDDDSABDEIS"
 	local pixs = {}
 	local totalsize = 0
-	for i=0, 6 do
+	for i = 0, 6 do
 		local row = {}
-		for j=1, text:len() do
+		for j = 1, text:len() do
 			local c = text:byte(j, j)
 			local w = 0
 			if c ~= 0x20 then
@@ -592,7 +738,7 @@ Util.MakeText = function(text)
 					w = 0
 				end
 			end
-			for k=0, 5 do
+			for k = 0, 5 do
 				local h = (j - 1) * 6 + (4 - k)
 				totalsize = math.max(totalsize, h + 1)
 				local p = (w // math.pow(2, k)) % 2
@@ -609,11 +755,11 @@ Util.MakeText = function(text)
 	pivot.Size = UDim2.new(0, totalsize, 0, 7)
 	pivot.BackgroundTransparency = 1
 	pivot.BorderSizePixel = 0
-	for i=0, 6 do
+	for i = 0, 6 do
 		local row = pixs[i]
 		local olde = nil
 		local olds = 0
-		for j=0, totalsize - 1 do
+		for j = 0, totalsize - 1 do
 			local pix = row[j]
 			if pix == true then
 				if olde ~= nil then
@@ -637,7 +783,7 @@ Util.MakeText = function(text)
 	return pivot
 end
 Util.SetTextColor = function(text, color, tran)
-	for _,v in text:GetChildren() do
+	for _, v in text:GetChildren() do
 		v.BackgroundColor3 = color
 		v.BackgroundTransparency = tran
 	end
@@ -653,40 +799,44 @@ UISound.Music.PlaybackSpeed = 1
 
 local MusicPlayer = {}
 MusicPlayer.Database = {
-	{"UhhhhhhReanim/Assets/dm_afterburner.ft2.mp3", "Dubmood - Afterburner"},
-	{"UhhhhhhReanim/Assets/dm_robotadventure.ft2.mp3", "Dubmood & Zabutom - Robot Adventure Remix"},
-	{"UhhhhhhReanim/Assets/4m_brokenheart.ft2.mp3", "4-Mat - <3 Broken Heart <3"},
-	{"UhhhhhhReanim/Assets/fr_brokenheart.ft2.mp3", "Hoster's FR - Alternate Broken Heart"},
-	{"UhhhhhhReanim/Assets/dm_change.ft2.mp3", "Dubmood - Change (Radio Edit)"},
-	{math.random() < 0.5 and "UhhhhhhReanim/Assets/dm_deadscene2024.ft2.mp3" or "UhhhhhhReanim/Assets/dm_deadscene2024alt.ft2.mp3", "Dubmood - The Scene is Dead 2024"},
-	{"UhhhhhhReanim/Assets/dm_e1m777.ft2.mp3", "Dubmood & MBR - E1M777"},
-	{"UhhhhhhReanim/Assets/dm_haze.ft2.mp3", "Dubmood - Haze (Keygen 13 Edit)"},
-	{"UhhhhhhReanim/Assets/dm_haze2.ft2.mp3", "Dubmood - Haze Keygen 2"},
-	{"UhhhhhhReanim/Assets/dm_iostesso.ft2.mp3", "Dubmood - Io Stesso"},
-	{"UhhhhhhReanim/Assets/dm_keygen3.ft2.mp3", "Dubmood - Keygen 3"},
-	{"UhhhhhhReanim/Assets/dm_keygen8.ft2.mp3", "Dubmood - Keygen 8"},
-	{"UhhhhhhReanim/Assets/dm_keygen18.ft2.mp3", "Dubmood - Keygen 18"}, -- intro music
-	{"UhhhhhhReanim/Assets/dm_keygen19.ft2.mp3", "Dubmood - Keygen 19"},
-	{"UhhhhhhReanim/Assets/dm_keygen20.ft2.mp3", "Dubmood - Keygen 20"},
-	{"UhhhhhhReanim/Assets/dm_keygen21alt.ft2.mp3", "Dubmood - Keygen 21"},
-	{"UhhhhhhReanim/Assets/dm_keygen21.ft2.mp3", "Dubmood - Keygen 21 (Installer Edit)"},
-	{"UhhhhhhReanim/Assets/dm_keygen22.ft2.mp3", "Dubmood - Keygen 22"},
-	{"UhhhhhhReanim/Assets/dm_keygen23.ft2.mp3", "Dubmood - Keygen 23"},
-	{"UhhhhhhReanim/Assets/dm_keygen30.ft2.mp3", "Dubmood - Keygen 30"},
-	{"UhhhhhhReanim/Assets/dm_keygen31.ft2.mp3", "Dubmood - Keygen 31"},
-	{"UhhhhhhReanim/Assets/fr_keygen31.ft2.mp3", "Hoster's FR - Alternate Keygen 31"},
-	{"UhhhhhhReanim/Assets/dm_laparade.ft2.mp3", "Dubmood & MBR - La Parade"},
-	{"UhhhhhhReanim/Assets/dm_reztro4.ft2.mp3", "Dubmood - Rez Cracktro #4"},
-	{"UhhhhhhReanim/Assets/dm_unaseraariccione.ft2.mp3", "Dubmood - Una Sera A Riccione"},
+	{ "UhhhhhhReanim/Assets/dm_afterburner.ft2.mp3", "Dubmood - Afterburner" },
+	{ "UhhhhhhReanim/Assets/dm_robotadventure.ft2.mp3", "Dubmood & Zabutom - Robot Adventure Remix" },
+	{ "UhhhhhhReanim/Assets/4m_brokenheart.ft2.mp3", "4-Mat - <3 Broken Heart <3" },
+	{ "UhhhhhhReanim/Assets/fr_brokenheart.ft2.mp3", "Hoster's FR - Alternate Broken Heart" },
+	{ "UhhhhhhReanim/Assets/dm_change.ft2.mp3", "Dubmood - Change (Radio Edit)" },
+	{
+		math.random() < 0.5 and "UhhhhhhReanim/Assets/dm_deadscene2024.ft2.mp3"
+			or "UhhhhhhReanim/Assets/dm_deadscene2024alt.ft2.mp3",
+		"Dubmood - The Scene is Dead 2024",
+	},
+	{ "UhhhhhhReanim/Assets/dm_e1m777.ft2.mp3", "Dubmood & MBR - E1M777" },
+	{ "UhhhhhhReanim/Assets/dm_haze.ft2.mp3", "Dubmood - Haze (Keygen 13 Edit)" },
+	{ "UhhhhhhReanim/Assets/dm_haze2.ft2.mp3", "Dubmood - Haze Keygen 2" },
+	{ "UhhhhhhReanim/Assets/dm_iostesso.ft2.mp3", "Dubmood - Io Stesso" },
+	{ "UhhhhhhReanim/Assets/dm_keygen3.ft2.mp3", "Dubmood - Keygen 3" },
+	{ "UhhhhhhReanim/Assets/dm_keygen8.ft2.mp3", "Dubmood - Keygen 8" },
+	{ "UhhhhhhReanim/Assets/dm_keygen18.ft2.mp3", "Dubmood - Keygen 18" }, -- intro music
+	{ "UhhhhhhReanim/Assets/dm_keygen19.ft2.mp3", "Dubmood - Keygen 19" },
+	{ "UhhhhhhReanim/Assets/dm_keygen20.ft2.mp3", "Dubmood - Keygen 20" },
+	{ "UhhhhhhReanim/Assets/dm_keygen21alt.ft2.mp3", "Dubmood - Keygen 21" },
+	{ "UhhhhhhReanim/Assets/dm_keygen21.ft2.mp3", "Dubmood - Keygen 21 (Installer Edit)" },
+	{ "UhhhhhhReanim/Assets/dm_keygen22.ft2.mp3", "Dubmood - Keygen 22" },
+	{ "UhhhhhhReanim/Assets/dm_keygen23.ft2.mp3", "Dubmood - Keygen 23" },
+	{ "UhhhhhhReanim/Assets/dm_keygen30.ft2.mp3", "Dubmood - Keygen 30" },
+	{ "UhhhhhhReanim/Assets/dm_keygen31.ft2.mp3", "Dubmood - Keygen 31" },
+	{ "UhhhhhhReanim/Assets/fr_keygen31.ft2.mp3", "Hoster's FR - Alternate Keygen 31" },
+	{ "UhhhhhhReanim/Assets/dm_laparade.ft2.mp3", "Dubmood & MBR - La Parade" },
+	{ "UhhhhhhReanim/Assets/dm_reztro4.ft2.mp3", "Dubmood - Rez Cracktro #4" },
+	{ "UhhhhhhReanim/Assets/dm_unaseraariccione.ft2.mp3", "Dubmood - Una Sera A Riccione" },
 }
 pcall(function()
 	local future = table.clone(MusicPlayer.Database)
 	if isfile("UhhhhhhReanim/Muzik/nobuiltin") then
 		table.clear(future)
 	end
-	for _,file in listfiles("UhhhhhhReanim/Muzik") do
+	for _, file in listfiles("UhhhhhhReanim/Muzik") do
 		if isfile(file) and file:sub(-4, -1) == ".mp3" then
-			table.insert(future, {file, file:sub(21, -5)})
+			table.insert(future, { file, file:sub(21, -5) })
 		end
 	end
 	if #future > 0 then
@@ -696,7 +846,9 @@ end)
 MusicPlayer.Switching = false
 MusicPlayer.Last = 1
 MusicPlayer.PlayMusic = function(i)
-	if MusicPlayer.Switching then return end
+	if MusicPlayer.Switching then
+		return
+	end
 	MusicPlayer.Switching = true
 	local last = MusicPlayer.LastMusic
 	if not i then
@@ -744,7 +896,9 @@ if SaveData.SkipIntro then
 else
 	UISound.Music.Volume = 0
 	MusicPlayer.PlayMusic(1)
-	repeat RunService.RenderStepped:Wait() until UISound.Music.IsLoaded
+	repeat
+		RunService.RenderStepped:Wait()
+	until UISound.Music.IsLoaded
 	UISound.Music:Stop()
 	task.wait()
 	UISound.Music:Play()
@@ -789,7 +943,7 @@ else
 		"RCDless is the future of roblox exploiting                        ",
 	}
 	scrolltexts = scrolltexts[math.random(1, #scrolltexts)]
-	local fade = TweenService:Create(UIMainFrame, TweenInfo.new(5), {BackgroundTransparency = 0.5})
+	local fade = TweenService:Create(UIMainFrame, TweenInfo.new(5), { BackgroundTransparency = 0.5 })
 	fade:Play()
 	local scrolltext = Util.MakeText(scrolltexts)
 	scrolltext.Parent = UIMainFrame
@@ -834,7 +988,9 @@ else
 	while true do
 		local dt = RunService.Heartbeat:Wait()
 		local t = UISound.Music.TimePosition
-		if t >= 5.256 then break end
+		if t >= 5.256 then
+			break
+		end
 		local screensize = Util.GetScreenSize()
 		local ysize = screensize.Y
 		local height = ysize / 3
@@ -904,7 +1060,7 @@ else
 	flash.Interactable = false
 	flash.ZIndex = 256
 	TweenService:Create(flash, TweenInfo.new(1), {
-		BackgroundTransparency = 1
+		BackgroundTransparency = 1,
 	}):Play()
 	Debris:AddItem(flash, 1)
 end
@@ -918,7 +1074,7 @@ if SaveData.MuteUIMusic then
 		UISound.Music.Volume = 0
 	else
 		TweenService:Create(UISound.Music, TweenInfo.new(3, Enum.EasingStyle.Linear), {
-			Volume = 0
+			Volume = 0,
 		}):Play()
 	end
 end
@@ -959,8 +1115,8 @@ local function Stylize(obj, options)
 		update()
 		obj.Changed:Connect(update)
 		local tex = Util.GetCDNAsset("lightinursoul.graphic.png")
-		for x=0, 2 do
-			for y=0, 2 do
+		for x = 0, 2 do
+			for y = 0, 2 do
 				local Glo = Util.Instance("ImageLabel", GloF)
 				Glo.AnchorPoint = Vector2.new(1 - math.min(x, 1), 1 - math.min(y, 1))
 				Glo.Position = UDim2.fromScale(math.max(x - 1, 0), math.max(y - 1, 0))
@@ -1017,19 +1173,25 @@ UITextColor.Value = Color3.new(1, 1, 1)
 local function RegisterTextLabel(obj)
 	if obj:IsA("TextLabel") or obj:IsA("TextButton") then
 		obj.TextColor3 = UITextColor.Value
-		Util.LinkDestroyI2C(obj, UITextColor.Changed:Connect(function(val)
-			obj.TextColor3 = val
-		end))
+		Util.LinkDestroyI2C(
+			obj,
+			UITextColor.Changed:Connect(function(val)
+				obj.TextColor3 = val
+			end)
+		)
 	end
 	if obj:IsA("TextBox") then
 		local h, s, v = UITextColor.Value:ToHSV()
 		obj.TextColor3 = UITextColor.Value
 		obj.PlaceholderColor3 = Color3.fromHSV(h, s, 0.5 + (v - 0.5) * 0.4)
-		Util.LinkDestroyI2C(obj, UITextColor.Changed:Connect(function(val)
-			h, s, v = val:ToHSV()
-			obj.TextColor3 = val
-			obj.PlaceholderColor3 = Color3.fromHSV(h, s, 0.5 + (v - 0.5) * 0.4)
-		end))
+		Util.LinkDestroyI2C(
+			obj,
+			UITextColor.Changed:Connect(function(val)
+				h, s, v = val:ToHSV()
+				obj.TextColor3 = val
+				obj.PlaceholderColor3 = Color3.fromHSV(h, s, 0.5 + (v - 0.5) * 0.4)
+			end)
+		)
 	end
 end
 local function UpdateGrads(t)
@@ -1042,7 +1204,7 @@ local function UpdateGrads(t)
 	if v > v2 then
 		glc = bgc
 	end
-	for _,grad in StylizedObjs do
+	for _, grad in StylizedObjs do
 		local obj, Out, Glos, options = grad.obj, grad.Out, grad.Glos, grad.options
 		Out.Color = c
 		if options.Depthed then
@@ -1050,7 +1212,7 @@ local function UpdateGrads(t)
 		else
 			obj.BackgroundColor3 = bgc
 		end
-		for _,v in Glos do
+		for _, v in Glos do
 			v.ImageColor3 = glc
 		end
 	end
@@ -1060,37 +1222,47 @@ local function SetUITheme(index)
 		-- RGB/Default
 		{},
 		-- ALONE
-		{Fore = Color3.new(1, 1, 1), SndClick = "rbxassetid://81715128969224"},
+		{ Fore = Color3.new(1, 1, 1), SndClick = "rbxassetid://81715128969224" },
 		-- Oxide
-		{Fore = Color3.fromRGB(49, 203, 233), Back = Color3.fromRGB(38, 38, 38), Text = Color3.fromRGB(49, 203, 233)},
+		{ Fore = Color3.fromRGB(49, 203, 233), Back = Color3.fromRGB(38, 38, 38), Text = Color3.fromRGB(49, 203, 233) },
 		-- Patchma-like
-		{Fore = Color3.new(0.0941177, 0.317647, 0.878431), Text = Color3.new(0.560784, 0.560784, 0.560784)},
+		{ Fore = Color3.new(0.0941177, 0.317647, 0.878431), Text = Color3.new(0.560784, 0.560784, 0.560784) },
 		-- Genesis V4 - Neptunian V
-		{Fore = Color3.fromHex("7733FF"), Back = Color3.fromHex("161330"), SndClick = "rbxassetid://80526571264304"},
+		{ Fore = Color3.fromHex("7733FF"), Back = Color3.fromHex("161330"), SndClick = "rbxassetid://80526571264304" },
 		-- Crimson
-		{Fore = Color3.new(0.9, 0, 0), Back = Color3.new(0.05, 0, 0)},
+		{ Fore = Color3.new(0.9, 0, 0), Back = Color3.new(0.05, 0, 0) },
 		-- r/masterhacker
-		{Fore = Color3.new(0, 1, 0), Text = Color3.new(0, 1, 0)},
+		{ Fore = Color3.new(0, 1, 0), Text = Color3.new(0, 1, 0) },
 		-- Homer simpson
-		{Fore = Color3.new(0, 0, 0), Back = Color3.new(1, 0.95, 0), Text = Color3.new(0, 0, 0)},
+		{ Fore = Color3.new(0, 0, 0), Back = Color3.new(1, 0.95, 0), Text = Color3.new(0, 0, 0) },
 		-- Immortality Lord
-		{Fore = Color3.new(0.1, 0.1, 0.1), Text = Color3.new(1, 1, 1)},
+		{ Fore = Color3.new(0.1, 0.1, 0.1), Text = Color3.new(1, 1, 1) },
 		-- RGB LIGHT
-		{Back = Color3.new(1, 1, 1), Text = Color3.new(0, 0, 0)},
+		{ Back = Color3.new(1, 1, 1), Text = Color3.new(0, 0, 0) },
 		-- ALONE LIGHT
-		{Fore = Color3.new(0, 0, 0), Back = Color3.new(1, 1, 1), Text = Color3.new(0, 0, 0), SndClick = "rbxassetid://81715128969224"},
+		{
+			Fore = Color3.new(0, 0, 0),
+			Back = Color3.new(1, 1, 1),
+			Text = Color3.new(0, 0, 0),
+			SndClick = "rbxassetid://81715128969224",
+		},
 		-- ROSR
-		{Fore = Color3.new(0, 0, 0), Back = Color3.new(1, 0.6, 0)},
+		{ Fore = Color3.new(0, 0, 0), Back = Color3.new(1, 0.6, 0) },
 		-- FastTracker II Blue
-		{Fore = Color3.fromHex("333780"), Back = Color3.fromHex("666EFF"), Text = Color3.new(1, 1, 1)},
+		{ Fore = Color3.fromHex("333780"), Back = Color3.fromHex("666EFF"), Text = Color3.new(1, 1, 1) },
 		-- Cherry Blossom
-		{Fore = Color3.fromHex("75284B"), Back = Color3.fromHex("F7ABE8"), Text = Color3.fromHex("75284B")},
+		{ Fore = Color3.fromHex("75284B"), Back = Color3.fromHex("F7ABE8"), Text = Color3.fromHex("75284B") },
 		-- Cherry Blossom Inverted
-		{Fore = Color3.fromHex("F7ABE8"), Back = Color3.fromHex("75284B"), Text = Color3.new(1, 1, 1)},
+		{ Fore = Color3.fromHex("F7ABE8"), Back = Color3.fromHex("75284B"), Text = Color3.new(1, 1, 1) },
 		-- Tommorow Night 80s
-		{Fore = Color3.fromHex("272727"), Back = Color3.fromHex("2D2D2D"), Text = Color3.fromHex("BEBEBE"), SndClick = "rbxassetid://86097124503088"},
+		{
+			Fore = Color3.fromHex("272727"),
+			Back = Color3.fromHex("2D2D2D"),
+			Text = Color3.fromHex("BEBEBE"),
+			SndClick = "rbxassetid://86097124503088",
+		},
 	}
-	local theme = {nil, nil, Color3.new(1, 1, 1), "rbxassetid://118806752369227"}
+	local theme = { nil, nil, Color3.new(1, 1, 1), "rbxassetid://118806752369227" }
 	local function processtable(t)
 		if typeof(t.Fore) == "Color3" then
 			theme[1] = t.Fore
@@ -1144,7 +1316,8 @@ SaveData.UITheme = SaveData.UITheme or 15
 SetUITheme(SaveData.UITheme)
 
 local CracktroFrameText = "Uhhhhhh Reanimate V" .. UhhhhhhVersion
-local UIMainWindow, WindowContent do
+local UIMainWindow, WindowContent
+do
 	UIMainWindow = Util.Instance("Frame", UIMainFrame)
 	UIMainWindow.Active = true
 	UIMainWindow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1154,21 +1327,33 @@ local UIMainWindow, WindowContent do
 	UIMainWindow.BackgroundColor3 = Color3.new(1, 1, 1)
 	UIMainWindow.BorderSizePixel = 0
 	Stylize(UIMainWindow, {
-		Glow = true
+		Glow = true,
 	})
 	local _clicksndclicked = false
 	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			_clicksndclicked = false
 		end
 	end)
 	local function _registerclicksnd(v)
-		if v:GetAttribute("ClickSnd") then return end
+		if v:GetAttribute("ClickSnd") then
+			return
+		end
 		v:SetAttribute("ClickSnd", true)
 		v.InputBegan:Connect(function(input)
-			if _clicksndclicked then return end
-			if input.UserInputState ~= Enum.UserInputState.Begin then return end
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if _clicksndclicked then
+				return
+			end
+			if input.UserInputState ~= Enum.UserInputState.Begin then
+				return
+			end
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
 				UISound.Click:Play()
 				_clicksndclicked = true
 			end
@@ -1180,7 +1365,7 @@ local UIMainWindow, WindowContent do
 			_registerclicksnd(v)
 		end
 	end)
-	
+
 	local TopBarFrame = Util.Instance("Frame", UIMainWindow)
 	TopBarFrame.Position = UDim2.new(0, 0, 0, 0)
 	TopBarFrame.Size = UDim2.new(1, 0, 0, 30)
@@ -1190,7 +1375,7 @@ local UIMainWindow, WindowContent do
 	TopBarFrame.ClipsDescendants = true
 	TopBarFrame.ZIndex = 1
 	Stylize(TopBarFrame)
-	
+
 	local TopBarText = Util.Instance("TextLabel", TopBarFrame)
 	TopBarText.AnchorPoint = Vector2.new(0, 0.5)
 	TopBarText.Position = UDim2.new(0, 8, 0.5, 0)
@@ -1221,16 +1406,16 @@ local UIMainWindow, WindowContent do
 			"HD Admin",
 			"The Return Of STEVE's Roserika",
 			"HI",
-			"<font color=\"#00DDFF\">Oxide</font> Version 67",
+			'<font color="#00DDFF">Oxide</font> Version 67',
 			"currentangle v5",
-			"patchma hub by <font color=\"#0000FF\">MyWorld</font>",
+			'patchma hub by <font color="#0000FF">MyWorld</font>',
 			"Genesis FE with extra steps",
 			"Gugu Gaga",
 			"Half Life 3 Releaser",
 			"hatdrop hub",
 			"uhhhh hub",
 			"Emperyan Reanimate",
-			"<font color=\"#0000FF\">IM BLUE BADA DEE BADA DIE</font>",
+			'<font color="#0000FF">IM BLUE BADA DEE BADA DIE</font>',
 			"Delta Reanimate | v" .. UhhhhhhVersion,
 		}
 		if os.date("%m") == "12" and math.random(4) == 1 then
@@ -1262,17 +1447,17 @@ local UIMainWindow, WindowContent do
 			local troll = math.random(3)
 			if troll == 1 then
 				CracktroFrameText = "Oxide Reanimation V67"
-				quotes = {"<font color=\"#00DDFF\">Oxide</font>   Reanimation"}
+				quotes = { '<font color="#00DDFF">Oxide</font>   Reanimation' }
 				SetUITheme(3)
 			end
 			if troll == 2 then
 				CracktroFrameText = "patchma hub V67"
-				quotes = {"<font color=\"#0000FF\">patchma hub</font> by MyWorld"}
+				quotes = { '<font color="#0000FF">patchma hub</font> by MyWorld' }
 				SetUITheme(4)
 			end
 			if troll == 3 then
 				CracktroFrameText = "Genesis V4 but better"
-				quotes = {"<font color=\"#CC11FF\">Genesis V4 - Neptunian V</font>"}
+				quotes = { '<font color="#CC11FF">Genesis V4 - Neptunian V</font>' }
 				SetUITheme(5)
 			end
 		end
@@ -1283,7 +1468,7 @@ local UIMainWindow, WindowContent do
 			end)
 		end
 	end
-	
+
 	local TopBarClose = Util.Instance("TextButton", TopBarFrame)
 	TopBarClose.AnchorPoint = Vector2.new(1, 0)
 	TopBarClose.Position = UDim2.new(1, 0, 0, 0)
@@ -1314,14 +1499,14 @@ local UIMainWindow, WindowContent do
 			TopBarClose.A.B.BackgroundColor3 = val
 		end)
 	end
-	
+
 	WindowContent = Util.Instance("Frame", UIMainWindow)
 	WindowContent.Position = UDim2.new(0, 0, 0, 30)
 	WindowContent.Size = UDim2.new(1, 0, 1, -35)
 	WindowContent.BackgroundTransparency = 1
 	WindowContent.ClipsDescendants = true
 	WindowContent.ZIndex = 0
-	
+
 	local MainWindowClosed = false
 	local MainWindowTweening = false
 	local MainWindowPosOpen = nil
@@ -1336,21 +1521,25 @@ local UIMainWindow, WindowContent do
 		MainWindowPosClose = nil
 	end
 	TopBarClose.Activated:Connect(function()
-		if MainWindowTweening then return end
+		if MainWindowTweening then
+			return
+		end
 		MainWindowTweening = true
 		MainWindowClosed = not MainWindowClosed
 		if MainWindowClosed then
 			MainWindowPosOpen = UIMainWindow.Position
 			TweenService:Create(UIMainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
 				Position = MainWindowPosClose,
-				Size = UDim2.fromOffset(112, 30)
+				Size = UDim2.fromOffset(112, 30),
 			}):Play()
 			TweenService:Create(TopBarClose.A, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-				Rotation = 180
+				Rotation = 180,
 			}):Play()
-			TweenService:Create(TopBarClose.A.B, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, 2, 0, 16)
-			}):Play()
+			TweenService
+				:Create(TopBarClose.A.B, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+					Size = UDim2.new(0, 2, 0, 16),
+				})
+				:Play()
 			task.delay(0.6, function()
 				WindowContent.Visible = false
 				MainWindowTweening = false
@@ -1358,17 +1547,24 @@ local UIMainWindow, WindowContent do
 		else
 			WindowContent.Visible = true
 			MainWindowPosClose = UIMainWindow.Position
-			SaveData.WindowClosedPosition = {MainWindowPosClose.X.Scale, MainWindowPosClose.X.Offset, MainWindowPosClose.Y.Scale, MainWindowPosClose.Y.Offset}
+			SaveData.WindowClosedPosition = {
+				MainWindowPosClose.X.Scale,
+				MainWindowPosClose.X.Offset,
+				MainWindowPosClose.Y.Scale,
+				MainWindowPosClose.Y.Offset,
+			}
 			TweenService:Create(UIMainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
 				Position = MainWindowPosOpen,
-				Size = UDim2.fromOffset(360, 240)
+				Size = UDim2.fromOffset(360, 240),
 			}):Play()
 			TweenService:Create(TopBarClose.A, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-				Rotation = 0
+				Rotation = 0,
 			}):Play()
-			TweenService:Create(TopBarClose.A.B, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, 2, 0, 0)
-			}):Play()
+			TweenService
+				:Create(TopBarClose.A.B, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+					Size = UDim2.new(0, 2, 0, 0),
+				})
+				:Play()
 			task.delay(0.6, function()
 				MainWindowTweening = false
 			end)
@@ -1376,13 +1572,20 @@ local UIMainWindow, WindowContent do
 		WindowContent.Active = not MainWindowClosed
 		WindowContent.Interactable = not MainWindowClosed
 	end)
-	
+
 	local dragref = nil
 	local offset = Vector2.new(0, 0)
 	TopBarFrame.InputBegan:Connect(function(input)
-		if dragref then return end
-		if input.UserInputState ~= Enum.UserInputState.Begin then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if dragref then
+			return
+		end
+		if input.UserInputState ~= Enum.UserInputState.Begin then
+			return
+		end
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			WindowContent.Interactable = false
 			local screen = Util.GetScreenSize()
 			local ch = (Vector2.new(input.Position.X, input.Position.Y) + SCREENGUI.AbsolutePosition) / screen
@@ -1392,7 +1595,10 @@ local UIMainWindow, WindowContent do
 	end)
 	UserInputService.InputChanged:Connect(function(input)
 		if dragref then
-			if input.UserInputType == Enum.UserInputType.MouseMovement or (input.UserInputType == Enum.UserInputType.Touch and dragref == input) then
+			if
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or (input.UserInputType == Enum.UserInputType.Touch and dragref == input)
+			then
 				local screen = Util.GetScreenSize()
 				local ch = (Vector2.new(input.Position.X, input.Position.Y) + SCREENGUI.AbsolutePosition) / screen
 				local pos = ch + offset
@@ -1410,7 +1616,10 @@ local UIMainWindow, WindowContent do
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		if dragref and dragref == input then
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
 				WindowContent.Interactable = true
 				dragref = nil
 			end
@@ -1436,9 +1645,11 @@ RunService:BindToRenderStep("Uhhhhhh_Render" .. Util.RandomString(), Enum.Render
 	_totalrendertime += dt
 	UpdateGrads(_totalrendertime)
 	WindowContent.Visible = UIMainWindow.Size.Y.Offset > 35
-	for _,func in _funcrefreshes do
+	for _, func in _funcrefreshes do
 		local s, e = pcall(func, _totalrendertime, dt)
-		if not s then warn(e) end
+		if not s then
+			warn(e)
+		end
 	end
 end)
 
@@ -1507,7 +1718,8 @@ do
 		end
 		if uinotif.Animation < 1 then
 			UINotifyFrame.Visible = true
-			UINotifyFrame.Position = UIMainWindow.Position + UDim2.new(0, 0, 0, UIMainWindow.Size.Y.Offset / 2 + 10 + math.pow(uinotif.Animation, 3) * -40)
+			UINotifyFrame.Position = UIMainWindow.Position
+				+ UDim2.new(0, 0, 0, UIMainWindow.Size.Y.Offset / 2 + 10 + math.pow(uinotif.Animation, 3) * -40)
 			if uinotif.Progress >= 1 then
 				Progress.BackgroundTransparency = math.min(t - uinotif.LastNotif, 0.5) * 2 * 0.3 + 0.7
 			else
@@ -1579,7 +1791,7 @@ do -- homepage
 	local particles = {}
 	local ps = 128
 	local psc = Color3.new(1, 0.9, 0)
-	for i=1, ps do
+	for i = 1, ps do
 		local r = (i / ps) * 2 * math.pi
 		local p = Util.Instance("Frame", CracktroFrame)
 		p.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1590,9 +1802,12 @@ do -- homepage
 		p.ZIndex = -1
 		p.Visible = false
 		table.insert(particles, {
-			p, Vector2.new(math.sin(r), math.cos(r)) * 8,
+			p,
+			Vector2.new(math.sin(r), math.cos(r)) * 8,
 			Vector2.new(math.random(-128, 128), math.random(-128, 128)),
-			math.random() * 2 - 1, false, -1
+			math.random() * 2 - 1,
+			false,
+			-1,
 		})
 	end
 
@@ -1609,7 +1824,9 @@ do -- homepage
 	text0.Position = UDim2.new(0.5, 0, 1, -17)
 	text0.ZIndex = 3
 	text0.Parent = CracktroFrame
-	local text1 = Util.MakeText("Made by STEVETHEREALONE :" .. (math.random() < 0.333 and "3" or (math.random() < 0.5 and "D" or "P")))
+	local text1 = Util.MakeText(
+		"Made by STEVETHEREALONE :" .. (math.random() < 0.333 and "3" or (math.random() < 0.5 and "D" or "P"))
+	)
 	text1.AnchorPoint = Vector2.new(0.5, 1)
 	text1.Position = UDim2.new(0.5, 0, 1, -17)
 	text1.ZIndex = 3
@@ -1624,16 +1841,16 @@ do -- homepage
 	Util.SetTextColor(text1, UITextColor.Value, 0)
 	Util.SetTextColor(text2, UITextColor.Value, 0)
 	local quotes = {
-		"\"EVERY CLIENT ORBITS A SERVER...\"",
+		'"EVERY CLIENT ORBITS A SERVER..."',
 		Player.Name .. ", how is your " .. os.date("%A") .. "?",
 		"A great " .. os.date("%A") .. " today, eh?",
 		"Hello, " .. Player.Name .. ".",
 		"What makes you play at " .. os.date("%I %p") .. "?",
 		"You are going to love Uhhhhhh, I just know it.",
-		"This script is very \"verbose\".",
+		'This script is very "verbose".',
 		"Written mostly on a mobile phone.",
 		"I am pretty new in this community! :D",
-		"\"Dreams come true!\"",
+		'"Dreams come true!"',
 		"Idea originated from a dream.",
 		"If you love this program, join my Discord!",
 		"boredgal was here..",
@@ -1645,7 +1862,9 @@ do -- homepage
 	local text3 = nil
 	local text3mustchange = false
 	local function changequote()
-		if text3 then text3:Destroy() end
+		if text3 then
+			text3:Destroy()
+		end
 		text3 = Util.MakeText(quotes[math.random(1, #quotes)])
 		text3.AnchorPoint = Vector2.new(0.5, 1)
 		text3.Position = UDim2.new(0.5, 0, 1, -17)
@@ -1701,15 +1920,15 @@ do -- homepage
 			local b = 1 / 3
 			local c = math.sqrt(3) / 2
 			local d = {
-				{Vector2.new(0, b + c), Vector2.new(-0.5, b)},
-				{Vector2.new(-0.5, b), Vector2.new(-1, b - c)},
-				{Vector2.new(-1, b - c), Vector2.new(0, b - c)},
-				{Vector2.new(0, b - c), Vector2.new(1, b - c)},
-				{Vector2.new(1, b - c), Vector2.new(0.5, b)},
-				{Vector2.new(0.5, b), Vector2.new(0, b - c)},
-				{Vector2.new(0, b - c), Vector2.new(-0.5, b)},
-				{Vector2.new(-0.5, b), Vector2.new(0.5, b)},
-				{Vector2.new(0.5, b), Vector2.new(0, b + c)},
+				{ Vector2.new(0, b + c), Vector2.new(-0.5, b) },
+				{ Vector2.new(-0.5, b), Vector2.new(-1, b - c) },
+				{ Vector2.new(-1, b - c), Vector2.new(0, b - c) },
+				{ Vector2.new(0, b - c), Vector2.new(1, b - c) },
+				{ Vector2.new(1, b - c), Vector2.new(0.5, b) },
+				{ Vector2.new(0.5, b), Vector2.new(0, b - c) },
+				{ Vector2.new(0, b - c), Vector2.new(-0.5, b) },
+				{ Vector2.new(-0.5, b), Vector2.new(0.5, b) },
+				{ Vector2.new(0.5, b), Vector2.new(0, b + c) },
 			}
 			local t = a * #d
 			local i = math.floor(t) + 1
@@ -1720,10 +1939,7 @@ do -- homepage
 			end
 			pos = d[i][1]:Lerp(d[i][2], u) * 150
 			local r = os.clock() * 2
-			pos = Vector2.new(
-				pos.X * math.cos(r) - pos.Y * math.sin(r),
-				pos.X * math.sin(r) + pos.Y * math.cos(r)
-			)
+			pos = Vector2.new(pos.X * math.cos(r) - pos.Y * math.sin(r), pos.X * math.sin(r) + pos.Y * math.cos(r))
 			v[2], v[3] = pos, Vector2.zero
 			return Vector3.new(0, pos.Y, pos.X)
 		end,
@@ -1748,7 +1964,7 @@ do -- homepage
 				(1 - math.cos(((t / 7) % 2) * math.pi)) * math.pi * 0.5
 			)
 			local fov = 220
-			for i,v in particles do
+			for i, v in particles do
 				local inst, pos, vel, zind, lvis, lzind = unpack(v)
 				local sp = ring:VectorToWorldSpace(pp(i, v, dt, pbl, spike))
 				local z = sp.Z
@@ -1784,7 +2000,9 @@ do -- homepage
 			textsel //= 3
 			if text3mustchange ~= (textsel == 3) then
 				text3mustchange = (textsel == 3)
-				if text3mustchange then changequote() end
+				if text3mustchange then
+					changequote()
+				end
 			end
 			if textsel == 0 then
 				text0.Visible = true
@@ -1841,9 +2059,12 @@ function UI.CreatePage()
 	Frame.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 	Frame.ScrollBarImageTransparency = 0.5
 	Frame.ScrollBarImageColor3 = UITextColor.Value
-	Util.LinkDestroyI2C(Frame, UITextColor.Changed:Connect(function(val)
-		Frame.ScrollBarImageColor3 = val
-	end))
+	Util.LinkDestroyI2C(
+		Frame,
+		UITextColor.Changed:Connect(function(val)
+			Frame.ScrollBarImageColor3 = val
+		end)
+	)
 	local Padding = Util.Instance("UIPadding", Frame)
 	Padding.PaddingTop = UDim.new(0, 5)
 	Padding.PaddingBottom = UDim.new(0, 0)
@@ -1879,7 +2100,8 @@ function UI.CreateText(parent, text, size, alignment)
 	RegisterTextLabel(Text)
 	local function update()
 		local x = parent.AbsoluteSize.X
-		local size = TextService:GetTextSize(Text.ContentText, Text.TextSize, Text.Font, Vector2.new(x - margin * 2, math.huge))
+		local size =
+			TextService:GetTextSize(Text.ContentText, Text.TextSize, Text.Font, Vector2.new(x - margin * 2, math.huge))
 		Container.Size = UDim2.new(1, 0, 0, size.Y + margin)
 	end
 	Text.Text = text
@@ -1900,9 +2122,12 @@ function UI.CreateSeparator(parent)
 	Sep.BackgroundColor3 = UITextColor.Value
 	Sep.BackgroundTransparency = 0.8
 	Sep.BorderSizePixel = 0
-	Util.LinkDestroyI2C(Sep, UITextColor.Changed:Connect(function(val)
-		Sep.BackgroundColor3 = val
-	end))
+	Util.LinkDestroyI2C(
+		Sep,
+		UITextColor.Changed:Connect(function(val)
+			Sep.BackgroundColor3 = val
+		end)
+	)
 end
 function UI.CreateButton(parent, text, size)
 	local margin = 5
@@ -1937,7 +2162,12 @@ function UI.CreateButton(parent, text, size)
 	Stylize(Button)
 	local function update()
 		local x = parent.AbsoluteSize.X
-		local size = TextService:GetTextSize(ButtonText.ContentText, ButtonText.TextSize, ButtonText.Font, Vector2.new(x - margin * 2, math.huge))
+		local size = TextService:GetTextSize(
+			ButtonText.ContentText,
+			ButtonText.TextSize,
+			ButtonText.Font,
+			Vector2.new(x - margin * 2, math.huge)
+		)
 		Container.Size = UDim2.new(1, 0, 0, size.Y + margin * 2)
 	end
 	ButtonText.Text = text
@@ -1975,7 +2205,12 @@ function UI.CreateSwitch(parent, text, value)
 	RegisterTextLabel(ButtonText)
 	local function update()
 		local x = parent.AbsoluteSize.X
-		local size = TextService:GetTextSize(ButtonText.ContentText, ButtonText.TextSize, ButtonText.Font, Vector2.new(x - margin * 3 - switchsize, math.huge))
+		local size = TextService:GetTextSize(
+			ButtonText.ContentText,
+			ButtonText.TextSize,
+			ButtonText.Font,
+			Vector2.new(x - margin * 3 - switchsize, math.huge)
+		)
 		Container.Size = UDim2.new(1, 0, 0, math.max(35, size.Y))
 	end
 	ButtonText.Text = text
@@ -1997,9 +2232,12 @@ function UI.CreateSwitch(parent, text, value)
 	SwitchDot.BackgroundTransparency = 0.2
 	SwitchDot.BackgroundColor3 = UITextColor.Value
 	SwitchDot.BorderSizePixel = 0
-	Util.LinkDestroyI2C(SwitchDot, UITextColor.Changed:Connect(function(val)
-		SwitchDot.BackgroundColor3 = val
-	end))
+	Util.LinkDestroyI2C(
+		SwitchDot,
+		UITextColor.Changed:Connect(function(val)
+			SwitchDot.BackgroundColor3 = val
+		end)
+	)
 	Util.Instance("UICorner", SwitchDot).CornerRadius = UDim.new(0, 2)
 	local Lever = Util.Instance("BoolValue")
 	Lever.Value = value
@@ -2200,15 +2438,23 @@ function UI.CreateSlider(parent, text, value, min, max, step)
 	local dragref = nil
 	local start = nil
 	SliderC.InputBegan:Connect(function(input)
-		if input.UserInputState ~= Enum.UserInputState.Begin then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputState ~= Enum.UserInputState.Begin then
+			return
+		end
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			dragref = input
 			start = input.Position
 		end
 	end)
 	UserInputService.InputChanged:Connect(function(input)
 		if dragref then
-			if input.UserInputType == Enum.UserInputType.MouseMovement or (input.UserInputType == Enum.UserInputType.Touch and dragref == input) then
+			if
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or (input.UserInputType == Enum.UserInputType.Touch and dragref == input)
+			then
 				if start then
 					local delta = input.Position - start
 					if delta.Magnitude > 10 then
@@ -2225,7 +2471,10 @@ function UI.CreateSlider(parent, text, value, min, max, step)
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		if dragref and dragref == input then
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
 				ondrag(input.Position.X)
 				dragref = nil
 			end
@@ -2281,8 +2530,14 @@ function UI.CreateDropdown(parent, text, array, value)
 	Stylize(Dropdown)
 	local function update()
 		local x = parent.AbsoluteSize.X
-		local size1 = TextService:GetTextSize(Text.ContentText, Text.TextSize, Text.Font, Vector2.new(x - margin * 2, math.huge))
-		local size2 = TextService:GetTextSize(DropdownText.ContentText, DropdownText.TextSize, DropdownText.Font, Vector2.new(x * 0.8 - margin * 2, math.huge))
+		local size1 =
+			TextService:GetTextSize(Text.ContentText, Text.TextSize, Text.Font, Vector2.new(x - margin * 2, math.huge))
+		local size2 = TextService:GetTextSize(
+			DropdownText.ContentText,
+			DropdownText.TextSize,
+			DropdownText.Font,
+			Vector2.new(x * 0.8 - margin * 2, math.huge)
+		)
 		Container.Size = UDim2.new(1, 0, 0, math.max(35, size1.Y, size2.Y + margin * 2))
 		Dropdown.Size = UDim2.new(0, math.max(60, size2.X + margin * 2 + 2), 0, math.max(25, size2.Y + margin * 2))
 	end
@@ -2320,14 +2575,14 @@ function UI.CreateDropdown(parent, text, array, value)
 	UIList.Padding = UDim.new(0, 0)
 	UIList.SortOrder = Enum.SortOrder.LayoutOrder
 	Stylize(Droplist, {
-		Glow = true
+		Glow = true,
 	})
 	local items = {}
 	local sizex = 60
 	local interact = false
 	local opened = false
 	Util.LinkDestroyI2I(Dropdown, Droplist)
-	for i,itemname in array do
+	for i, itemname in array do
 		local Item = Util.Instance("TextButton", Droplist)
 		Item.Size = UDim2.new(1, 0, 0, 20)
 		Item.BackgroundTransparency = 0
@@ -2352,7 +2607,10 @@ function UI.CreateDropdown(parent, text, array, value)
 			interact = true
 		end)
 		Item.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
 				interact = true
 				UISound.Click:Play()
 			end
@@ -2363,7 +2621,10 @@ function UI.CreateDropdown(parent, text, array, value)
 		interact = true
 	end)
 	local conn = UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			task.wait()
 			if not interact then
 				opened = false
@@ -2391,7 +2652,9 @@ function UI.CreateDropdown(parent, text, array, value)
 		end
 		local ysize = math.round(math.min(90, #items * 20) * opentween)
 		if ysize >= 1 then
-			Droplist.Position = Util.Vector2ToUDim2Offset((Dropdown.AbsolutePosition + Vector2.new(0, Dropdown.AbsoluteSize.Y)) - UIMainFrame.AbsolutePosition)
+			Droplist.Position = Util.Vector2ToUDim2Offset(
+				(Dropdown.AbsolutePosition + Vector2.new(0, Dropdown.AbsoluteSize.Y)) - UIMainFrame.AbsolutePosition
+			)
 			Droplist.Size = UDim2.new(0, math.max(Dropdown.Size.X.Offset, sizex), 0, ysize)
 			Droplist.Visible = true
 		else
@@ -2399,7 +2662,7 @@ function UI.CreateDropdown(parent, text, array, value)
 		end
 		local i1 = GetUIBGColor(t)
 		local i2 = i1:Lerp(Color3.new(1, 1, 1), 0.1)
-		for i,v in items do
+		for i, v in items do
 			if i == Select.Value then
 				v.BackgroundColor3 = i2
 			else
@@ -2478,9 +2741,12 @@ function UI.CreateScrollCanvas(parent, height)
 	ListBox.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 	ListBox.ScrollBarImageTransparency = 0.5
 	ListBox.ScrollBarImageColor3 = UITextColor.Value
-	Util.LinkDestroyI2C(ListBox, UITextColor.Changed:Connect(function(val)
-		ListBox.ScrollBarImageColor3 = val
-	end))
+	Util.LinkDestroyI2C(
+		ListBox,
+		UITextColor.Changed:Connect(function(val)
+			ListBox.ScrollBarImageColor3 = val
+		end)
+	)
 	Stylize(ListBox, {
 		Depthed = true,
 	})
@@ -2592,9 +2858,12 @@ function UI.CreateItemListPage()
 	ListBox.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 	ListBox.ScrollBarImageTransparency = 0.5
 	ListBox.ScrollBarImageColor3 = UITextColor.Value
-	Util.LinkDestroyI2C(ListBox, UITextColor.Changed:Connect(function(val)
-		ListBox.ScrollBarImageColor3 = val
-	end))
+	Util.LinkDestroyI2C(
+		ListBox,
+		UITextColor.Changed:Connect(function(val)
+			ListBox.ScrollBarImageColor3 = val
+		end)
+	)
 	Stylize(ListBox, {
 		Depthed = true,
 	})
@@ -2615,7 +2884,7 @@ function UI.CreateItemListPage()
 	SearchBoxText.Name = "Box"
 	ListBox.Name = "List"
 	SearchBoxText:GetPropertyChangedSignal("Text"):Connect(function()
-		for _,v in ListBox:GetChildren() do
+		for _, v in ListBox:GetChildren() do
 			if v:IsA("GuiObject") then
 				v.Visible = not not v.Name:lower():find(SearchBoxText.Text:lower())
 			end
@@ -2665,13 +2934,16 @@ local MainPage = UI.CreatePage()
 MainPage.Interactable = false
 CracktroFrame.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		if _totalrendertime < 1 or not IsUhhhhhhFullyLoaded then return end
+		if _totalrendertime < 1 or not IsUhhhhhhFullyLoaded then
+			return
+		end
 		CracktroFrame.Interactable = false
 		CracktroFrame.Visible = true
 		MainPage.Interactable = false
-		local tween = TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0.5, -362, 0.5, 0),
-		})
+		local tween =
+			TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0.5, -362, 0.5, 0),
+			})
 		tween:Play()
 		tween.Completed:Connect(function()
 			CracktroFrame.Visible = false
@@ -2780,7 +3052,7 @@ task.spawn(function()
 			"|    ___                                    |",
 			"|   / o \\   Hello, world! Programmed to     |",
 			"|   \\ l /   work and not to feel.           |",
-			"|    \"\"\"                                    |",
+			'|    """                                    |',
 			"+-------------------------------------------+",
 		},
 		{
@@ -2835,15 +3107,15 @@ task.spawn(function()
 	do -- generate transitions
 		-- wipe to right
 		local a = {}
-		for i=0, 59 do
+		for i = 0, 59 do
 			local t = i / 60
 			t *= 5
 			t = (t - 1) / 3
 			t *= 5
 			local map = {}
-			for y=0, 64 do
+			for y = 0, 64 do
 				local layer = {}
-				for x=0, 64 do
+				for x = 0, 64 do
 					local prog = x / 64
 					prog *= 5
 					table.insert(layer, math.round(math.clamp(t - prog + math.random() * 0.2, 0, 1) * 3))
@@ -2859,12 +3131,12 @@ task.spawn(function()
 		table.insert(AsciiTextarttr, a)
 		-- noisy fade
 		a = {}
-		for i=0, 59 do
+		for i = 0, 59 do
 			local t = i / 60
 			local map = {}
-			for y=0, 64 do
+			for y = 0, 64 do
 				local layer = {}
-				for x=0, 64 do
+				for x = 0, 64 do
 					table.insert(layer, math.round(math.clamp(t * 2 - 1 + math.random() * 0.8, 0, 1) * 3))
 				end
 				table.insert(map, layer)
@@ -2875,13 +3147,13 @@ task.spawn(function()
 		table.insert(AsciiTextarttr, a)
 		-- circle outward
 		a = {}
-		for i=0, 59 do
+		for i = 0, 59 do
 			local t = i / 60
 			t *= 5
 			local map = {}
-			for y=0, 64 do
+			for y = 0, 64 do
 				local layer = {}
-				for x=0, 64 do
+				for x = 0, 64 do
 					local dist = math.sqrt(math.pow(x - 32, 2) + math.pow(y - 32, 2)) / 64
 					dist *= 5
 					table.insert(layer, math.round(math.clamp(t - dist + math.random() * 0.2, 0, 1) * 3))
@@ -2894,14 +3166,14 @@ task.spawn(function()
 		table.insert(AsciiTextarttr, a)
 		-- circle inward
 		a = {}
-		for i=0, 59 do
+		for i = 0, 59 do
 			local t = 1 - i / 60
 			t *= 5
 			t -= 1
 			local map = {}
-			for y=0, 64 do
+			for y = 0, 64 do
 				local layer = {}
-				for x=0, 64 do
+				for x = 0, 64 do
 					local dist = math.sqrt(math.pow(x - 32, 2) + math.pow(y - 32, 2)) / 64
 					dist *= 5
 					table.insert(layer, math.round(math.clamp(dist - t + math.random() * 0.2, 0, 1) * 3))
@@ -2914,7 +3186,9 @@ task.spawn(function()
 		table.insert(AsciiTextarttr, a)
 	end
 	local function switchart()
-		if AsciiTextartsw then return end
+		if AsciiTextartsw then
+			return
+		end
 		AsciiTextartsw = true
 		local function animation(art, inv)
 			local transmap = AsciiTextarttr[math.random(1, #AsciiTextarttr)]
@@ -2924,11 +3198,11 @@ task.spawn(function()
 				local t = os.clock() - st
 				local i = math.clamp(math.floor(t * 60) + 1, 1, 60)
 				local render = {}
-				for iy=1, #art do
+				for iy = 1, #art do
 					local y = (iy - 1) / #art
 					local conc = ""
 					local txt = art[iy]
-					for ix=1, #txt do
+					for ix = 1, #txt do
 						local x = (ix - 1) / #txt
 						local ch = string.sub(txt, ix, ix)
 						local b = 0
@@ -2941,7 +3215,9 @@ task.spawn(function()
 						elseif rot == 3 then
 							b = transmap[i][64 - math.floor(x * 64)][math.floor(y * 64) + 1]
 						end
-						if inv then b = 3 - b end
+						if inv then
+							b = 3 - b
+						end
 						if b == 1 then
 							if (ch == ch:upper() and ch ~= ch:lower()) or ch == "8" or ch == "0" then
 								ch = "?"
@@ -2984,7 +3260,10 @@ task.spawn(function()
 	end
 	local AsciiTextartin = nil
 	AsciiText.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			AsciiTextartin = input
 		end
 	end)
@@ -3002,9 +3281,10 @@ UI.CreateButton(MainPage, " &lt; Back to cool scene", 20).Activated:Connect(func
 	CracktroFrame.Interactable = false
 	CracktroFrame.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		CracktroFrame.Interactable = true
@@ -3031,18 +3311,19 @@ UI.CreateDropdown(MainPage, "UI Theme", {
 	"Sakura",
 	"Tommorow Night 80s", -- my personal IDE theme
 	"User Defined (see README)",
-}, SaveData.UITheme).Changed:Connect(function(val)
-	SaveData.UITheme = val
-	SetUITheme(SaveData.UITheme)
-end)
+}, SaveData.UITheme).Changed
+	:Connect(function(val)
+		SaveData.UITheme = val
+		SetUITheme(SaveData.UITheme)
+	end)
 UI.CreateSeparator(MainPage)
 
 local MusicName = UI.CreateText(MainPage, "", 15, Enum.TextXAlignment.Center)
 UI.CreateButton(MainPage, "Random UI Music", 20).Activated:Connect(function()
 	MusicPlayer.PlayMusic()
 end)
-local _musicnames = {"-- Choose --"}
-for i=1, #MusicPlayer.Database do
+local _musicnames = { "-- Choose --" }
+for i = 1, #MusicPlayer.Database do
 	local hi = MusicPlayer.Database[i]
 	table.insert(_musicnames, hi[2])
 end
@@ -3053,9 +3334,10 @@ MusicSelect.Changed:Connect(function(val)
 		MusicPlayer.PlayMusic(val - 1)
 	end
 end)
-UI.CreateSwitch(MainPage, math.random(8) == 1 and "Mute @Noober 67s" or "Mute UI Music", SaveData.MuteUIMusic).Changed:Connect(function(value)
-	SaveData.MuteUIMusic = value
-end)
+UI.CreateSwitch(MainPage, math.random(8) == 1 and "Mute @Noober 67s" or "Mute UI Music", SaveData.MuteUIMusic).Changed
+	:Connect(function(value)
+		SaveData.MuteUIMusic = value
+	end)
 UI.CreateSwitch(MainPage, "Mute Reanim Music", SaveData.MuteReanimMusic).Changed:Connect(function(value)
 	SaveData.MuteReanimMusic = value
 end)
@@ -3129,7 +3411,9 @@ local function ApplyOverrideDanceMusicPlaybackSpeed()
 	local success, reason = pcall(function()
 		UISound.DanceMusic.PlaybackSpeed = moduleSpeed * globalSpeed
 	end)
-	if not success then warn("Could not apply dance music playback speed: " .. tostring(reason)) end
+	if not success then
+		warn("Could not apply dance music playback speed: " .. tostring(reason))
+	end
 end
 local function IsDanceMusicDrivenStep(animator, stepTime)
 	if os.clock() - LastDanceMusicTimeRead >= 0.05 or not UISound.DanceMusic.IsPlaying then
@@ -3301,40 +3585,55 @@ local function CreateHumanoidCharacter()
 		motor.C0 = c0
 		motor.C1 = c1
 		motor.MaxVelocity = 0
-		Util.LinkDestroyI2C(motor, RunService.PreRender:Connect(function()
-			local scale = char:GetScale()
-			motor:SetAttribute("Transform", Util.ScaleCFrame(motor.Transform, 1 / scale))
-			motor.Transform = Util.ScaleCFrame(motor:GetAttribute("Transform") or CFrame.identity, scale)
-		end))
+		Util.LinkDestroyI2C(
+			motor,
+			RunService.PreRender:Connect(function()
+				local scale = char:GetScale()
+				motor:SetAttribute("Transform", Util.ScaleCFrame(motor.Transform, 1 / scale))
+				motor.Transform = Util.ScaleCFrame(motor:GetAttribute("Transform") or CFrame.identity, scale)
+			end)
+		)
 	end
 
 	makeMotor(
-		"RootJoint", root, torso,
+		"RootJoint",
+		root,
+		torso,
 		CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0),
 		CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0)
 	)
 	makeMotor(
-		"Neck", torso, head,
+		"Neck",
+		torso,
+		head,
 		CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0),
 		CFrame.new(0, -0.5, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0)
 	)
 	makeMotor(
-		"Left Shoulder", torso, leftArm,
+		"Left Shoulder",
+		torso,
+		leftArm,
 		CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
 		CFrame.new(0.5, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
 	)
 	makeMotor(
-		"Right Shoulder", torso, rightArm,
+		"Right Shoulder",
+		torso,
+		rightArm,
 		CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
 		CFrame.new(-0.5, 0.5, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0)
 	)
 	makeMotor(
-		"Left Hip", torso, leftLeg,
+		"Left Hip",
+		torso,
+		leftLeg,
 		CFrame.new(-1, -1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
 		CFrame.new(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
 	)
 	makeMotor(
-		"Right Hip", torso, rightLeg,
+		"Right Hip",
+		torso,
+		rightLeg,
 		CFrame.new(1, -1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
 		CFrame.new(0.5, 1, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0)
 	)
@@ -3353,11 +3652,14 @@ local function CreateHumanoidCharacter()
 	tshirt.Name = "triforce"
 	tshirt.Texture = "rbxassetid://101055520647223"
 	tshirt.Color3 = Color3.new(1, 1, 1)
-	
-	Util.LinkDestroyI2C(char, RunService.PreRender:Connect(function()
-		face.Transparency = Util.GetTransparency(head)
-		tshirt.Transparency = Util.GetTransparency(torso)
-	end))
+
+	Util.LinkDestroyI2C(
+		char,
+		RunService.PreRender:Connect(function()
+			face.Transparency = Util.GetTransparency(head)
+			tshirt.Transparency = Util.GetTransparency(torso)
+		end)
+	)
 
 	char.PrimaryPart = root
 
@@ -3372,7 +3674,13 @@ SaveData.CtrlClickEnabled = not not SaveData.CtrlClickEnabled
 SaveData.ClickFlingEnabled = not not SaveData.ClickFlingEnabled
 SaveData.NoSmoothCam = not not SaveData.NoSmoothCam
 SaveData.FirstPersonBody = not not SaveData.FirstPersonBody
-SaveData.NoSeatSitEnabled = not SaveData.NoSeatSitEnabled
+if type(SaveData.SeatSitEnabled) ~= "boolean" then
+	SaveData.SeatSitEnabled = SaveData.NoSeatSitEnabled ~= true
+end
+SaveData.SeatSitEnabled = SaveData.SeatSitEnabled ~= false
+-- Keep the original negative field synchronized so older Uhhhhhh builds can
+-- still read the same save without silently reversing the user's choice.
+SaveData.NoSeatSitEnabled = not SaveData.SeatSitEnabled
 SaveData.KeepSeatSitState = not not SaveData.KeepSeatSitState
 SaveData.ToolGrabEnabled = not not SaveData.ToolGrabEnabled
 SaveData.ScaleGravityEnabled = not not SaveData.ScaleGravityEnabled
@@ -3386,13 +3694,40 @@ SaveData.UsePatchmaLikeNetless = not not SaveData.UsePatchmaLikeNetless
 SaveData.UseAngularVelocity = not not SaveData.UseAngularVelocity
 SaveData.PatchmaVoidFloat = not not SaveData.PatchmaVoidFloat
 SaveData.PlaceholderTransparency = SaveData.PlaceholderTransparency or 0.5
-if SaveData.ShowResetPlaceholder == nil then SaveData.ShowResetPlaceholder = true end
+if SaveData.ShowResetPlaceholder == nil then
+	SaveData.ShowResetPlaceholder = true
+end
 SaveData.ShowReanimateHitboxes = not not SaveData.ShowReanimateHitboxes
+if SaveData.EnableUntrustedExtras == nil then
+	SaveData.EnableUntrustedExtras = _G.UhhhhhhEnableUntrustedExtras == true
+end
+_G.UhhhhhhEnableUntrustedExtras = SaveData.EnableUntrustedExtras == true
+
+local StartUntrustedExtras = nil
+local UntrustedExtrasControl = {
+	Enabled = SaveData.EnableUntrustedExtras == true,
+	Generation = 0,
+	Running = false,
+}
+local function SetUntrustedExtrasEnabled(value)
+	value = value == true
+	SaveData.EnableUntrustedExtras = value
+	_G.UhhhhhhEnableUntrustedExtras = value
+	if UntrustedExtrasControl.Enabled ~= value then
+		UntrustedExtrasControl.Enabled = value
+		UntrustedExtrasControl.Generation += 1
+	end
+	if value and StartUntrustedExtras then
+		StartUntrustedExtras()
+	end
+end
 
 -- empyrean-like thing
 local _G_Uhhhhhh = {}
 -- jjsloit didnt have _G, just making sure if 100% unc execs dont have this even
-pcall(function() _G.Uhhhhhh = _G_Uhhhhhh end)
+pcall(function()
+	_G.Uhhhhhh = _G_Uhhhhhh
+end)
 _G_Uhhhhhh.BindableEvent = Util.Instance("BindableEvent") -- not used 3:
 
 local Reanimate = {
@@ -3413,7 +3748,7 @@ local Reanimate = {
 	ClickFling = SaveData.ClickFlingEnabled,
 	SmoothCam = not SaveData.NoSmoothCam,
 	FirstPersonBody = SaveData.FirstPersonBody,
-	SeatSit = not SaveData.NoSeatSitEnabled,
+	SeatSit = SaveData.SeatSitEnabled,
 	KeepSeatSitState = SaveData.KeepSeatSitState,
 	ToolGrab = SaveData.ToolGrabEnabled,
 	ScaleGravity = SaveData.ScaleGravityEnabled,
@@ -3431,7 +3766,7 @@ local Reanimate = {
 			local hum = self.Character:FindFirstChildOfClass("Humanoid")
 			if hum and hum.AutoRotate and hum.RootPart and not hum.RootPart:IsGrounded() then
 				local state = hum:GetState().Name
-				if table.find({"Running", "Jumping", "Freefall", "Landed", "Climbing"}, state) then
+				if table.find({ "Running", "Jumping", "Freefall", "Landed", "Climbing" }, state) then
 					return true
 				end
 			end
@@ -3526,8 +3861,8 @@ local Reanimate = {
 				self.GP.DJ = Vector2.zero
 				self.GP.JB = false
 			end,
-		}
-	}
+		},
+	},
 }
 Reanimate.Camera.IsFirstPerson = function(self)
 	return self.Zoom < 0.75
@@ -3541,7 +3876,7 @@ end
 Reanimate.Camera.GetMovementCFrame = function(self)
 	local ccf = Reanimate.Camera.CFrame
 	if Reanimate.Camera.VRMode then
-		local _,y,_ = VRService:GetUserCFrame(Enum.UserCFrame.Head):ToEulerAngles(Enum.RotationOrder.YXZ)
+		local _, y, _ = VRService:GetUserCFrame(Enum.UserCFrame.Head):ToEulerAngles(Enum.RotationOrder.YXZ)
 		ccf *= CFrame.Angles(0, y, 0)
 	end
 	return ccf
@@ -3561,13 +3896,13 @@ do
 			touchGui = playerGui:FindFirstChild("TouchGui")
 		end
 		local corestuff = CoreGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
-		for _,v in corestuff do
+		for _, v in corestuff do
 			if Util.WillGuiSinkInput(v) then
 				return false
 			end
 		end
 		local plrstuff = playerGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
-		for _,v in plrstuff do
+		for _, v in plrstuff do
 			if v:IsDescendantOf(touchGui) then
 				return true
 			end
@@ -3583,7 +3918,11 @@ do
 			local touchGui = playerGui:FindFirstChild("TouchGui")
 			if touchGui and touchGui.Enabled then
 				local touchFrame = touchGui and touchGui:FindFirstChild("TouchControlFrame")
-				local thumbstickFrame = touchFrame and (touchFrame:FindFirstChild("DynamicThumbstickFrame") or touchFrame:FindFirstChild("ThumbstickFrame"))
+				local thumbstickFrame = touchFrame
+					and (
+						touchFrame:FindFirstChild("DynamicThumbstickFrame")
+						or touchFrame:FindFirstChild("ThumbstickFrame")
+					)
 				if thumbstickFrame then
 					thumbstickAreaTopLeft = thumbstickFrame.AbsolutePosition
 					thumbstickAreaBottomRight = thumbstickAreaTopLeft + thumbstickFrame.AbsoluteSize
@@ -3616,8 +3955,12 @@ do
 	do -- Control
 		local self = Reanimate.Control
 		UserInputService.InputBegan:Connect(function(input, gpe)
-			if GuiService.MenuIsOpen then return end
-			if UserInputService:GetFocusedTextBox() then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
+			if UserInputService:GetFocusedTextBox() then
+				return
+			end
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.W then
 					self.Inputs.KB.Up = true
@@ -3657,15 +4000,23 @@ do
 			end
 		end)
 		UserInputService.InputChanged:Connect(function(input, gpe)
-			if GuiService.MenuIsOpen then return end
-			if UserInputService:GetFocusedTextBox() then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
+			if UserInputService:GetFocusedTextBox() then
+				return
+			end
 			if input.KeyCode == Enum.KeyCode.Thumbstick1 then
 				self.Inputs.GP.DJ = Vector2.new(input.Position.X, -input.Position.Y)
 			end
 		end)
 		UserInputService.InputEnded:Connect(function(input)
-			if GuiService.MenuIsOpen then return end
-			if UserInputService:GetFocusedTextBox() then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
+			if UserInputService:GetFocusedTextBox() then
+				return
+			end
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.W then
 					self.Inputs.KB.Up = false
@@ -3743,7 +4094,9 @@ do
 			if self.Inputs.GP.DJ.Magnitude > 0.2 then
 				self.Move += Vector3.new(self.Inputs.GP.DJ.X, 0, self.Inputs.GP.DJ.Y)
 			end
-			if self.Move.Magnitude > 1 then self.Move = self.Move.Unit end
+			if self.Move.Magnitude > 1 then
+				self.Move = self.Move.Unit
+			end
 			self.Jump = false
 			if self.Inputs.KB.Space then
 				self.Jump = true
@@ -3767,18 +4120,23 @@ do
 			local sensitivity = curveY * 0.75 + 0.25
 			return Vector2.new(1, sensitivity) * delta
 		end
-		local thumbstickCurve do
+		local thumbstickCurve
+		do
 			local K_CURVATURE = 2 -- amount of upwards curvature (0 is flat)
 			local K_DEADZONE = 0.1 -- deadzone
 			function thumbstickCurve(x)
-				local fDeadzone = (math.abs(x) - K_DEADZONE)/(1 - K_DEADZONE)
-				local fCurve = (math.exp(K_CURVATURE*fDeadzone) - 1)/(math.exp(K_CURVATURE) - 1)
-				return math.sign(x)*math.clamp(fCurve, 0, 1)
+				local fDeadzone = (math.abs(x) - K_DEADZONE) / (1 - K_DEADZONE)
+				local fCurve = (math.exp(K_CURVATURE * fDeadzone) - 1) / (math.exp(K_CURVATURE) - 1)
+				return math.sign(x) * math.clamp(fCurve, 0, 1)
 			end
 		end
 		UserInputService.InputBegan:Connect(function(input, gpe)
-			if GuiService.MenuIsOpen then return end
-			if UserInputService:GetFocusedTextBox() then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
+			if UserInputService:GetFocusedTextBox() then
+				return
+			end
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
 					Reanimate.Shiftlocked = Reanimate.ShiftlockEnabled and not Reanimate.Shiftlocked
@@ -3816,11 +4174,15 @@ do
 				end
 			end
 			if input.UserInputType == Enum.UserInputType.MouseButton2 then
-				if gpe then return end
+				if gpe then
+					return
+				end
 				self.Inputs.MS.RMB = true
 			end
 			if input.UserInputType == Enum.UserInputType.Touch then
-				if gpe then return end
+				if gpe then
+					return
+				end
 				if self.Inputs.TC.DJ == nil and IsInThumbstickArea(input.Position) then
 					self.Inputs.TC.DJ = input
 					return
@@ -3829,14 +4191,21 @@ do
 			end
 		end)
 		UserInputService.InputChanged:Connect(function(input, gpe)
-			if GuiService.MenuIsOpen then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
 			if input.UserInputType == Enum.UserInputType.MouseMovement then
 				if self:IsMousePanning() then
-					self:OnPanInput(Vector2.new(input.Delta.X, input.Delta.Y) * Vector2.new(1, 0.77) * math.rad(0.5), false)
+					self:OnPanInput(
+						Vector2.new(input.Delta.X, input.Delta.Y) * Vector2.new(1, 0.77) * math.rad(0.5),
+						false
+					)
 				end
 			end
 			if input.UserInputType == Enum.UserInputType.MouseWheel then
-				if gpe then return end
+				if gpe then
+					return
+				end
 				self:OnZoomInput(-input.Position.Z)
 			end
 			if input.UserInputType == Enum.UserInputType.Touch then
@@ -3844,12 +4213,17 @@ do
 					return
 				end
 				local touches = {}
-				for touch,exist in self.Inputs.TC.Touch do
-					if exist then table.insert(touches, touch) end
+				for touch, exist in self.Inputs.TC.Touch do
+					if exist then
+						table.insert(touches, touch)
+					end
 				end
 				if #touches == 1 then
 					if touches[1] == input then
-						self:OnPanInput(Vector2.new(input.Delta.X, input.Delta.Y) * Vector2.new(1, 0.66) * math.rad(1), true)
+						self:OnPanInput(
+							Vector2.new(input.Delta.X, input.Delta.Y) * Vector2.new(1, 0.66) * math.rad(1),
+							true
+						)
 					end
 				end
 				if #touches == 2 then
@@ -3868,8 +4242,12 @@ do
 			end
 		end)
 		UserInputService.InputEnded:Connect(function(input)
-			if GuiService.MenuIsOpen then return end
-			if UserInputService:GetFocusedTextBox() then return end
+			if GuiService.MenuIsOpen then
+				return
+			end
+			if UserInputService:GetFocusedTextBox() then
+				return
+			end
 			if input.UserInputType == Enum.UserInputType.Keyboard then
 				if input.KeyCode == Enum.KeyCode.Left then
 					self.Inputs.KB.Left = false
@@ -3908,7 +4286,7 @@ do
 		GuiService.MenuOpened:Connect(resetInputDevices)
 		local states = {
 			[false] = "rbxasset://textures/ui/mouseLock_off@2x.png",
-			[true] = "rbxasset://textures/ui/mouseLock_on@2x.png"
+			[true] = "rbxasset://textures/ui/mouseLock_on@2x.png",
 		}
 		local MobileShiftlock = Instance.new("ImageButton")
 		MobileShiftlock.Parent = SCREENGUI
@@ -3957,7 +4335,10 @@ do
 			if self.Inputs.KB.Right then
 				self:OnPanInput(Vector2.new(math.rad(120) * dt, 0), true)
 			end
-			self:OnPanInput(self.Inputs.GP.DJ * Vector2.new(1, 0.77) * math.rad(4) * 60 * dt * GameSettings.GamepadCameraSensitivity, true)
+			self:OnPanInput(
+				self.Inputs.GP.DJ * Vector2.new(1, 0.77) * math.rad(4) * 60 * dt * GameSettings.GamepadCameraSensitivity,
+				true
+			)
 			local input = self.Input * Vector3.new(1, GameSettings:GetCameraYInvertValue(), 1)
 			self.Input = Vector3.zero
 			local zoomDelta = input.Z
@@ -4038,12 +4419,19 @@ do
 						Camera.FieldOfViewMode = "Vertical"
 						local newCameraCFrame, newCameraFocus = self.CFrame, self.Focus
 						local subjectPosition = RootPart.Position + RootPart.CFrame.UpVector * 1.5
-						if not self.VRMode then subjectPosition += RootPart.CFrame.Rotation * Humanoid.CameraOffset end
+						if not self.VRMode then
+							subjectPosition += RootPart.CFrame.Rotation * Humanoid.CameraOffset
+						end
 						local currLookVector = suppliedLookVector or newCameraCFrame.LookVector
 						local currPitchAngle = math.asin(currLookVector.Y)
-						local constrainedRotateInput = Vector2.new(input.X, math.clamp(input.Y, math.rad(-80) + currPitchAngle, math.rad(80) + currPitchAngle))
+						local constrainedRotateInput = Vector2.new(
+							input.X,
+							math.clamp(input.Y, math.rad(-80) + currPitchAngle, math.rad(80) + currPitchAngle)
+						)
 						local startCFrame = CFrame.lookAt(Vector3.zero, currLookVector)
-						local newLookCFrame = CFrame.Angles(0, -constrainedRotateInput.X, 0) * startCFrame * CFrame.Angles(-constrainedRotateInput.Y, 0, 0)
+						local newLookCFrame = CFrame.Angles(0, -constrainedRotateInput.X, 0)
+							* startCFrame
+							* CFrame.Angles(-constrainedRotateInput.Y, 0, 0)
 						local newLookVector = newLookCFrame.LookVector
 						if self.VRMode then
 							newLookVector = (newLookVector * Vector3.new(1, 0, 1)).Unit
@@ -4067,11 +4455,13 @@ do
 					end
 					Camera.CFrame, Camera.Focus = self.CFrame, self.Focus
 				end
-				for _,v in Reanimate.CharacterLTMs do
+				for _, v in Reanimate.CharacterLTMs do
 					v.LocalTransparencyModifier = ltm
 				end
 			end
-			pcall(function() CoreGui.TopBarApp.TopBarApp.FullScreenFrame.HurtOverlay.Visible = false end)
+			pcall(function()
+				CoreGui.TopBarApp.TopBarApp.FullScreenFrame.HurtOverlay.Visible = false
+			end)
 		end)
 	end
 end
@@ -4129,7 +4519,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 		end
 	end
 	RC.DescendantAdded:Connect(OnDescendant)
-	for _,v in RC:GetDescendants() do
+	for _, v in RC:GetDescendants() do
 		task.spawn(OnDescendant, v)
 	end
 	RC:ScaleTo(Reanimate.CharacterScale)
@@ -4171,7 +4561,9 @@ Reanimate.CreateCharacter = function(InitCFrame)
 		if not Reanimate.SeatSit or not Reanimate.KeepSeatSitState or not HasActiveSeatWeld() or RCHumanoid.Jump then
 			return false
 		end
-		if not RCHumanoid.Sit then RCHumanoid.Sit = true end
+		if not RCHumanoid.Sit then
+			RCHumanoid.Sit = true
+		end
 		if RCHumanoid:GetState() ~= Enum.HumanoidStateType.Seated then
 			RCHumanoid:ChangeState(Enum.HumanoidStateType.Seated)
 		end
@@ -4188,15 +4580,22 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			SeatWeld.Part1 = RCRootPart
 			SeatWeld.C0 = CFrame.new(0, part.Size.Y / 2, 0)
 			SeatWeld.C1 = CFrame.new(0, -1.5 * RC:GetScale(), 0)
-			Util.LinkDestroyI2C(SeatWeld, RCHumanoid:GetPropertyChangedSignal("Jump"):Connect(function()
-				if RCHumanoid.Jump then
-					RCHumanoid.Sit = false
-					DestroySeatWeld()
-				end
-			end))
+			Util.LinkDestroyI2C(
+				SeatWeld,
+				RCHumanoid:GetPropertyChangedSignal("Jump"):Connect(function()
+					if RCHumanoid.Jump then
+						RCHumanoid.Sit = false
+						DestroySeatWeld()
+					end
+				end)
+			)
 			PreserveSeatSitState()
 		end
-		if part.Name == "Handle" and part.Parent:IsA("Tool") and not part.Parent.Parent:FindFirstChildOfClass("Humanoid") then
+		if
+			part.Name == "Handle"
+			and part.Parent:IsA("Tool")
+			and not part.Parent.Parent:FindFirstChildOfClass("Humanoid")
+		then
 			if Reanimate.ToolGrab then
 				if Player.Character then
 					local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
@@ -4221,117 +4620,145 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	local RCP = RaycastParams.new()
 	RCP.RespectCanCollide = true
 	RCP.FilterType = Enum.RaycastFilterType.Exclude
-	RCP.FilterDescendantsInstances = {RC}
-	local noclipStates = {"Running", "Jumping", "Freefall", "Landed", "Climbing", "Swimming"}
-	local fallingStates = {"Jumping", "Freefall", "PlatformStanding", "Physics", "Ragdoll", "GettingUp", "Seated", "Flying", "FallingDown"}
+	RCP.FilterDescendantsInstances = { RC }
+	local noclipStates = { "Running", "Jumping", "Freefall", "Landed", "Climbing", "Swimming" }
+	local fallingStates = {
+		"Jumping",
+		"Freefall",
+		"PlatformStanding",
+		"Physics",
+		"Ragdoll",
+		"GettingUp",
+		"Seated",
+		"Flying",
+		"FallingDown",
+	}
 	local LastSafest = RCRootPart.CFrame
 	local CMove, CJump = Vector3.zero, false
-	Util.LinkDestroyI2C(RC, RunService.PreAnimation:Connect(function(dt)
-		CMove, CJump = Reanimate.Control.Move, Reanimate.Control.Jump
-		local CamCF = Reanimate.Camera:GetMovementCFrame()
-		local _,x,_ = CamCF:ToEulerAngles(Enum.RotationOrder.YXZ)
-		local MoveCF = CFrame.Angles(0, x, 0)
-		pcall(sethiddenproperty, RCRootPart, "PhysicsRepRootPart", nil)
-		local scale = Reanimate.CharacterScale
-		if scale ~= RC:GetScale() then
-			RC:ScaleTo(scale)
-		end
-		local force = Vector3.zero
-		local RCHumanoidState = RCHumanoid:GetState().Name
-		if RCHumanoidState == "Swimming" then
-			force += Vector3.new(0, workspace.Gravity * 0.5, 0) * RCRootPart.AssemblyMass
-		end
-		local gravaff = not not table.find(fallingStates, RCHumanoidState)
-		if gravaff then
-			if Reanimate.ScaleGravity and not RCRootPart:IsGrounded() then
-				force += Vector3.new(0, -workspace.Gravity * (scale - 1), 0) * RCRootPart.AssemblyMass
+	Util.LinkDestroyI2C(
+		RC,
+		RunService.PreAnimation:Connect(function(dt)
+			CMove, CJump = Reanimate.Control.Move, Reanimate.Control.Jump
+			local CamCF = Reanimate.Camera:GetMovementCFrame()
+			local _, x, _ = CamCF:ToEulerAngles(Enum.RotationOrder.YXZ)
+			local MoveCF = CFrame.Angles(0, x, 0)
+			pcall(sethiddenproperty, RCRootPart, "PhysicsRepRootPart", nil)
+			local scale = Reanimate.CharacterScale
+			if scale ~= RC:GetScale() then
+				RC:ScaleTo(scale)
 			end
-		end
-		if LastJump ~= CJump then
-			if CJump then
-				if Reanimate.InfiniteJump and RCHumanoid:GetState() == Enum.HumanoidStateType.Freefall and RCHumanoid.JumpPower > 0 then
-					RCRootPart.Velocity = Vector3.new(
-						RCRootPart.Velocity.X, RCHumanoid.JumpPower, RCRootPart.Velocity.Z
-					)
+			local force = Vector3.zero
+			local RCHumanoidState = RCHumanoid:GetState().Name
+			if RCHumanoidState == "Swimming" then
+				force += Vector3.new(0, workspace.Gravity * 0.5, 0) * RCRootPart.AssemblyMass
+			end
+			local gravaff = not not table.find(fallingStates, RCHumanoidState)
+			if gravaff then
+				if Reanimate.ScaleGravity and not RCRootPart:IsGrounded() then
+					force += Vector3.new(0, -workspace.Gravity * (scale - 1), 0) * RCRootPart.AssemblyMass
 				end
 			end
-		end
-		LastJump = CJump
-		local TargetCameraPosition = RCRootPart.CFrame * Vector3.new(0, 1.5 * scale, 0)
-		if RCRootJoint.Active then
-			TargetCameraPosition = RCTorso.CFrame * Vector3.new(0, 1.5 * scale, 0)
-			if RCNeck.Active then
-				TargetCameraPosition = RCHead.Position
+			if LastJump ~= CJump then
+				if CJump then
+					if
+						Reanimate.InfiniteJump
+						and RCHumanoid:GetState() == Enum.HumanoidStateType.Freefall
+						and RCHumanoid.JumpPower > 0
+					then
+						RCRootPart.Velocity =
+							Vector3.new(RCRootPart.Velocity.X, RCHumanoid.JumpPower, RCRootPart.Velocity.Z)
+					end
+				end
 			end
-		end
-		local TargetCameraOffset = (RCRootPart.CFrame * CFrame.new(0, 1.5, 0)):PointToObjectSpace(TargetCameraPosition)
-		if not Reanimate.SmoothCam then
-			TargetCameraOffset = Vector3.new(0, -1.5, 0) + Vector3.new(0, 1.5, 0) * scale
-		end
-		RCHumanoid.CameraOffset = TargetCameraOffset:Lerp(RCHumanoid.CameraOffset, math.exp(-9.8 * dt))
-		local keepingSeatSitState = Reanimate.KeepSeatSitState and HasActiveSeatWeld()
-		if keepingSeatSitState then
-			RCHumanoid:Move(Vector3.zero)
-		elseif RCHumanoidState == "Swimming" then
-			RCHumanoid:Move(CamCF:VectorToWorldSpace(CMove))
-		else
-			RCHumanoid:Move(MoveCF:VectorToWorldSpace(CMove))
-		end
-		RCHumanoid.Jump = CJump
-		if not CJump then PreserveSeatSitState() end
-		BodyForce.Force = force
-		if RCRootPart.Position.Y < FallenPartsDestroyHeight + 3 * Reanimate.CharacterScale then
-			RCRootPart.CFrame = LastSafest
-			RCRootPart.Velocity = Vector3.new(0, 50, 0)
-			RCRootPart.RotVelocity = Vector3.zero
-		end
-	end))
-	Util.LinkDestroyI2C(RC, RunService.PreSimulation:Connect(function(dt)
-		local RCHumanoidState = RCHumanoid:GetState().Name
-		local clip = not table.find(noclipStates, RCHumanoidState)
-		for _,v in RC:GetChildren() do
-			if v:IsA("BasePart") then
-				v.CanCollide = clip or (not Reanimate.Noclip and v == RCRootPart)
+			LastJump = CJump
+			local TargetCameraPosition = RCRootPart.CFrame * Vector3.new(0, 1.5 * scale, 0)
+			if RCRootJoint.Active then
+				TargetCameraPosition = RCTorso.CFrame * Vector3.new(0, 1.5 * scale, 0)
+				if RCNeck.Active then
+					TargetCameraPosition = RCHead.Position
+				end
 			end
-		end
-	end))
-	Util.LinkDestroyI2C(RC, RunService.PostSimulation:Connect(function(dt)
-		RCHumanoid.Jump = CJump
-		if not CJump then PreserveSeatSitState() end
-		local tcf, pos = RCRootPart.CFrame.Rotation, RCRootPart.CFrame.Position
-		local RCHumanoidState = RCHumanoid:GetState().Name
-		local safe = true
-		local void = true
-		for i=1, 8 do
-			local off = CFrame.Angles(0, (i / 4) * math.pi, 0):VectorToWorldSpace(Vector3.new(0, 0, -0.5))
-			local r = workspace:Raycast(RCRootPart.Position + off, Vector3.new(0, -65536, 0), RCP)
-			if r then
-				void = false
-				if r.Distance > 3 * Reanimate.CharacterScale + 8 + RCHumanoid.HipHeight then
+			local TargetCameraOffset = (RCRootPart.CFrame * CFrame.new(0, 1.5, 0)):PointToObjectSpace(
+				TargetCameraPosition
+			)
+			if not Reanimate.SmoothCam then
+				TargetCameraOffset = Vector3.new(0, -1.5, 0) + Vector3.new(0, 1.5, 0) * scale
+			end
+			RCHumanoid.CameraOffset = TargetCameraOffset:Lerp(RCHumanoid.CameraOffset, math.exp(-9.8 * dt))
+			local keepingSeatSitState = Reanimate.KeepSeatSitState and HasActiveSeatWeld()
+			if keepingSeatSitState then
+				RCHumanoid:Move(Vector3.zero)
+			elseif RCHumanoidState == "Swimming" then
+				RCHumanoid:Move(CamCF:VectorToWorldSpace(CMove))
+			else
+				RCHumanoid:Move(MoveCF:VectorToWorldSpace(CMove))
+			end
+			RCHumanoid.Jump = CJump
+			if not CJump then
+				PreserveSeatSitState()
+			end
+			BodyForce.Force = force
+			if RCRootPart.Position.Y < FallenPartsDestroyHeight + 3 * Reanimate.CharacterScale then
+				RCRootPart.CFrame = LastSafest
+				RCRootPart.Velocity = Vector3.new(0, 50, 0)
+				RCRootPart.RotVelocity = Vector3.zero
+			end
+		end)
+	)
+	Util.LinkDestroyI2C(
+		RC,
+		RunService.PreSimulation:Connect(function(dt)
+			local RCHumanoidState = RCHumanoid:GetState().Name
+			local clip = not table.find(noclipStates, RCHumanoidState)
+			for _, v in RC:GetChildren() do
+				if v:IsA("BasePart") then
+					v.CanCollide = clip or (not Reanimate.Noclip and v == RCRootPart)
+				end
+			end
+		end)
+	)
+	Util.LinkDestroyI2C(
+		RC,
+		RunService.PostSimulation:Connect(function(dt)
+			RCHumanoid.Jump = CJump
+			if not CJump then
+				PreserveSeatSitState()
+			end
+			local tcf, pos = RCRootPart.CFrame.Rotation, RCRootPart.CFrame.Position
+			local RCHumanoidState = RCHumanoid:GetState().Name
+			local safe = true
+			local void = true
+			for i = 1, 8 do
+				local off = CFrame.Angles(0, (i / 4) * math.pi, 0):VectorToWorldSpace(Vector3.new(0, 0, -0.5))
+				local r = workspace:Raycast(RCRootPart.Position + off, Vector3.new(0, -65536, 0), RCP)
+				if r then
+					void = false
+					if r.Distance > 3 * Reanimate.CharacterScale + 8 + RCHumanoid.HipHeight then
+						safe = false
+					end
+				else
 					safe = false
 				end
-			else
-				safe = false
 			end
-		end
-		if safe then
-			LastSafest = RCRootPart.CFrame
-		end
-		if RCHumanoidState == "Climbing" or not void then
-			SafeY = pos.Y
-			IsFloat = false
-		else
-			IsFloat = true
-		end
-		if Reanimate.PatchmaVoidFloat and IsFloat then
-			pos = Vector3.new(pos.X, SafeY, pos.Z)
-			RCRootPart.Velocity *= Vector3.new(1, 0, 1)
-		end
-		RCRootPart.CFrame = tcf + pos
-		if Reanimate:ShouldRotationType() then
-			Reanimate:CameraLockCharacter()
-		end
-	end))
+			if safe then
+				LastSafest = RCRootPart.CFrame
+			end
+			if RCHumanoidState == "Climbing" or not void then
+				SafeY = pos.Y
+				IsFloat = false
+			else
+				IsFloat = true
+			end
+			if Reanimate.PatchmaVoidFloat and IsFloat then
+				pos = Vector3.new(pos.X, SafeY, pos.Z)
+				RCRootPart.Velocity *= Vector3.new(1, 0, 1)
+			end
+			RCRootPart.CFrame = tcf + pos
+			if Reanimate:ShouldRotationType() then
+				Reanimate:CameraLockCharacter()
+			end
+		end)
+	)
 	Reanimate.Character = RC
 	_G_Uhhhhhh.Character = RC
 end
@@ -4346,17 +4773,21 @@ do
 	local AntiflingHumanoids = {}
 	local AntiflingBaseParts = {}
 	local OnStepped = function()
-		for i,v in AntiflingBaseParts do
+		for i, v in AntiflingBaseParts do
 			if v:IsDescendantOf(workspace) then
-				if v.CanCollide then v.CanCollide = false end
+				if v.CanCollide then
+					v.CanCollide = false
+				end
 				v.AssemblyLinearVelocity, v.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
 			else
 				table.remove(AntiflingBaseParts, i)
 			end
 		end
-		for i,v in AntiflingHumanoids do
+		for i, v in AntiflingHumanoids do
 			if v:IsDescendantOf(workspace) then
-				if v.EvaluateStateMachine then v.EvaluateStateMachine = false end
+				if v.EvaluateStateMachine then
+					v.EvaluateStateMachine = false
+				end
 			else
 				table.remove(AntiflingHumanoids, i)
 			end
@@ -4381,17 +4812,21 @@ do
 	end
 	local OnCharacter = function(character)
 		character.DescendantAdded:Connect(OnBasePart)
-		for _,v in character:GetDescendants() do
+		for _, v in character:GetDescendants() do
 			OnBasePart(v)
 		end
 	end
 	local OnPlayer = function(player)
-		if player == Player then return end
+		if player == Player then
+			return
+		end
 		player.CharacterAdded:Connect(OnCharacter)
-		if player.Character then OnCharacter(player.Character) end
+		if player.Character then
+			OnCharacter(player.Character)
+		end
 	end
 	Players.PlayerAdded:Connect(OnPlayer)
-	for _,player in Players:GetPlayers() do
+	for _, player in Players:GetPlayers() do
 		OnPlayer(player)
 	end
 end
@@ -4416,7 +4851,13 @@ else
 	local _HumanoidDummy = Instance.new("Humanoid")
 	local _HumanoidLA = _HumanoidDummy.LoadAnimation
 	local newloadanimation = newcclosure(function(self, animation)
-		if not checkcaller() and typeof(self) == "Instance" and (self:IsA("Humanoid") or self:IsA("Animator")) and typeof(animation) == "Instance" and animation:IsA("Animation") then
+		if
+			not checkcaller()
+			and typeof(self) == "Instance"
+			and (self:IsA("Humanoid") or self:IsA("Animator"))
+			and typeof(animation) == "Instance"
+			and animation:IsA("Animation")
+		then
 			return LoadAnimation_new(animation)
 		end
 		return LoadAnimation_old(self, animation)
@@ -4425,7 +4866,12 @@ else
 		local method = getnamecallmethod()
 		if not checkcaller() and method and (method == "LoadAnimation" or method == "loadAnimation") then
 			local self, animation = ...
-			if typeof(self) == "Instance" and (self:IsA("Humanoid") or self:IsA("Animator")) and typeof(animation) == "Instance" and animation:IsA("Animation") then
+			if
+				typeof(self) == "Instance"
+				and (self:IsA("Humanoid") or self:IsA("Animator"))
+				and typeof(animation) == "Instance"
+				and animation:IsA("Animation")
+			then
 				return LoadAnimation_new(animation)
 			end
 		end
@@ -4452,19 +4898,62 @@ else
 	end
 end
 
-Util.SetMotor6DTransform = function(motor, transform)
-	local name = motor.Name
-	motor.MaxVelocity = 9e9
-	local _, _, angle = transform:ToEulerAngles(Enum.RotationOrder.ZYX)
-	motor:SetDesiredAngle(angle)
-	local axis, angle = transform:ToAxisAngle()
-	local newangle = axis * angle
-	pcall(sethiddenproperty, motor, "ReplicateCurrentOffset6D", transform.Position)
-	pcall(sethiddenproperty, motor, "ReplicateCurrentAngle6D", newangle)
+Util.IsCharacterJoint = function(joint)
+	return typeof(joint) == "Instance"
+		and (joint:IsA("Motor6D") or joint.ClassName == "AnimationConstraint")
 end
-Util.SetMotor6DOffset = function(motor, offset)
-	Util.SetMotor6DTransform(motor, motor.C0:Inverse() * offset * motor.C1)
+Util.GetCharacterJointParts = function(joint)
+	local success, part0, part1 = pcall(function()
+		return joint.Part0, joint.Part1
+	end)
+	if success then
+		return part0, part1
+	end
+	return nil, nil
 end
+Util.GetCharacterJointFrames = function(joint)
+	local success, c0, c1 = pcall(function()
+		return joint.C0, joint.C1
+	end)
+	if success and typeof(c0) == "CFrame" and typeof(c1) == "CFrame" then
+		return c0, c1
+	end
+	return nil, nil
+end
+Util.SetCharacterJointTransform = function(joint, transform)
+	if not Util.IsCharacterJoint(joint) or typeof(transform) ~= "CFrame" then
+		return false
+	end
+	local applied = pcall(function()
+		joint.Transform = transform
+	end)
+	if joint:IsA("Motor6D") then
+		pcall(function()
+			joint.MaxVelocity = 9e9
+			local _, _, desiredAngle = transform:ToEulerAngles(Enum.RotationOrder.ZYX)
+			joint:SetDesiredAngle(desiredAngle)
+		end)
+		local axis, angle = transform:ToAxisAngle()
+		pcall(sethiddenproperty, joint, "ReplicateCurrentOffset6D", transform.Position)
+		pcall(sethiddenproperty, joint, "ReplicateCurrentAngle6D", axis * angle)
+	else
+		pcall(function()
+			joint.IsKinematic = true
+		end)
+	end
+	return applied
+end
+Util.SetCharacterJointOffset = function(joint, offset)
+	local c0, c1 = Util.GetCharacterJointFrames(joint)
+	if not c0 or not c1 then
+		return false
+	end
+	return Util.SetCharacterJointTransform(joint, c0:Inverse() * offset * c1)
+end
+-- Backward-compatible aliases for community modules written before R15's
+-- AnimationConstraint-based Avatar Joint Upgrade.
+Util.SetMotor6DTransform = Util.SetCharacterJointTransform
+Util.SetMotor6DOffset = Util.SetCharacterJointOffset
 
 Util.ShowPartHitbox = function(part, color, lifetime)
 	local w = Instance.new("WireframeHandleAdornment")
@@ -4479,13 +4968,13 @@ Util.ShowPartHitbox = function(part, color, lifetime)
 	local hs = part.Size / 2
 	local verts = {
 		Vector3.new(-hs.X, -hs.Y, -hs.Z),
-		Vector3.new( hs.X, -hs.Y, -hs.Z),
-		Vector3.new( hs.X,  hs.Y, -hs.Z),
-		Vector3.new(-hs.X,  hs.Y, -hs.Z),
-		Vector3.new(-hs.X, -hs.Y,  hs.Z),
-		Vector3.new( hs.X, -hs.Y,  hs.Z),
-		Vector3.new( hs.X,  hs.Y,  hs.Z),
-		Vector3.new(-hs.X,  hs.Y,  hs.Z),
+		Vector3.new(hs.X, -hs.Y, -hs.Z),
+		Vector3.new(hs.X, hs.Y, -hs.Z),
+		Vector3.new(-hs.X, hs.Y, -hs.Z),
+		Vector3.new(-hs.X, -hs.Y, hs.Z),
+		Vector3.new(hs.X, -hs.Y, hs.Z),
+		Vector3.new(hs.X, hs.Y, hs.Z),
+		Vector3.new(-hs.X, hs.Y, hs.Z),
 	}
 	w:AddLine(verts[1], verts[2])
 	w:AddLine(verts[2], verts[3])
@@ -4499,8 +4988,12 @@ Util.ShowPartHitbox = function(part, color, lifetime)
 	w:AddLine(verts[2], verts[6])
 	w:AddLine(verts[3], verts[7])
 	w:AddLine(verts[4], verts[8])
-	if lifetime == nil then lifetime = 1 end
-	if lifetime > 0 then Debris:AddItem(w, lifetime) end
+	if lifetime == nil then
+		lifetime = 1
+	end
+	if lifetime > 0 then
+		Debris:AddItem(w, lifetime)
+	end
 	return w
 end
 
@@ -4508,7 +5001,9 @@ local RIGHTGRIP_C0 = CFrame.new(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, -1, 0)
 Util.PredictionFling = function(target)
 	if typeof(target) == "Instance" then
 		if target:IsA("Model") then
-			target = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+			target = target:FindFirstChild("HumanoidRootPart")
+				or target.PrimaryPart
+				or target:FindFirstChildWhichIsA("BasePart")
 		end
 		if target and target:IsA("BasePart") then
 			if not target:IsDescendantOf(workspace) then
@@ -4518,7 +5013,11 @@ Util.PredictionFling = function(target)
 			local t2 = math.sin(t * 15) + 1
 			local cf = target.CFrame * CFrame.Angles(1.57, 0, 0)
 			if not Reanimate.UsePhysicsRepRootPart then
-				cf += target.AssemblyLinearVelocity * t2 + Vector3.new(0, -workspace.Gravity * 0.5 * t2 * t2 + math.sin(t * 60), 0)
+				cf += target.AssemblyLinearVelocity * t2 + Vector3.new(
+					0,
+					-workspace.Gravity * 0.5 * t2 * t2 + math.sin(t * 60),
+					0
+				)
 				if cf.Position.Y < target.Position.Y - 1 then
 					cf = cf.Rotation + Vector3.new(cf.Position.X, target.Position.Y - 1, cf.Position.Z)
 				end
@@ -4547,7 +5046,9 @@ end
 Util.PredictionFlingPart = function(target)
 	if typeof(target) == "Instance" then
 		if target:IsA("Model") then
-			target = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+			target = target:FindFirstChild("HumanoidRootPart")
+				or target.PrimaryPart
+				or target:FindFirstChildWhichIsA("BasePart")
 		end
 		if target and target:IsA("BasePart") then
 			return target
@@ -4556,6 +5057,7 @@ Util.PredictionFlingPart = function(target)
 end
 
 SaveData.Reanimator = SaveData.Reanimator or {}
+SaveData.Reanimator.LimbDeadRigBridge = nil
 
 local LimbReanimator = {}
 LimbReanimator.Name = "Limbs"
@@ -4565,6 +5067,16 @@ SaveData.Reanimator.LimbInitMode = SaveData.Reanimator.LimbInitMode or 2
 SaveData.Reanimator.LimbReplicateFPS10 = not not SaveData.Reanimator.LimbReplicateFPS10
 SaveData.Reanimator.LimbRoleplay = not not SaveData.Reanimator.LimbRoleplay
 SaveData.Reanimator.LimbUseNaNFling = not not SaveData.Reanimator.LimbUseNaNFling
+SaveData.Reanimator.LimbFlingVelocityMagnitude = math.clamp(
+	math.floor(tonumber(SaveData.Reanimator.LimbFlingVelocityMagnitude) or 10000),
+	1,
+	10000
+)
+SaveData.Reanimator.LimbFlingVelocityDirection = math.clamp(
+	math.floor(tonumber(SaveData.Reanimator.LimbFlingVelocityDirection) or 1),
+	1,
+	4
+)
 LimbReanimator.Mode = SaveData.Reanimator.LimbMode
 -- 0 = hide rootpart (defaults to 2 when streaming is enabled)
 -- 1 = put rootpart just under void (defaults to 2 when streaming is enabled)
@@ -4582,23 +5094,37 @@ LimbReanimator.InitMode = SaveData.Reanimator.LimbInitMode
 LimbReanimator.ReplicateFPS10 = SaveData.Reanimator.LimbReplicateFPS10
 LimbReanimator.FlingEnabled = not SaveData.Reanimator.LimbRoleplay
 LimbReanimator.UseNaNFling = SaveData.Reanimator.LimbUseNaNFling
+LimbReanimator.FlingVelocityMagnitude = SaveData.Reanimator.LimbFlingVelocityMagnitude
+LimbReanimator.FlingVelocityDirection = SaveData.Reanimator.LimbFlingVelocityDirection
 LimbReanimator.FlingTargets = {}
 LimbReanimator._TempNotFling = {}
+LimbReanimator.Status = "Real rig: waiting"
+LimbReanimator.RebindCurrentRig = function() end
 function LimbReanimator.ShowHitboxes()
 	-- Root parts are rendered by the shared persistent hitbox controller.
 end
 function LimbReanimator.Fling(target, duration)
-	if not LimbReanimator.FlingEnabled then return end
-	if not target then return false end
-	for _,v in LimbReanimator.FlingTargets do
+	if not LimbReanimator.FlingEnabled then
+		return
+	end
+	if not target then
+		return false
+	end
+	for _, v in LimbReanimator.FlingTargets do
 		if v.Target == target then
 			return false
 		end
 	end
-	if target == Reanimate.Character then return false end
-	if target == Player.Character then return false end
+	if target == Reanimate.Character then
+		return false
+	end
+	if target == Player.Character then
+		return false
+	end
 	if typeof(target) == "Instance" then
-		if LimbReanimator._TempNotFling[target] then return end
+		if LimbReanimator._TempNotFling[target] then
+			return
+		end
 		LimbReanimator._TempNotFling[target] = true
 		task.delay(1, function()
 			LimbReanimator._TempNotFling[target] = nil
@@ -4606,7 +5132,7 @@ function LimbReanimator.Fling(target, duration)
 	end
 	table.insert(LimbReanimator.FlingTargets, {
 		Target = target,
-		Duration = duration
+		Duration = duration,
 	})
 	if typeof(target) == "Instance" then
 		if target:IsA("Model") then
@@ -4619,7 +5145,7 @@ function LimbReanimator.Fling(target, duration)
 			h.Parent = target
 			TweenService:Create(h, TweenInfo.new(5), {
 				FillTransparency = 1,
-				OutlineTransparency = 1
+				OutlineTransparency = 1,
 			}):Play()
 			game.Debris:AddItem(h, 5)
 		end
@@ -4631,10 +5157,31 @@ function LimbReanimator.SetRootPartMode(mode)
 	LimbReanimator.Mode = mode
 end
 function LimbReanimator.Config(parent)
-	UI.CreateText(parent, "as mentioned in the README, this only works for SOME games,\nbecause 'modern' games create the Animator automatically which breaks limb reanimation", 10, Enum.TextXAlignment.Center)
-	local dmode = UI.CreateDropdown(parent, "RootPart Mode", {"RootPart in very void", "RootPart in void", "Keep RootPart Streamed", "CurrentAngle Style", "RootPart is Torso"}, LimbReanimator.Mode + 1)
-	local dvel = UI.CreateDropdown(parent, "RootPart Velocity", {"No Velocity", "Follow Character", "Fling-like"}, LimbReanimator.Velocity + 1)
-	local dinit = UI.CreateDropdown(parent, "Init Mode", {"Reset Character", "CDSB + Reset", "CDSB + SSE + Kill"}, LimbReanimator.InitMode + 1)
+	UI.CreateText(
+		parent,
+		"as mentioned in the README, this only works for SOME games,\nbecause 'modern' games create the Animator automatically which breaks limb reanimation",
+		10,
+		Enum.TextXAlignment.Center
+	)
+	local dmode = UI.CreateDropdown(parent, "RootPart Mode", {
+		"RootPart in very void",
+		"RootPart in void",
+		"Keep RootPart Streamed",
+		"CurrentAngle Style",
+		"RootPart is Torso",
+	}, LimbReanimator.Mode + 1)
+	local dvel = UI.CreateDropdown(
+		parent,
+		"RootPart Velocity",
+		{ "No Velocity", "Follow Character", "Fling-like" },
+		LimbReanimator.Velocity + 1
+	)
+	local dinit = UI.CreateDropdown(
+		parent,
+		"Init Mode",
+		{ "Reset Character", "CDSB + Reset", "CDSB + SSE + Kill" },
+		LimbReanimator.InitMode + 1
+	)
 	dmode.Changed:Connect(function(val)
 		LimbReanimator.Mode = val - 1
 		SaveData.Reanimator.LimbMode = val - 1
@@ -4643,10 +5190,50 @@ function LimbReanimator.Config(parent)
 		LimbReanimator.Velocity = val - 1
 		SaveData.Reanimator.LimbVelocity = val - 1
 	end)
+	local flingVelocityMagnitude = UI.CreateSlider(
+		parent,
+		"↳ Fling Velocity",
+		LimbReanimator.FlingVelocityMagnitude,
+		1,
+		10000,
+		1
+	)
+	flingVelocityMagnitude.Changed:Connect(function(val)
+		val = math.clamp(math.floor(val), 1, 10000)
+		flingVelocityMagnitude.Value = val
+		LimbReanimator.FlingVelocityMagnitude = val
+		SaveData.Reanimator.LimbFlingVelocityMagnitude = val
+	end)
+	local flingVelocityDirection = UI.CreateDropdown(
+		parent,
+		"↳ Fling Direction",
+		{ "Up", "Down", "Forward", "Backward" },
+		LimbReanimator.FlingVelocityDirection
+	)
+	flingVelocityDirection.Changed:Connect(function(val)
+		LimbReanimator.FlingVelocityDirection = val
+		SaveData.Reanimator.LimbFlingVelocityDirection = val
+	end)
 	dinit.Changed:Connect(function(val)
 		LimbReanimator.InitMode = val - 1
 		SaveData.Reanimator.LimbInitMode = val - 1
 	end)
+	local LimbRigStatusText = UI.CreateText(parent, LimbReanimator.Status, 10, Enum.TextXAlignment.Center)
+	Util.LinkDestroyI2C(
+		LimbRigStatusText,
+		RunService.Heartbeat:Connect(function()
+			LimbRigStatusText.Text = LimbReanimator.Status
+		end)
+	)
+	UI.CreateButton(parent, "Rebind Current Rig", 16).Activated:Connect(function()
+		LimbReanimator.RebindCurrentRig()
+	end)
+	UI.CreateText(
+		parent,
+		"^^^ use after a server-side R6/R15 switch if the game rebuilt the same Character model in place ^^^",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateSwitch(parent, "Show me how I look!", LimbReanimator.ReplicateFPS10).Changed:Connect(function(val)
 		LimbReanimator.ReplicateFPS10 = val
 		SaveData.Reanimator.LimbReplicateFPS10 = val
@@ -4660,20 +5247,25 @@ function LimbReanimator.Config(parent)
 		LimbReanimator.UseNaNFling = val
 		SaveData.Reanimator.LimbUseNaNFling = val
 	end)
-	UI.CreateText(parent, "^^^ can override default Roblox states, including sitting ^^^", 10, Enum.TextXAlignment.Center)
-	Util.LinkDestroyI2C(dmode, RunService.Heartbeat:Connect(function()
-		dmode.Value = LimbReanimator.Mode + 1
-		dvel.Value = LimbReanimator.Velocity + 1
-		dinit.Value = LimbReanimator.InitMode + 1
-	end))
+	UI.CreateText(
+		parent,
+		"^^^ can override default Roblox states, including sitting ^^^",
+		10,
+		Enum.TextXAlignment.Center
+	)
+	Util.LinkDestroyI2C(
+		dmode,
+		RunService.Heartbeat:Connect(function()
+			dmode.Value = LimbReanimator.Mode + 1
+			dvel.Value = LimbReanimator.Velocity + 1
+			dinit.Value = LimbReanimator.InitMode + 1
+		end)
+	)
 end
 function LimbReanimator.Start()
-	local LimbNames = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
-	local rootposition = Vector3.new(
-		math.random(-65536, 65536),
-		math.random(-70000, -60000),
-		math.random(-65536, 65536)
-	)
+	local LimbNames = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+	local rootposition =
+		Vector3.new(math.random(-65536, 65536), math.random(-70000, -60000), math.random(-65536, 65536))
 	local rootposition2 = Vector3.new(
 		math.random(-2048, 2048),
 		math.random(-500, -100) + FallenPartsDestroyHeight,
@@ -4692,10 +5284,100 @@ function LimbReanimator.Start()
 		end
 	end
 
-	local LimbMapping = loadstring(readfile("UhhhhhhReanim/BuiltinModules/d_limbmap.lua"))()
+	local function GetBundledLimbMapping()
+		return {
+			-- R6 real rig -> R6 controller rig.
+			{ Part0 = "HumanoidRootPart", Part1 = "Torso", Type = 1, RPart0 = "ROOT", RPart1 = "Torso" },
+			{ Part0 = "Torso", Part1 = "Head", Type = 1, RPart0 = "Torso", RPart1 = "Head" },
+			{ Part0 = "Torso", Part1 = "Left Arm", Type = 1, RPart0 = "Torso", RPart1 = "Left Arm" },
+			{ Part0 = "Torso", Part1 = "Right Arm", Type = 1, RPart0 = "Torso", RPart1 = "Right Arm" },
+			{ Part0 = "Torso", Part1 = "Left Leg", Type = 1, RPart0 = "Torso", RPart1 = "Left Leg" },
+			{ Part0 = "Torso", Part1 = "Right Leg", Type = 1, RPart0 = "Torso", RPart1 = "Right Leg" },
+			-- R15 real rig -> R6 controller rig. Unmapped elbow, wrist, waist,
+			-- knee, and ankle joints are held at identity by the generic joint path.
+			{
+				Part0 = "HumanoidRootPart",
+				Part1 = "LowerTorso",
+				Type = 2,
+				RPart0 = "ROOT",
+				RPart1 = "Torso",
+				C0 = Vector3.zero,
+				C1 = Vector3.zero,
+			},
+			{
+				Part0 = "UpperTorso",
+				Part1 = "Head",
+				Type = 2,
+				RPart0 = "Torso",
+				RPart1 = "Head",
+				C0 = Vector3.new(0, 1, 0),
+				C1 = Vector3.new(0, -0.5, 0),
+			},
+			{
+				Part0 = "UpperTorso",
+				Part1 = "LeftUpperArm",
+				Type = 2,
+				RPart0 = "Torso",
+				RPart1 = "Left Arm",
+				C0 = Vector3.new(-1, 0.5, 0),
+				C1 = Vector3.new(0.5, 0.5, 0),
+			},
+			{
+				Part0 = "UpperTorso",
+				Part1 = "RightUpperArm",
+				Type = 2,
+				RPart0 = "Torso",
+				RPart1 = "Right Arm",
+				C0 = Vector3.new(1, 0.5, 0),
+				C1 = Vector3.new(-0.5, 0.5, 0),
+			},
+			{
+				Part0 = "LowerTorso",
+				Part1 = "LeftUpperLeg",
+				Type = 2,
+				RPart0 = "Torso",
+				RPart1 = "Left Leg",
+				C0 = Vector3.new(-0.5, -1, 0),
+				C1 = Vector3.new(0, 1, 0),
+			},
+			{
+				Part0 = "LowerTorso",
+				Part1 = "RightUpperLeg",
+				Type = 2,
+				RPart0 = "Torso",
+				RPart1 = "Right Leg",
+				C0 = Vector3.new(0.5, -1, 0),
+				C1 = Vector3.new(0, 1, 0),
+			},
+		}
+	end
+	local LimbMapping = GetBundledLimbMapping()
+	local loadedMapping = nil
+	local mappingLoaded = pcall(function()
+		loadedMapping = loadstring(readfile("UhhhhhhReanim/BuiltinModules/d_limbmap.lua"))()
+	end)
+	if mappingLoaded and type(loadedMapping) == "table" then
+		LimbMapping = loadedMapping
+		for _, fallbackMap in GetBundledLimbMapping() do
+			local exists = false
+			for _, map in LimbMapping do
+				if map.Part0 == fallbackMap.Part0 and map.Part1 == fallbackMap.Part1 then
+					exists = true
+					break
+				end
+			end
+			if not exists then
+				table.insert(LimbMapping, fallbackMap)
+			end
+		end
+	end
 
 	local FakeTools = {}
 	local function CreateFakeTool()
+		local reanimCharacter = Reanimate.Character
+		if not reanimCharacter then
+			return nil
+		end
 		local FakeTool = Instance.new("Tool")
 		FakeTool.Name = "faketool"
 		local FakeToolHandle = Instance.new("Part")
@@ -4705,86 +5387,122 @@ function LimbReanimator.Start()
 		FakeToolHandle.CanCollide = false
 		FakeToolHandle.Massless = true
 		FakeToolHandle.Parent = FakeTool
-		FakeTool.Parent = Reanimate.Character
+		FakeTool.Parent = reanimCharacter
 		local RightGrip = Instance.new("Weld")
 		RightGrip.Name = "RightGrip"
 		RightGrip.Parent = FakeToolHandle
-		RightGrip.Part0 = Reanimate.Character and Reanimate.Character:FindFirstChild("Right Arm")
+		RightGrip.Part0 = reanimCharacter:FindFirstChild("Right Arm")
 		RightGrip.Part1 = FakeToolHandle
 		RightGrip.C0 = RIGHTGRIP_C0
-		Util.LinkDestroyI2C(FakeTool, FakeTool:GetPropertyChangedSignal("Grip"):Connect(function()
-			RightGrip.C1 = FakeTool.Grip
-		end))
+		Util.LinkDestroyI2C(
+			FakeTool,
+			FakeTool:GetPropertyChangedSignal("Grip"):Connect(function()
+				RightGrip.C1 = FakeTool.Grip
+			end)
+		)
 		RightGrip.C1 = FakeTool.Grip
 		return FakeTool
 	end
 
 	local BaseParts = {}
-	local UnknownMotor6Ds = {}
-	local CharOnDesc = function(v)
+	local UnknownCharacterJoints = {}
+	local ActiveRealCharacter = nil
+	local ActiveDescendantConnection = nil
+	local CharOnDesc = function(v, character)
+		if character ~= ActiveRealCharacter or not v:IsDescendantOf(character) then
+			return
+		end
 		if v:IsA("BasePart") then
 			if not table.find(BaseParts, v) then
 				table.insert(BaseParts, v)
 				v.CanCollide = false
 				v:GetPropertyChangedSignal("CanCollide"):Connect(function()
-					if v.CanCollide then v.CanCollide = false end
+					if v.CanCollide then
+						v.CanCollide = false
+					end
 				end)
 			end
-		elseif v:IsA("Motor6D") then
-			repeat task.wait() until (not v:IsDescendantOf(workspace)) or (v.Part0 and v.Part1)
-			if not v:IsDescendantOf(workspace) then return end
-			local p0, p1 = v.Part0, v.Part1
-			if p0 and p1 then
-				p0, p1 = p0.Name, p1.Name
-				for _,map in LimbMapping do
+		elseif Util.IsCharacterJoint(v) then
+			local part0, part1 = Util.GetCharacterJointParts(v)
+			local deadline = os.clock() + 5
+			repeat
+				task.wait()
+				part0, part1 = Util.GetCharacterJointParts(v)
+			until character ~= ActiveRealCharacter
+				or not v:IsDescendantOf(character)
+				or (part0 and part1)
+				or os.clock() >= deadline
+			if character ~= ActiveRealCharacter or not v:IsDescendantOf(character) then
+				return
+			end
+			if part0 and part1 then
+				local p0, p1 = part0.Name, part1.Name
+				for _, map in LimbMapping do
 					if map.Part0 == p0 and map.Part1 == p1 then
-						map.Reference = v
+						if not map.Reference or v.ClassName == "AnimationConstraint" then
+							map.Reference = v
+						end
 						return
 					end
 				end
 			end
-			table.insert(UnknownMotor6Ds, v)
+			if not table.find(UnknownCharacterJoints, v) then
+				table.insert(UnknownCharacterJoints, v)
+			end
 		elseif v:IsA("Animator") then
 			task.defer(v.Destroy, v)
-		elseif v:IsA("LocalScript") and v.Parent == Player.Character then
+		elseif v:IsA("LocalScript") and v.Parent == character then
 			v.Enabled = false
 			v:GetPropertyChangedSignal("Enabled"):Connect(function()
-				if v.Enabled then v.Enabled = false end
+				if v.Enabled then
+					v.Enabled = false
+				end
 			end)
 			v:GetPropertyChangedSignal("Disabled"):Connect(function()
-				if not v.Disabled then v.Disabled = true end
+				if not v.Disabled then
+					v.Disabled = true
+				end
 			end)
-		elseif v:IsA("Tool") and v.Parent == Player.Character then
+		elseif v:IsA("Tool") and v.Parent == character then
 			if not FakeTools[v] then
-				FakeTools[v] = true
 				local fake = CreateFakeTool()
+				if not fake then
+					return
+				end
+				FakeTools[v] = true
 				fake.Grip = v.Grip
 				local h = v:FindFirstChild("Handle")
 				if h ~= nil then
 					fake.Handle.Size = h.Size
 				end
-				Util.LinkDestroyI2C(fake, RunService.PreSimulation:Connect(function()
-					if v.Parent == Player.Character then
-						fake.Grip = v.Grip
-						local h = v:FindFirstChild("Handle")
-						if h ~= nil then
-							fake.Handle.Size = h.Size
+				Util.LinkDestroyI2C(
+					fake,
+					RunService.PreSimulation:Connect(function()
+						if character == ActiveRealCharacter and v.Parent == character then
+							fake.Grip = v.Grip
+							local h = v:FindFirstChild("Handle")
+							if h ~= nil then
+								fake.Handle.Size = h.Size
+							end
+						else
+							fake:Destroy()
+							FakeTools[v] = nil
 						end
-					else
-						fake:Destroy()
-						FakeTools[v] = nil
-					end
-				end))
-				Util.LinkDestroyI2C(fake, v.ChildAdded:Connect(function(v)
-					if v.ClassName == "StringValue" and v.Name == "toolanim" then
-						local w = Instance.new("StringValue")
-						w.Name = "toolanim"
-						w.Value = v.Value
-						w.Parent = fake
-						Debris:AddItem(v, 1)
-						Debris:AddItem(w, 1)
-					end
-				end))
+					end)
+				)
+				Util.LinkDestroyI2C(
+					fake,
+					v.ChildAdded:Connect(function(v)
+						if v.ClassName == "StringValue" and v.Name == "toolanim" then
+							local w = Instance.new("StringValue")
+							w.Name = "toolanim"
+							w.Value = v.Value
+							w.Parent = fake
+							Debris:AddItem(v, 1)
+							Debris:AddItem(w, 1)
+						end
+					end)
+				)
 				fake.Handle.Touched:Connect(function(t)
 					local h = v:FindFirstChild("Handle")
 					if h and t and h:IsDescendantOf(workspace) and t:IsDescendantOf(workspace) then
@@ -4803,51 +5521,98 @@ function LimbReanimator.Start()
 		end
 	end
 	local lastspawn = 0
-	local CharConn = Player.CharacterAdded:Connect(function(character)
+	local function BindRealCharacter(character)
+		if not character or not character:IsA("Model") then
+			return false
+		end
 		local camcfr = Camera.CFrame
 		RunService.PreRender:Once(function()
 			RunService.PreAnimation:Wait()
-			Camera.CFrame = camcfr
+			if Camera then
+				Camera.CFrame = camcfr
+			end
 		end)
 		lastspawn = os.clock()
+		ActiveRealCharacter = character
+		if ActiveDescendantConnection then
+			ActiveDescendantConnection:Disconnect()
+			ActiveDescendantConnection = nil
+		end
 		table.clear(BaseParts)
-		table.clear(UnknownMotor6Ds)
-		for _,map in LimbMapping do
+		table.clear(UnknownCharacterJoints)
+		for _, map in LimbMapping do
 			map.Reference = nil
+			map.CFrame = nil
 		end
-		character.DescendantAdded:Connect(CharOnDesc)
-		for _,v in character:GetDescendants() do
-			task.spawn(CharOnDesc, v)
+		ActiveDescendantConnection = character.DescendantAdded:Connect(function(v)
+			task.spawn(CharOnDesc, v, character)
+		end)
+		for _, v in character:GetDescendants() do
+			task.spawn(CharOnDesc, v, character)
 		end
-		local humanoid = character:WaitForChild("Humanoid", 5)
-		local stupid = humanoid:FindFirstChildWhichIsA("Animator")
-		if stupid then
-			stupid:Destroy()
-		end
-		if not Reanimate.UseLoadAnimationHook then
-			stupid = character:FindFirstChild("Animate")
-			while not stupid do
-				character.ChildAdded:Wait()
-				stupid = character:FindFirstChild("Animate")
+		task.spawn(function()
+			local humanoid = character:WaitForChild("Humanoid", 5)
+			if character ~= ActiveRealCharacter or not humanoid or not humanoid:IsA("Humanoid") then
+				return
 			end
-			stupid:Destroy()
+			local animator = humanoid:FindFirstChildWhichIsA("Animator")
+			if animator then
+				animator:Destroy()
+			end
+			if not Reanimate.UseLoadAnimationHook then
+				local animate = character:FindFirstChild("Animate")
+				if animate then
+					animate:Destroy()
+				end
+			end
+		end)
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local rigName = humanoid and humanoid.RigType.Name or "loading"
+		LimbReanimator.Status = "Real rig: " .. rigName .. " / binding joints"
+		return true
+	end
+	LimbReanimator.RebindCurrentRig = function()
+		local character = Player.Character or ActiveRealCharacter
+		if BindRealCharacter(character) then
+			Util.UINotify("Rebinding " .. (character and character.Name or "real rig") .. "...")
+		else
+			Util.UINotify("No real character is available to rebind.")
 		end
-	end)
-	Player.CharacterAdded:Wait()
+	end
+	local InitialRealCharacter = Player.Character
+	local CharConn = Player.CharacterAdded:Connect(BindRealCharacter)
+	if InitialRealCharacter then
+		BindRealCharacter(InitialRealCharacter)
+	end
+	local deadline = os.clock() + math.max(Players.RespawnTime + 5, 8)
+	repeat
+		task.wait()
+	until Reanimate.Stopping or Player.Character ~= InitialRealCharacter or os.clock() >= deadline
 	Reanimate.CreateCharacter(InitCFrame)
+	if ActiveRealCharacter then
+		-- The first bind can happen before the controller rig exists. Repeat once
+		-- so equipped tools and every late-created joint see the finished target.
+		BindRealCharacter(ActiveRealCharacter)
+	end
 
 	local lastrep = 0
 	local function UpdateTransforms(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf)
 		if not RootPart:IsGrounded() then
 			if flingtarget then
 				if LimbReanimator.UseNaNFling then
-					RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005)) * CFrame.Angles(0, os.clock() * 15, 0)
+					RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005))
+						* CFrame.Angles(0, os.clock() * 15, 0)
 					RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
 				else
 					RootPart.CFrame = flingcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
 					RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
 				end
-				pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil)
+				pcall(
+					sethiddenproperty,
+					RootPart,
+					"PhysicsRepRootPart",
+					Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+				)
 			else
 				RootPart.CFrame = rootcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
 				RootPart.Velocity, RootPart.RotVelocity = rootvel, Vector3.zero
@@ -4865,17 +5630,20 @@ function LimbReanimator.Start()
 				lastrep = b - a
 			end
 		end
-		for _,v in UnknownMotor6Ds do
-			Util.SetMotor6DTransform(v, CFrame.identity)
+		for _, v in UnknownCharacterJoints do
+			if v.Parent then
+				Util.SetCharacterJointTransform(v, CFrame.identity)
+			end
 		end
-		for _,map in LimbMapping do
+		for _, map in LimbMapping do
 			local v = map.Reference
-			if v then
+			if v and v.Parent then
 				if flingtarget then
-					Util.SetMotor6DTransform(v, CFrame.identity)
+					Util.SetCharacterJointTransform(v, CFrame.identity)
 				else
 					local cf = CFrame.identity
-					local p0, p1 = ReanimCharacter:FindFirstChild(map.RPart0), ReanimCharacter:FindFirstChild(map.RPart1)
+					local p0, p1 =
+						ReanimCharacter:FindFirstChild(map.RPart0), ReanimCharacter:FindFirstChild(map.RPart1)
 					if map.RPart0 == "ROOT" then
 						p0 = RootPart
 					end
@@ -4887,13 +5655,16 @@ function LimbReanimator.Start()
 							local offset = map.Offset or CFrame.identity
 							local c0, c1 = CFrame.new(map.C0), CFrame.new(map.C1)
 							local transform = offset * (p0.CFrame * c0):ToObjectSpace(p1.CFrame * c1) * offset:Inverse()
-							cf = v.C0 * transform * v.C1:Inverse()
+							local jointC0, jointC1 = Util.GetCharacterJointFrames(v)
+							if jointC0 and jointC1 then
+								cf = jointC0 * transform * jointC1:Inverse()
+							end
 						end
 					end
 					if dorep or not map.CFrame then
 						map.CFrame = cf
 					end
-					Util.SetMotor6DOffset(v, map.CFrame)
+					Util.SetCharacterJointOffset(v, map.CFrame)
 				end
 			end
 		end
@@ -4902,9 +5673,17 @@ function LimbReanimator.Start()
 	Reanimate.Starting = false
 	while not Reanimate.Stopping do
 		RunService.PreSimulation:Wait()
-		workspace.FallenPartsDestroyHeight = 0/0
+		workspace.FallenPartsDestroyHeight = 0 / 0
 		local ReanimOkay = false
 		local Character, Humanoid, RootPart = Player.Character, nil, nil
+		if Character and Character ~= ActiveRealCharacter then
+			BindRealCharacter(Character)
+		end
+		local IsDeadRealCharacter = false
+		local mappedJointCount = 0
+		local requiredJointCount = 6
+		local motorJointCount = 0
+		local constraintJointCount = 0
 		if Character then
 			Humanoid = Character:FindFirstChildOfClass("Humanoid")
 			if Humanoid then
@@ -4915,13 +5694,46 @@ function LimbReanimator.Start()
 				if Humanoid.JumpPower < 1 then
 					Humanoid.JumpPower = 50
 				end
-				RootPart = Humanoid.RootPart
-				if RootPart and Humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+				RootPart = Humanoid.RootPart or Character:FindFirstChild("HumanoidRootPart")
+				for _, map in LimbMapping do
+					local joint = map.Reference
+					if joint and joint.Parent and joint:IsDescendantOf(Character) then
+						mappedJointCount += 1
+						if joint:IsA("Motor6D") then
+							motorJointCount += 1
+						else
+							constraintJointCount += 1
+						end
+					end
+				end
+				IsDeadRealCharacter = Humanoid:GetState() == Enum.HumanoidStateType.Dead or Humanoid.Health <= 0
+				if RootPart and mappedJointCount >= requiredJointCount and not IsDeadRealCharacter then
 					Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 					ReanimOkay = LimbReanimator.FlingTargets[1] == nil
 				end
 			end
 		end
+		local rigName = Humanoid and Humanoid.RigType.Name or "none"
+		local jointBackend = "no mapped joints"
+		if motorJointCount > 0 and constraintJointCount > 0 then
+			jointBackend = "mixed joints"
+		elseif constraintJointCount > 0 then
+			jointBackend = "AnimationConstraint"
+		elseif motorJointCount > 0 then
+			jointBackend = "Motor6D"
+		end
+		local lifeState = IsDeadRealCharacter and "dead; unsupported" or "alive"
+		LimbReanimator.Status = "Real rig: "
+			.. rigName
+			.. " / "
+			.. jointBackend
+			.. " / "
+			.. lifeState
+			.. " ("
+			.. mappedJointCount
+			.. "/"
+			.. requiredJointCount
+			.. " mapped)"
 		local rootcf = CFrame.new(rootposition)
 		local rootvel = Vector3.zero
 		local ltm = Reanimate.LocalTransparencyModifier
@@ -4929,11 +5741,14 @@ function LimbReanimator.Start()
 		if ReanimCharacter then
 			local RCHumanoid = ReanimCharacter:FindFirstChildOfClass("Humanoid")
 			local RCRootPart = ReanimCharacter:FindFirstChild("HumanoidRootPart")
-			local RCTorso = ReanimCharacter:FindFirstChild("Torso")
+			local RCTorso = ReanimCharacter:FindFirstChild("Torso") or ReanimCharacter:FindFirstChild("UpperTorso")
 			if Camera then
 				Camera.CameraSubject = RCHumanoid
 			end
-			for _,v in BaseParts do
+			for _, v in BaseParts do
+				if not v.Parent then
+					continue
+				end
 				v.CanCollide = false
 				v.Velocity = Vector3.zero
 				v.RotVelocity = Vector3.zero
@@ -4953,7 +5768,7 @@ function LimbReanimator.Start()
 					v.LocalTransparencyModifier = lltm
 				end
 			end
-			for _,v in ReanimCharacter:GetChildren() do
+			for _, v in ReanimCharacter:GetChildren() do
 				if v:IsA("BasePart") then
 					if table.find(LimbNames, v.Name) then
 						-- The original script shows this red fake rig before the new real
@@ -4971,7 +5786,9 @@ function LimbReanimator.Start()
 					end
 				end
 			end
-			if Character and Humanoid and RootPart then
+			local flingtarget = nil
+			local flingcf = CFrame.identity
+			if Character and Humanoid and RootPart and mappedJointCount > 0 and not IsDeadRealCharacter then
 				RunService.Heartbeat:Wait()
 				local t = os.clock()
 				if RCRootPart and RCTorso then
@@ -4990,10 +5807,18 @@ function LimbReanimator.Start()
 					if LimbReanimator.Velocity == 1 then
 						rootvel = RCRootPart.Velocity
 					elseif LimbReanimator.Velocity == 2 then
-						rootvel = Vector3.new(0, 16384, 0)
+						local direction = Vector3.yAxis
+						if LimbReanimator.FlingVelocityDirection == 2 then
+							direction = -Vector3.yAxis
+						elseif LimbReanimator.FlingVelocityDirection == 3 then
+							direction = RCRootPart.CFrame.LookVector
+						elseif LimbReanimator.FlingVelocityDirection == 4 then
+							direction = -RCRootPart.CFrame.LookVector
+						end
+						rootvel = direction * LimbReanimator.FlingVelocityMagnitude
 					end
 				end
-				local flingtarget = LimbReanimator.FlingTargets[1]
+				flingtarget = LimbReanimator.FlingTargets[1]
 				if flingtarget then
 					if flingtarget.Time then
 						if t > flingtarget.Time then
@@ -5001,10 +5826,14 @@ function LimbReanimator.Start()
 							flingtarget = nil
 						end
 					else
-						flingtarget.Time = t + (flingtarget.Duration or (Reanimate.UsePhysicsRepRootPart and (LimbReanimator.UseNaNFling and 1 or 0.5) or 2))
+						flingtarget.Time = t
+							+ (
+								flingtarget.Duration
+								or (Reanimate.UsePhysicsRepRootPart and (LimbReanimator.UseNaNFling and 1 or 0.5) or 2)
+							)
 					end
 				end
-				local flingcf, flinged = CFrame.identity, true
+				local flinged = true
 				if flingtarget then
 					flingcf, flinged = Util.PredictionFling(flingtarget.Target)
 					if flinged then
@@ -5013,27 +5842,45 @@ function LimbReanimator.Start()
 					end
 				end
 				UpdateTransforms(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf)
-				if LimbReanimator.UseNaNFling then
+				if not IsDeadRealCharacter and LimbReanimator.UseNaNFling then
 					if os.clock() - lastspawn > 0.1 then
-						pcall(sethiddenproperty, Humanoid, "MoveDirectionInternal", Vector3.new(0/0, 0/0, 0/0))
+						pcall(sethiddenproperty, Humanoid, "MoveDirectionInternal", Vector3.new(0 / 0, 0 / 0, 0 / 0))
 					else
 						pcall(sethiddenproperty, Humanoid, "MoveDirectionInternal", Vector3.zero)
 					end
 					pcall(sethiddenproperty, Humanoid, "NetworkHumanoidState", Enum.HumanoidStateType.Freefall)
-				else
-					pcall(sethiddenproperty, Humanoid, "NetworkHumanoidState", Enum.HumanoidStateType[({"Running", "PlatformStanding", "Jumping", "Ragdoll", "Seated", "Physics"})[math.random(1, 6)]])
+				elseif not IsDeadRealCharacter then
+					pcall(
+						sethiddenproperty,
+						Humanoid,
+						"NetworkHumanoidState",
+						Enum.HumanoidStateType[({
+							"Running",
+							"PlatformStanding",
+							"Jumping",
+							"Ragdoll",
+							"Seated",
+							"Physics",
+						})[math.random(1, 6)]]
+					)
 				end
 			end
 			RunService.PreRender:Wait()
 			if Reanimate:ShouldRotationType() then
 				Reanimate:CameraLockCharacter()
 			end
-			if Character and Humanoid and RootPart then
+			if Character and Humanoid and RootPart and mappedJointCount > 0 and not IsDeadRealCharacter then
 				UpdateTransforms(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf)
 			end
 		end
 	end
 	CharConn:Disconnect()
+	if ActiveDescendantConnection then
+		ActiveDescendantConnection:Disconnect()
+		ActiveDescendantConnection = nil
+	end
+	LimbReanimator.RebindCurrentRig = function() end
+	LimbReanimator.Status = "Real rig: stopped"
 	if Player.Character then
 		local h = Player.Character:FindFirstChild("Humanoid")
 		if h then
@@ -5070,7 +5917,7 @@ HatReanimator.HatCollideMethod = SaveData.Reanimator.HatsCollideMethod
 -- 7 - idk honestly but this is just modified heavily for now
 HatReanimator.IWantAllHats = SaveData.Reanimator.IWantAllHats
 HatReanimator.IWantHatCollide = SaveData.Reanimator.IWantHatCollide
-HatReanimator.Permadeath = false--not SaveData.Reanimator.HatsPatchmahub
+HatReanimator.Permadeath = false --not SaveData.Reanimator.HatsPatchmahub
 HatReanimator.RespawnPosition = SaveData.Reanimator.RespawnPosition
 -- 0 - hide body
 -- 1 - behind character
@@ -5101,7 +5948,7 @@ HatReanimator.Status = {
 }
 function HatReanimator.ShowHitboxes()
 	if Player.Character then
-		for _,v in Player.Character:GetChildren() do
+		for _, v in Player.Character:GetChildren() do
 			if v:IsA("Accessory") then
 				local handle = v:FindFirstChild("Handle")
 				if handle and handle:IsA("BasePart") then
@@ -5116,17 +5963,27 @@ end
 HatReanimator.FlingTargets = {}
 HatReanimator._TempNotFling = {}
 function HatReanimator.Fling(target, duration)
-	if HatReanimator.FlingMethod == -1 then return end
-	if not target then return false end
-	for _,v in HatReanimator.FlingTargets do
+	if HatReanimator.FlingMethod == -1 then
+		return
+	end
+	if not target then
+		return false
+	end
+	for _, v in HatReanimator.FlingTargets do
 		if v.Target == target then
 			return false
 		end
 	end
-	if target == Reanimate.Character then return false end
-	if target == Player.Character then return false end
+	if target == Reanimate.Character then
+		return false
+	end
+	if target == Player.Character then
+		return false
+	end
 	if typeof(target) == "Instance" then
-		if HatReanimator._TempNotFling[target] then return end
+		if HatReanimator._TempNotFling[target] then
+			return
+		end
 		HatReanimator._TempNotFling[target] = true
 		task.delay(1, function()
 			HatReanimator._TempNotFling[target] = nil
@@ -5134,7 +5991,7 @@ function HatReanimator.Fling(target, duration)
 	end
 	table.insert(HatReanimator.FlingTargets, {
 		Target = target,
-		Duration = duration
+		Duration = duration,
 	})
 	if typeof(target) == "Instance" then
 		if target:IsA("Model") then
@@ -5147,7 +6004,7 @@ function HatReanimator.Fling(target, duration)
 			h.Parent = target
 			TweenService:Create(h, TweenInfo.new(5), {
 				FillTransparency = 1,
-				OutlineTransparency = 1
+				OutlineTransparency = 1,
 			}):Play()
 			game.Debris:AddItem(h, 5)
 		end
@@ -5166,15 +6023,21 @@ function HatReanimator.Config(parent)
 		"Behind ReanimCharacter",
 		"Randomtp near",
 		"At spawn",
-	}, HatReanimator.RespawnPosition + 1).Changed:Connect(function(val)
-		HatReanimator.RespawnPosition = val - 1
-		SaveData.Reanimator.RespawnPosition = val - 1
-	end)
+	}, HatReanimator.RespawnPosition + 1).Changed
+		:Connect(function(val)
+			HatReanimator.RespawnPosition = val - 1
+			SaveData.Reanimator.RespawnPosition = val - 1
+		end)
 	UI.CreateSwitch(parent, "Hat Collide", HatReanimator.HatCollide).Changed:Connect(function(val)
 		HatReanimator.HatCollide = val
 		SaveData.Reanimator.HatsCollide = val
 	end)
-	UI.CreateText(parent, "if ur hats get voided when u try to hat collide\nvvv try changing this vvv", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		parent,
+		"if ur hats get voided when u try to hat collide\nvvv try changing this vvv",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateDropdown(parent, "Torso Offset", {
 		"1 - ShownApe's method (???)",
 		"2 - STEVE's method V1 (specific)",
@@ -5185,10 +6048,11 @@ function HatReanimator.Config(parent)
 		"7 - 6 but further from void (gl getting hatdrop)",
 		"8 - STEVE's method V3 (most stable)",
 		"9 - experimental do not use",
-	}, HatReanimator.HatCollideMethod + 1).Changed:Connect(function(val)
-		HatReanimator.HatCollideMethod = val - 1
-		SaveData.Reanimator.HatsCollideMethod = val - 1
-	end)
+	}, HatReanimator.HatCollideMethod + 1).Changed
+		:Connect(function(val)
+			HatReanimator.HatCollideMethod = val - 1
+			SaveData.Reanimator.HatsCollideMethod = val - 1
+		end)
 	UI.CreateSwitch(parent, "Ensure All Hats", HatReanimator.IWantAllHats).Changed:Connect(function(val)
 		HatReanimator.IWantAllHats = val
 		SaveData.Reanimator.IWantAllHats = val
@@ -5199,10 +6063,11 @@ function HatReanimator.Config(parent)
 		"Atleast #hats - 2",
 		"Atleast #hats - 1",
 		"ALL",
-	}, HatReanimator.IWantHatCollide + 1).Changed:Connect(function(val)
-		HatReanimator.IWantHatCollide = val - 1
-		SaveData.Reanimator.IWantHatCollide = val - 1
-	end)
+	}, HatReanimator.IWantHatCollide + 1).Changed
+		:Connect(function(val)
+			HatReanimator.IWantHatCollide = val - 1
+			SaveData.Reanimator.IWantHatCollide = val - 1
+		end)
 	UI.CreateText(parent, "vvv dont use these two options with target fling... vvv", 10, Enum.TextXAlignment.Center)
 	UI.CreateSwitch(parent, "Hat Fling", HatReanimator.HatFling).Changed:Connect(function(val)
 		HatReanimator.HatFling = val
@@ -5221,36 +6086,46 @@ function HatReanimator.Config(parent)
 		"Biggest Hat",
 		"All Hats",
 		"Use Tool Handle",
-	}, HatReanimator.FlingMethod + 2).Changed:Connect(function(val)
-		HatReanimator.FlingMethod = val - 2
-		SaveData.Reanimator.HatsFlingMethod = val - 2
-	end)
+	}, HatReanimator.FlingMethod + 2).Changed
+		:Connect(function(val)
+			HatReanimator.FlingMethod = val - 2
+			SaveData.Reanimator.HatsFlingMethod = val - 2
+		end)
 	UI.CreateSwitch(parent, "Tool Holding", HatReanimator.ToolHolding).Changed:Connect(function(val)
 		HatReanimator.ToolHolding = val
-		SaveData.Reanimator.NoToolHolding = val
+		SaveData.Reanimator.NoToolHolding = not val
 	end)
 	UI.CreateDropdown(parent, "toolanim Method", {
 		"Disabled",
 		"Sword",
-	}, HatReanimator.ToolAnimMethod + 1).Changed:Connect(function(val)
-		HatReanimator.ToolAnimMethod = val - 1
-		SaveData.Reanimator.HatsToolAnim = val - 1
-	end)
+	}, HatReanimator.ToolAnimMethod + 1).Changed
+		:Connect(function(val)
+			HatReanimator.ToolAnimMethod = val - 1
+			SaveData.Reanimator.HatsToolAnim = val - 1
+		end)
 	UI.CreateSeparator(parent)
 	local HatMapSummaryText = UI.CreateText(parent, HatReanimator.HatMapSummary, 12, Enum.TextXAlignment.Left)
 	local HatReanimStatusText = UI.CreateText(parent, "", 12, Enum.TextXAlignment.Left)
-	Util.LinkDestroyI2C(HatMapSummaryText, RunService.RenderStepped:Connect(function()
-		HatMapSummaryText.Text = HatReanimator.HatMapSummary
-		local str = ""
-		for name, stat in HatReanimator.Status do
-			str ..= name .. ": " .. stat .. "\n"
-		end
-		HatReanimStatusText.Text = str:sub(1, -2)
-	end))
+	Util.LinkDestroyI2C(
+		HatMapSummaryText,
+		RunService.RenderStepped:Connect(function()
+			HatMapSummaryText.Text = HatReanimator.HatMapSummary
+			local str = ""
+			for name, stat in HatReanimator.Status do
+				str ..= name .. ": " .. stat .. "\n"
+			end
+			HatReanimStatusText.Text = str:sub(1, -2)
+		end)
+	)
 	UI.CreateButton(parent, "Rebuild Hat Map", 20).Activated:Connect(function()
 		HatReanimator.RebuildRequired = true
 	end)
-	UI.CreateText(parent, "^^^ if ur rig built wrong or u switched to a new rig ^^^\nthis button is for you", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		parent,
+		"^^^ if ur rig built wrong or u switched to a new rig ^^^\nthis button is for you",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateButton(parent, "Respawn", 20).Activated:Connect(function()
 		--HatReanimator.Status.Permadeath = "Fired CDSB Signal!"
 	end)
@@ -5259,44 +6134,45 @@ HatReanimator.GetHatMap = function() end
 HatReanimator.GetHatCFrameMeshAndTexture = function() end
 HatReanimator.GetAttachmentCFrame = function() end
 function HatReanimator.Start()
-	local LimbNames = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+	local LimbNames = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
 
 	local Attachments = {
-		RightShoulderAttachment = {"Right Arm", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		RightGripAttachment = {"Right Arm", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		LeftFootAttachment = {"Left Leg", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		LeftShoulderAttachment = {"Left Arm", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		LeftGripAttachment = {"Left Arm", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		RootAttachment = {"HumanoidRootPart", CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		RightFootAttachment = {"Right Leg", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		NeckAttachment = {"Torso", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		BodyFrontAttachment = {"Torso", CFrame.new(0, 0, -0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		BodyBackAttachment = {"Torso", CFrame.new(0, 0, 0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		LeftCollarAttachment = {"Torso", CFrame.new(-1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		RightCollarAttachment = {"Torso", CFrame.new(1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		WaistFrontAttachment = {"Torso", CFrame.new(0, -1, -0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		WaistCenterAttachment = {"Torso", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		WaistBackAttachment = {"Torso", CFrame.new(0, -1, 0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		HairAttachment = {"Head", CFrame.new(0, 0.6, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		HatAttachment = {"Head", CFrame.new(0, 0.6, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		FaceFrontAttachment = {"Head", CFrame.new(0, 0, -0.6, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-		FaceCenterAttachment = {"Head", CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
+		RightShoulderAttachment = { "Right Arm", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		RightGripAttachment = { "Right Arm", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		LeftFootAttachment = { "Left Leg", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		LeftShoulderAttachment = { "Left Arm", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		LeftGripAttachment = { "Left Arm", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		RootAttachment = { "HumanoidRootPart", CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		RightFootAttachment = { "Right Leg", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		NeckAttachment = { "Torso", CFrame.new(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		BodyFrontAttachment = { "Torso", CFrame.new(0, 0, -0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		BodyBackAttachment = { "Torso", CFrame.new(0, 0, 0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		LeftCollarAttachment = { "Torso", CFrame.new(-1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		RightCollarAttachment = { "Torso", CFrame.new(1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		WaistFrontAttachment = { "Torso", CFrame.new(0, -1, -0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		WaistCenterAttachment = { "Torso", CFrame.new(0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		WaistBackAttachment = { "Torso", CFrame.new(0, -1, 0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		HairAttachment = { "Head", CFrame.new(0, 0.6, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		HatAttachment = { "Head", CFrame.new(0, 0.6, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		FaceFrontAttachment = { "Head", CFrame.new(0, 0, -0.6, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
+		FaceCenterAttachment = { "Head", CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1) },
 	}
 
-	local HatMeshDatabase, HatNameDatabase, HatKnownAccessoriesDatabase = loadstring(readfile("UhhhhhhReanim/BuiltinModules/d_hatsmap.lua"))()
+	local HatMeshDatabase, HatNameDatabase, HatKnownAccessoriesDatabase =
+		loadstring(readfile("UhhhhhhReanim/BuiltinModules/d_hatsmap.lua"))()
 
 	local function GetTools()
 		local tools = {}
 		local character, backpack = Player.Character, Player:FindFirstChildOfClass("Backpack")
 		if character then
-			for _,v in character:GetChildren() do
+			for _, v in character:GetChildren() do
 				if v:IsA("Tool") then
 					table.insert(tools, v)
 				end
 			end
 		end
 		if backpack then
-			for _,v in backpack:GetChildren() do
+			for _, v in backpack:GetChildren() do
 				if v:IsA("Tool") then
 					table.insert(tools, v)
 				end
@@ -5322,8 +6198,12 @@ function HatReanimator.Start()
 	local function AssetIdMatch(a, b)
 		a = a or ""
 		b = b or ""
-		if #b == 0 then return true end
-		if #a == 0 then return false end
+		if #b == 0 then
+			return true
+		end
+		if #a == 0 then
+			return false
+		end
 		if a:sub(1, 11) == "rbxasset://" then
 			a = a:match("rbxasset://(.+)")
 		elseif a:sub(1, 13) == "rbxassetid://" then
@@ -5339,7 +6219,8 @@ function HatReanimator.Start()
 		if handle and handle:IsA("BasePart") and mesh and tex then
 			local mapdata = {
 				Name = hat.Name,
-				MeshId = mesh, TextureId = tex,
+				MeshId = mesh,
+				TextureId = tex,
 				C0 = CFrame.identity,
 				C1 = CFrame.identity,
 				Scale = 1,
@@ -5359,14 +6240,14 @@ function HatReanimator.Start()
 				originalsize = handle.Size
 			end
 			-- dont map explicitly overriden hats
-			for _,data in HatReanimator.HatCFrameOverride do
+			for _, data in HatReanimator.HatCFrameOverride do
 				if data.MeshId and data.TextureId then
 					if AssetIdMatch(mesh, data.MeshId) and AssetIdMatch(tex, data.TextureId) then
 						return mapdata, "Unknown", 4
 					end
 				end
 			end
-			for _,data in HatKnownAccessoriesDatabase do
+			for _, data in HatKnownAccessoriesDatabase do
 				if AssetIdMatch(mesh, data.MeshId) and AssetIdMatch(tex, data.TextureId) then
 					mapdata.C0 = data.C0
 					mapdata.C1 = data.C1
@@ -5376,14 +6257,14 @@ function HatReanimator.Start()
 					return mapdata, "Accessories", 0
 				end
 			end
-			for _,data in HatNameDatabase do
+			for _, data in HatNameDatabase do
 				if hat.Name:lower() == data.Match:lower() then
 					mapdata.C1 = data.Offset
 					mapdata.Attachments = data.Attachments
 					return mapdata, data.For, 1
 				end
 			end
-			for _,data in HatMeshDatabase do
+			for _, data in HatMeshDatabase do
 				if AssetIdMatch(mesh, data.MeshId) and AssetIdMatch(tex, data.TextureId) then
 					mapdata.C1 = data.Offset
 					mapdata.Attachments = data.Attachments
@@ -5436,7 +6317,7 @@ function HatReanimator.Start()
 	local Hat2HatRefs = {}
 	local function ResetHatRefs()
 		table.clear(Hat2HatRefs)
-		for _,ref in HatRefs do
+		for _, ref in HatRefs do
 			ref.Hat = nil
 			ref.Han = nil
 		end
@@ -5452,7 +6333,7 @@ function HatReanimator.Start()
 			p.CanQuery = false
 			p.Transparency = 0.75
 			p.Name = "(C) Uhhhhhh V" .. UhhhhhhVersion .. " :: HAT PLACEHOLDER"
-			for _,v in p:GetDescendants() do
+			for _, v in p:GetDescendants() do
 				if v:IsA("LuaSourceContainer") then
 					v:Destroy()
 					continue
@@ -5477,7 +6358,7 @@ function HatReanimator.Start()
 		local handle = hat:FindFirstChild("Handle")
 		local mesh, tex = GetHatMeshAndTexture(hat)
 		if handle and mesh and tex then
-			for _,ref in HatRefs do
+			for _, ref in HatRefs do
 				if not ref.Hat then
 					if ref.Name == hat.Name and ref.MeshId == mesh and ref.TextureId == tex then
 						ref.Hat = hat
@@ -5515,14 +6396,14 @@ function HatReanimator.Start()
 			Accessories = {},
 			Unknown = {},
 		}
-		for _,hat in CharHats do
+		for _, hat in CharHats do
 			local mapdata, usefor, level = ClassifyHat(hat)
 			if mapdata and hatfors[usefor] then
-				table.insert(hatfors[usefor], {hat, mapdata, level})
+				table.insert(hatfors[usefor], { hat, mapdata, level })
 			end
 		end
 		summary ..= "Classified "
-		for name,arr in hatfors do
+		for name, arr in hatfors do
 			table.sort(arr, function(a, b)
 				return a[3] < b[3]
 			end)
@@ -5631,7 +6512,11 @@ function HatReanimator.Start()
 				table.insert(limbstobuild, "Right Leg")
 			end
 		end
-		for _,v in HatRefs do if v.PH then v.PH:Destroy() end end
+		for _, v in HatRefs do
+			if v.PH then
+				v.PH:Destroy()
+			end
+		end
 		table.clear(Hat2HatRefs)
 		table.clear(HatRefs)
 		table.clear(HatMap)
@@ -5646,7 +6531,8 @@ function HatReanimator.Start()
 				table.insert(HatMap, data)
 				table.insert(HatRefs, {
 					Name = data.Name,
-					MeshId = data.MeshId, TextureId = data.TextureId,
+					MeshId = data.MeshId,
+					TextureId = data.TextureId,
 					Map = data,
 					Index = index,
 					PH = nil,
@@ -5671,7 +6557,7 @@ function HatReanimator.Start()
 				table.insert(blocks[name], table.remove(hatfors.Block, 1))
 				i += 1
 			end
-			for name,v in blocks do
+			for name, v in blocks do
 				if #v == 2 then
 					local a, b = v[1], v[2]
 					a[2].C0 = CFrame.new(0, -0.5, 0)
@@ -5686,28 +6572,28 @@ function HatReanimator.Start()
 			end
 		end
 		summary ..= "  " .. #hatfors.Accessories .. " known accessories\n"
-		for _,acc in hatfors.Accessories do
+		for _, acc in hatfors.Accessories do
 			addhat(nil, acc)
 		end
 		table.clear(hatfors.Accessories)
 		local unused = 0
 		local function AttmentGet(name)
-			for _,data in ipairs(HatMap) do
+			for _, data in ipairs(HatMap) do
 				if data.Attachments and data.Attachments[name] then
-					return {data.Limb, data.C0 * data.C1:Inverse() * data.Attachments[name]}
+					return { data.Limb, data.C0 * data.C1:Inverse() * data.Attachments[name] }
 				end
 			end
 			return Attachments[name]
 		end
-		for _,v in hatfors do
-			for _,w in v do
+		for _, v in hatfors do
+			for _, w in v do
 				local hat = w[1]
 				local map = w[2]
 				local limb, c0 = unpack(AttmentGet("HatAttachment"))
 				local c1 = hat.AttachmentPoint
 				local handle = hat:FindFirstChild("Handle")
 				if handle then
-					for _,x in handle:GetChildren() do
+					for _, x in handle:GetChildren() do
 						if x:IsA("Attachment") then
 							local att = AttmentGet(x.Name)
 							if att then
@@ -5727,7 +6613,7 @@ function HatReanimator.Start()
 		summary ..= "...which leaves " .. unused .. " unused."
 		HatMap.Built = os.clock()
 		HatMapCopy = Util.DeepcopyTable(HatMap)
-		for _,v in CharHats do
+		for _, v in CharHats do
 			RefHatToHatRefs(v)
 		end
 		HatReanimator.HatMapSummary = summary
@@ -5735,11 +6621,13 @@ function HatReanimator.Start()
 	end
 	local function GetHatMappedOverride(hatmapped)
 		local ReanimCharacter = Reanimate.Character
-		if not ReanimCharacter then return end
+		if not ReanimCharacter then
+			return
+		end
 		local scale = ReanimCharacter:GetScale()
 		local hatscale = hatmapped.Scale
 		-- cframe override
-		for _,data in HatReanimator.HatCFrameOverride do
+		for _, data in HatReanimator.HatCFrameOverride do
 			if not data.Disable then
 				-- accessory group
 				if data.Group and hatmapped.Group == data.Group then
@@ -5747,7 +6635,8 @@ function HatReanimator.Start()
 						return {
 							C0 = data.C0 or data.Offset or CFrame.identity,
 							C1 = hatmapped.C1 * (data.C1 or CFrame.identity),
-							Limb = data.Limb, RepRootPart = data.RepRootPart,
+							Limb = data.Limb,
+							RepRootPart = data.RepRootPart,
 							Scale = hatscale,
 						}
 					else
@@ -5773,9 +6662,11 @@ function HatReanimator.Start()
 					end
 					if oke then
 						return {
-							C0 = data.C0, C1 = data.C1,
+							C0 = data.C0,
+							C1 = data.C1,
 							Offset = data.Offset or data.CFrame,
-							Limb = data.Limb, RepRootPart = data.RepRootPart,
+							Limb = data.Limb,
+							RepRootPart = data.RepRootPart,
 							Scale = hatscale,
 						}
 					end
@@ -5794,21 +6685,27 @@ function HatReanimator.Start()
 	end
 	local function GetHatMappedMeshAndTexture(mesh, tex, name)
 		local ReanimCharacter = Reanimate.Character
-		if not ReanimCharacter then return end
+		if not ReanimCharacter then
+			return
+		end
 		local hatmapped = nil
 		-- find hat mapping
-		for _,data in ipairs(HatMap) do
+		for _, data in ipairs(HatMap) do
 			if (name and data.Name == name or not name) and data.MeshId == mesh and data.TextureId == tex then
 				hatmapped = data
 				break
 			end
 		end
-		if not hatmapped then return end
+		if not hatmapped then
+			return
+		end
 		return GetHatMappedOverride(hatmapped)
 	end
 	local function GetHatMappedCFrame(hatmapped)
 		local ReanimCharacter = Reanimate.Character
-		if not ReanimCharacter then return end
+		if not ReanimCharacter then
+			return
+		end
 		local scale = ReanimCharacter:GetScale()
 		if hatmapped then
 			local hatscale = hatmapped.Scale
@@ -5818,7 +6715,12 @@ function HatReanimator.Start()
 				if limb and limb:IsA("BasePart") then
 					-- weld-like
 					if hatmapped.C0 and hatmapped.C1 then
-						return limb.CFrame * Util.ScaleCFrame(hatmapped.C0, scale) * Util.ScaleCFrame(hatmapped.C1, hatscale):Inverse(), limb.Velocity
+						return limb.CFrame * Util.ScaleCFrame(hatmapped.C0, scale) * Util.ScaleCFrame(
+							hatmapped.C1,
+							hatscale
+						)
+							:Inverse(),
+							limb.Velocity
 					end
 					-- legacy
 					if hatmapped.Offset then
@@ -5839,23 +6741,29 @@ function HatReanimator.Start()
 	end
 	local function GetHatMapped(hat)
 		local handle = hat:FindFirstChild("Handle")
-		if not handle or not handle:IsA("BasePart") then return end
+		if not handle or not handle:IsA("BasePart") then
+			return
+		end
 		local mesh, tex = GetHatMeshAndTexture(hat)
 		return GetHatMappedMeshAndTexture(mesh, tex, hat.Name)
 	end
 	local function GetHatCFrame(hat)
 		local handle = hat:FindFirstChild("Handle")
-		if not handle or not handle:IsA("BasePart") then return end
+		if not handle or not handle:IsA("BasePart") then
+			return
+		end
 		local mesh, tex = GetHatMeshAndTexture(hat)
 		return GetHatCFrameMeshAndTexture(mesh, tex, hat.Name)
 	end
 	local function GetAttachmentCFrame(name)
 		local ReanimCharacter = Reanimate.Character
-		if not ReanimCharacter then return end
+		if not ReanimCharacter then
+			return
+		end
 		local scale = ReanimCharacter:GetScale()
 		local hatmapped = nil
 		-- find hat mapping
-		for _,data in ipairs(HatMap) do
+		for _, data in ipairs(HatMap) do
 			if data.Attachments and data.Attachments[name] then
 				hatmapped = data
 				break
@@ -5874,7 +6782,9 @@ function HatReanimator.Start()
 		end
 		return
 	end
-	HatReanimator.GetHatMap = function() return HatMapCopy end
+	HatReanimator.GetHatMap = function()
+		return HatMapCopy
+	end
 	HatReanimator.GetHatCFrameMeshAndTexture = GetHatCFrameMeshAndTexture
 	HatReanimator.GetAttachmentCFrame = GetAttachmentCFrame
 
@@ -5884,7 +6794,7 @@ function HatReanimator.Start()
 	HatReanimator.RebuildRequired = true
 	HatReanimator.HatMapSummary = "(no hat map yet...)"
 	table.clear(HatReanimator.FlingTargets)
-	
+
 	local lastsimradchange = 0
 	local function SetSimulationRadius()
 		local function setsimrad(plr, radius)
@@ -5904,8 +6814,8 @@ function HatReanimator.Start()
 		local r = #Players:GetPlayers() * 1000
 		setsimrad(Player, r)
 		--if os.clock() > lastsimradchange then
-			--lastsimradchange = os.clock() + 1
-			--pcall(replicatesignal, Player.SimulationRadiusChanged, r)
+		--lastsimradchange = os.clock() + 1
+		--pcall(replicatesignal, Player.SimulationRadiusChanged, r)
 		--end
 		--[[pcall(setsimulationradius, r, r)
 		pcall(function()
@@ -5917,7 +6827,7 @@ function HatReanimator.Start()
 	local function IsNetworkOwner(part)
 		return part.ReceiveAge == 0
 	end
-	
+
 	local BackendAccoutrementState = {
 		None = 0,
 		HasHandle = 1,
@@ -5931,18 +6841,23 @@ function HatReanimator.Start()
 
 	local IsRespawning = false
 	local function Respawn()
-		if IsRespawning then return end
+		if IsRespawning then
+			return
+		end
 		IsRespawning = true
 	end
 
 	-- Credits to MyWorld for helping with netless
 	local function SetUACFrameNetless(handle, dt, newcf, tvel, fling, spin)
-		if dt <= 0 then return false end
-		if not (handle:IsA("BasePart") and handle:IsDescendantOf(workspace)) then return false end
+		if dt <= 0 then
+			return false
+		end
+		if not (handle:IsA("BasePart") and handle:IsDescendantOf(workspace)) then
+			return false
+		end
 		local timing = os.clock()
-		local idlerv = Vector3.new(
-			math.sin(timing * 14), math.sin(timing * 15 + 1.0472), math.sin(timing * 16 + 2.0944)
-		)
+		local idlerv =
+			Vector3.new(math.sin(timing * 14), math.sin(timing * 15 + 1.0472), math.sin(timing * 16 + 2.0944))
 		local idleoff = idlerv * 0.001
 		local ylimit = FallenPartsDestroyHeight + 5
 		if newcf.Y < ylimit then
@@ -5956,7 +6871,9 @@ function HatReanimator.Start()
 		local aligned = true
 		local lastcf = handle:GetAttribute("_Uhhhhhh_LastPosition")
 		local claimtime = handle:GetAttribute("_Uhhhhhh_ClaimTime")
-		if typeof(lastcf) ~= "CFrame" then lastcf = handle.CFrame end
+		if typeof(lastcf) ~= "CFrame" then
+			lastcf = handle.CFrame
+		end
 		if not handle:IsGrounded() and IsNetworkOwner(handle) then
 			local newpos = newcf.Position
 			local lastpos = lastcf.Position
@@ -6030,7 +6947,9 @@ function HatReanimator.Start()
 	end
 
 	local CharOnDesc = function(v)
-		if v:IsA("BasePart") and not (v:FindFirstAncestorWhichIsA("Tool") or v:FindFirstAncestorWhichIsA("Accessory")) then
+		if
+			v:IsA("BasePart") and not (v:FindFirstAncestorWhichIsA("Tool") or v:FindFirstAncestorWhichIsA("Accessory"))
+		then
 			if not table.find(BaseParts, v) then
 				table.insert(BaseParts, v)
 			end
@@ -6041,10 +6960,14 @@ function HatReanimator.Start()
 		elseif v:IsA("LocalScript") and v.Parent == Player.Character then
 			v.Enabled = false
 			v:GetPropertyChangedSignal("Enabled"):Connect(function()
-				if v.Enabled then v.Enabled = false end
+				if v.Enabled then
+					v.Enabled = false
+				end
 			end)
 			v:GetPropertyChangedSignal("Disabled"):Connect(function()
-				if not v.Disabled then v.Disabled = true end
+				if not v.Disabled then
+					v.Disabled = true
+				end
 			end)
 		elseif v:IsA("Accessory") and v.Parent == Player.Character then
 			local handle = v:WaitForChild("Handle", 10)
@@ -6055,7 +6978,9 @@ function HatReanimator.Start()
 					conn = v.AncestryChanged:Connect(function()
 						if v.Parent ~= Player.Character then
 							local i = table.find(CharHats, v)
-							if i then table.remove(CharHats, i) end
+							if i then
+								table.remove(CharHats, i)
+							end
 						end
 					end)
 				end
@@ -6067,7 +6992,9 @@ function HatReanimator.Start()
 				conn = v.AncestryChanged:Connect(function()
 					if v.Parent ~= Player.Character then
 						local i = table.find(CharTools, v)
-						if i then table.remove(CharTools, i) end
+						if i then
+							table.remove(CharTools, i)
+						end
 					end
 				end)
 			end
@@ -6077,7 +7004,7 @@ function HatReanimator.Start()
 	local function _counthats(hats)
 		local collidable = 0
 		local exists = 0
-		for _,hat in hats do
+		for _, hat in hats do
 			local handle = hat:FindFirstChild("Handle")
 			if handle and handle:IsA("BasePart") then
 				exists += 1
@@ -6103,7 +7030,7 @@ function HatReanimator.Start()
 		end,
 		State1 = function(character, Humanoid, hats)
 			HatReanimator.Status.HatCollide = "RCDless Mode, applying reweld to head method"
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.None)
 				local att = v:FindFirstChildOfClass("Attachment")
 				if att then
@@ -6113,16 +7040,22 @@ function HatReanimator.Start()
 		end,
 		State2 = function(character, hats)
 			local torso = character:FindFirstChild("Torso")
-			if torso then torso:Destroy() end
+			if torso then
+				torso:Destroy()
+			end
 			local root = character:FindFirstChild("HumanoidRootPart")
-			if root then root:Destroy() end
-			for _,v in character:GetChildren() do
+			if root then
+				root:Destroy()
+			end
+			for _, v in character:GetChildren() do
 				if v:IsA("BasePart") and v.Name ~= "Head" then
 					v:Destroy()
 				end
 			end
 			local head = character:FindFirstChild("Head")
-			if head then head:Destroy() end
+			if head then
+				head:Destroy()
+			end
 			task.wait(0.5)
 			return _counthats(hats)
 		end,
@@ -6136,14 +7069,17 @@ function HatReanimator.Start()
 			RootPart.AssemblyLinearVelocity, RootPart.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
 		end,
 		State1 = function() end,
-		State2 = function() return 0 end,
+		State2 = function()
+			return 0
+		end,
 	}
 	local shownapehatdrop_lock = {}
 	HatCollideMethods[0] = {
 		NoAnim = false,
 		HRPTP = function(dt, character, Humanoid, RootPosition, RootPart, readystate)
 			if Humanoid.RigType == Enum.HumanoidRigType.R15 then
-				RootPart.CFrame = CFrame.new(RootPosition + Vector3.new(0, -0.25, 0)) * CFrame.Angles(math.rad(20), 0, 0)
+				RootPart.CFrame = CFrame.new(RootPosition + Vector3.new(0, -0.25, 0))
+					* CFrame.Angles(math.rad(20), 0, 0)
 			else
 				RootPart.CFrame = CFrame.new(RootPosition + Vector3.new(0, -0.25, 0))
 			end
@@ -6162,12 +7098,15 @@ function HatReanimator.Start()
 			track:AdjustWeight(1)
 			track.TimePosition = 0.1
 			table.clear(shownapehatdrop_lock)
-			for _,v in hats do
-				table.insert(shownapehatdrop_lock, v.Changed:Connect(function(p)
-					if p == "BackendAccoutrementState" then
-						SetAccoutrementState(v, BackendAccoutrementState.None)
-					end
-				end))
+			for _, v in hats do
+				table.insert(
+					shownapehatdrop_lock,
+					v.Changed:Connect(function(p)
+						if p == "BackendAccoutrementState" then
+							SetAccoutrementState(v, BackendAccoutrementState.None)
+						end
+					end)
+				)
 				SetAccoutrementState(v, BackendAccoutrementState.InCharacter)
 			end
 			HatReanimator.Status.HatCollide = #hats .. " hats states ERADICATED!"
@@ -6178,10 +7117,10 @@ function HatReanimator.Start()
 				torso.AncestryChanged:Wait()
 			end
 			HatReanimator.Status.HatCollide = "Torso removed, state unlocked."
-			for _,v in shownapehatdrop_lock do
+			for _, v in shownapehatdrop_lock do
 				v:Disconnect()
 			end
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.Equipped)
 			end
 			torso = character:FindFirstChild("Head")
@@ -6203,14 +7142,28 @@ function HatReanimator.Start()
 				RootPart.AssemblyLinearVelocity, RootPart.AssemblyAngularVelocity = Vector3.new(0, 26, 0), Vector3.zero
 			end
 			if Humanoid.RigType == Enum.HumanoidRigType.R15 then
-				for _,v in character:GetDescendants() do
+				for _, v in character:GetDescendants() do
 					if v:IsA("Motor6D") then
 						if v.Name == "Root" then
-							Util.SetMotor6DOffset(v, rootcf:ToObjectSpace(CFrame.new(RootPosition + Vector3.new(0, 0.75, 0)) * CFrame.Angles(math.pi * 0.5, 0, 0) * torsooffset))
+							Util.SetMotor6DOffset(
+								v,
+								rootcf:ToObjectSpace(
+									CFrame.new(RootPosition + Vector3.new(0, 0.75, 0))
+										* CFrame.Angles(math.pi * 0.5, 0, 0)
+										* torsooffset
+								)
+							)
 						elseif v.Name == "Neck" then
-							Util.SetMotor6DOffset(v, torsooffset.Rotation:Inverse() * CFrame.new(math.random() * 0.05, 1.5, -10))
+							Util.SetMotor6DOffset(
+								v,
+								torsooffset.Rotation:Inverse() * CFrame.new(math.random() * 0.05, 1.5, -10)
+							)
 						elseif v.Name:FindFirstChild("Shoulder") or v.Name:FindFirstChild("Hip") then
-							Util.SetMotor6DOffset(v, torsooffset.Rotation:Inverse() * CFrame.new(v.C0.X - v.C1.X, v.C0.Y - v.C1.Y, -0.5 + math.random() * 0.05))
+							Util.SetMotor6DOffset(
+								v,
+								torsooffset.Rotation:Inverse()
+									* CFrame.new(v.C0.X - v.C1.X, v.C0.Y - v.C1.Y, -0.5 + math.random() * 0.05)
+							)
 						else
 							Util.SetMotor6DTransform(v, CFrame.identity)
 						end
@@ -6218,14 +7171,27 @@ function HatReanimator.Start()
 				end
 			else
 				local i = 1
-				for _,v in character:GetDescendants() do
+				for _, v in character:GetDescendants() do
 					if v:IsA("Motor6D") then
 						if v.Name == "RootJoint" then
-							Util.SetMotor6DOffset(v, rootcf:ToObjectSpace(CFrame.new(RootPosition + Vector3.new(0, -0.25, 0)) * CFrame.Angles(math.pi * 0.5, 0, 0) * torsooffset))
+							Util.SetMotor6DOffset(
+								v,
+								rootcf:ToObjectSpace(
+									CFrame.new(RootPosition + Vector3.new(0, -0.25, 0))
+										* CFrame.Angles(math.pi * 0.5, 0, 0)
+										* torsooffset
+								)
+							)
 						elseif v.Name == "Neck" then
-							Util.SetMotor6DOffset(v, torsooffset.Rotation:Inverse() * CFrame.new(math.random() * 0.05, 1.5, -20))
+							Util.SetMotor6DOffset(
+								v,
+								torsooffset.Rotation:Inverse() * CFrame.new(math.random() * 0.05, 1.5, -20)
+							)
 						else
-							Util.SetMotor6DOffset(v, torsooffset.Rotation:Inverse() * CFrame.new(i * -3, math.random() * 0.05, -3))
+							Util.SetMotor6DOffset(
+								v,
+								torsooffset.Rotation:Inverse() * CFrame.new(i * -3, math.random() * 0.05, -3)
+							)
 							i += 1
 						end
 					end
@@ -6237,7 +7203,7 @@ function HatReanimator.Start()
 		NoAnim = true,
 		HRPTP = hatcol_hrptpstab(CFrame.new(0, 0, 0)),
 		State1 = function(character, Humanoid, hats)
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.InWorkspace)
 				SetAccoutrementState(v, BackendAccoutrementState.None)
 			end
@@ -6249,7 +7215,7 @@ function HatReanimator.Start()
 				torso.AncestryChanged:Wait()
 			end
 			HatReanimator.Status.HatCollide = "Torso removed, state unlocked."
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.Equipped)
 			end
 			torso = character:FindFirstChild("Head")
@@ -6304,7 +7270,7 @@ function HatReanimator.Start()
 			else
 				-- put the limbs in freefall, make sure they dont touch
 				local headheight = 3
-				for _,v in character:GetDescendants() do
+				for _, v in character:GetDescendants() do
 					if v:IsA("Motor6D") then
 						if v.Name == "RootJoint" then
 							Util.SetMotor6DOffset(v, CFrame.new(0, 6, 0))
@@ -6326,7 +7292,7 @@ function HatReanimator.Start()
 		State1 = function(character, Humanoid, hats)
 			HatReanimator.Status.HatCollide = "Hat states set."
 			local head = character:FindFirstChild("Head")
-			for _,v in hats do
+			for _, v in hats do
 				local handle = v:FindFirstChild("Handle")
 				if handle then
 					local weld = handle:FindFirstChild("AccessoryWeld")
@@ -6352,7 +7318,7 @@ function HatReanimator.Start()
 				task.wait(calculatepartdestroytime(2, 26, workspace.Gravity) - 0.1)
 			end
 			HatReanimator.Status.HatCollide = "Torso removed, I speculate."
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.InWorkspace)
 			end
 			if torso and torso.Parent then
@@ -6374,7 +7340,7 @@ function HatReanimator.Start()
 			RootPart.CFrame = rootcf
 			RootPart.AssemblyLinearVelocity, RootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 30), Vector3.zero
 			if Humanoid.RigType == Enum.HumanoidRigType.R15 then
-				for _,v in character:GetDescendants() do
+				for _, v in character:GetDescendants() do
 					if v:IsA("Motor6D") then
 						if v.Name == "Root" then
 							Util.SetMotor6DTransform(v, CFrame.new(0, -30, 0))
@@ -6387,7 +7353,7 @@ function HatReanimator.Start()
 				end
 			else
 				local i = 1
-				for _,v in character:GetDescendants() do
+				for _, v in character:GetDescendants() do
 					if v:IsA("Motor6D") then
 						if v.Name == "RootJoint" then
 							Util.SetMotor6DOffset(v, CFrame.new(0, 0, -20))
@@ -6406,7 +7372,7 @@ function HatReanimator.Start()
 		State1 = function(character, Humanoid, hats)
 			HatReanimator.Status.HatCollide = "Hat states set."
 			local head = character:FindFirstChild("Head")
-			for _,v in hats do
+			for _, v in hats do
 				local handle = v:FindFirstChild("Handle")
 				if handle then
 					local weld = handle:FindFirstChild("AccessoryWeld")
@@ -6424,7 +7390,7 @@ function HatReanimator.Start()
 			local head = character:FindFirstChild("Right Arm")
 			HatReanimator.Status.HatCollide = "We shall remain 1 part."
 			task.wait(0.41)
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.InWorkspace)
 				SetAccoutrementState(v, BackendAccoutrementState.InCharacter)
 			end
@@ -6432,7 +7398,7 @@ function HatReanimator.Start()
 			if head and head:IsDescendantOf(workspace) then
 				head.AncestryChanged:Wait()
 			end
-			for _,v in hats do
+			for _, v in hats do
 				SetAccoutrementState(v, BackendAccoutrementState.Equipped)
 			end
 			task.wait(1.5)
@@ -6441,16 +7407,20 @@ function HatReanimator.Start()
 	}
 	local NumHats = 0
 	local function OnCharacter(character)
-		if HatReanimator.DontFireCharAddOnThisChar == character then return end
+		if HatReanimator.DontFireCharAddOnThisChar == character then
+			return
+		end
 		currentping = Player:GetNetworkPing()
 		local toolnames = {}
-		for _,v in CharTools do table.insert(toolnames, v.Name) end
+		for _, v in CharTools do
+			table.insert(toolnames, v.Name)
+		end
 		table.clear(BaseParts)
 		table.clear(CharHats)
 		table.clear(CharTools)
 		ResetHatRefs()
 		character.DescendantAdded:Connect(CharOnDesc)
-		for _,v in character:GetDescendants() do
+		for _, v in character:GetDescendants() do
 			CharOnDesc(v)
 		end
 		HatReanimator.Status.ReanimState = "Respawned."
@@ -6461,15 +7431,21 @@ function HatReanimator.Start()
 		local perma = HatReanimator.Permadeath
 		HatReanimator.HasPermadeath, HatReanimator.HasHatCollide = perma, hatcols
 		local hatcolmeth = HatReanimator.HatCollideMethod
-		if not replicatesignal then perma = false end
-		if not hatcols then hatcolmeth = -1 end
+		if not replicatesignal then
+			perma = false
+		end
+		if not hatcols then
+			hatcolmeth = -1
+		end
 		if hatcols and RejectCharacterDeletionsDisabled then
 			hatcolmeth = -2
 		end
 		local selhatcol = HatCollideMethods[hatcolmeth]
 		CurrentCharacter = nil
 		local Humanoid = character:WaitForChild("Humanoid", 10)
-		if not Humanoid then return end
+		if not Humanoid then
+			return
+		end
 		if not Reanimate.UseLoadAnimationHook then
 			local stupid = character:FindFirstChild("Animate")
 			if stupid then
@@ -6495,7 +7471,9 @@ function HatReanimator.Start()
 			Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 		end
 		local RootPart = character:WaitForChild("HumanoidRootPart", 10)
-		if not RootPart then return end
+		if not RootPart then
+			return
+		end
 		local RootPosition = Vector3.new(RootPart.Position.X, FallenPartsDestroyHeight, RootPart.Position.Z)
 		local ReanimCharacter = Reanimate.Character
 		if ReanimCharacter then
@@ -6508,7 +7486,7 @@ function HatReanimator.Start()
 			local dir = CFrame.Angles(0, math.pi * 2 * math.random(), 0).LookVector * 300
 			while true do
 				local nearAPlayer = false
-				for _,v in Players:GetPlayers() do
+				for _, v in Players:GetPlayers() do
 					if v.Character and v.Character.PrimaryPart then
 						if (RootPosition - v.Character.PrimaryPart.CFrame.Position).Magnitude < 1000 then
 							nearAPlayer = true
@@ -6531,7 +7509,8 @@ function HatReanimator.Start()
 						RootPosition = root.CFrame * Vector3.new(0, 0, 6)
 					end
 					if HatReanimator.RespawnPosition == 2 then
-						local dir = Vector3.new(math.random() * 2 - 1, math.random() * 2 - 1, math.random() * 2 - 1).Unit
+						local dir =
+							Vector3.new(math.random() * 2 - 1, math.random() * 2 - 1, math.random() * 2 - 1).Unit
 						if dir ~= dir or dir.Magnitude == 0 then
 							dir = Vector3.yAxis
 						end
@@ -6591,17 +7570,23 @@ function HatReanimator.Start()
 			if flingtarget then
 				if not RootPart:IsGrounded() then
 					if LimbReanimator.UseNaNFling then
-						RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005)) * CFrame.Angles(0, os.clock() * 15, 0)
+						RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005))
+							* CFrame.Angles(0, os.clock() * 15, 0)
 						RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
 					else
 						RootPart.CFrame = flingcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
 						RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
 					end
-					pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil)
+					pcall(
+						sethiddenproperty,
+						RootPart,
+						"PhysicsRepRootPart",
+						Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+					)
 				end
 				Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 				if LimbReanimator.UseNaNFling then
-					pcall(sethiddenproperty, Humanoid, "MoveDirectionInternal", Vector3.new(0/0, 0/0, 0/0))
+					pcall(sethiddenproperty, Humanoid, "MoveDirectionInternal", Vector3.new(0 / 0, 0 / 0, 0 / 0))
 				end
 			elseif #HatReanimator.FlingTargets == 0 then
 				break
@@ -6620,15 +7605,17 @@ function HatReanimator.Start()
 		local lgloop = nil
 		local bringconns = {}
 		local readystate = 0
-		if perma then task.wait(1) end
+		if perma then
+			task.wait(1)
+		end
 		local backpack = Player:FindFirstChildOfClass("Backpack")
 		local tools = GetTools()
 		if backpack then
-			for _=1, 3 do
-				for _,tool in tools do
+			for _ = 1, 3 do
+				for _, tool in tools do
 					tool.Parent = character
 				end
-				for _,tool in tools do
+				for _, tool in tools do
 					tool.Parent = backpack
 				end
 			end
@@ -6636,7 +7623,9 @@ function HatReanimator.Start()
 		lgloop = RunService.Heartbeat:Connect(function(dt)
 			selhatcol.HRPTP(dt, character, Humanoid, RootPosition, RootPart, readystate)
 		end)
-		if hatcols then task.wait(0.2) end
+		if hatcols then
+			task.wait(0.2)
+		end
 		HatReanimator.Status.ReanimState = "Loading Permadeath."
 		if perma then
 			HatReanimator.Status.Permadeath = "no."
@@ -6663,19 +7652,26 @@ function HatReanimator.Start()
 		end
 		readystate = 2
 		HatReanimator.Status.ReanimState = "Reanimate State: 2"
-		for _,hat in CharHats do
+		for _, hat in CharHats do
 			local handle = hat:FindFirstChild("Handle")
 			if handle and handle:IsA("BasePart") then
-				table.insert(bringconns, RunService.Heartbeat:Connect(function(dt)
-					if handle:IsDescendantOf(workspace) and IsNetworkOwner(handle) then
-						handle.CFrame = CFrame.new(claimarea)
-						handle.Velocity = Vector3.new(0, 67, 0)
-						handle.RotVelocity = Vector3.new(0, 0, 0)
+				table.insert(
+					bringconns,
+					RunService.Heartbeat:Connect(function(dt)
+						if handle:IsDescendantOf(workspace) and IsNetworkOwner(handle) then
+							handle.CFrame = CFrame.new(claimarea)
+							handle.Velocity = Vector3.new(0, 67, 0)
+							handle.RotVelocity = Vector3.new(0, 0, 0)
+						end
+					end)
+				)
+				for _, v in handle:GetChildren() do
+					if v:IsA("JointInstance") then
+						v:Destroy()
 					end
-				end))
-				for _,v in handle:GetChildren() do
-					if v:IsA("JointInstance") then v:Destroy() end
-					if v:IsA("Constraint") then v.Enabled = false end
+					if v:IsA("Constraint") then
+						v.Enabled = false
+					end
 					if v:IsA("Attachment") then
 						v.Archivable = true
 						local w = v:Clone()
@@ -6690,7 +7686,7 @@ function HatReanimator.Start()
 		task.wait(selhatcol.Wait2 or 0.15)
 		if not character:IsDescendantOf(workspace) then
 			lgloop:Disconnect()
-			for _,c in bringconns do
+			for _, c in bringconns do
 				c:Disconnect()
 			end
 			return
@@ -6730,19 +7726,23 @@ function HatReanimator.Start()
 					end
 				end
 			end)
-			repeat task.wait() until stateunlocked or not character:IsDescendantOf(workspace)
+			repeat
+				task.wait()
+			until stateunlocked or not character:IsDescendantOf(workspace)
 			--task.wait(0.25)
 		end
 		if backpack then
-			for _,tool in tools do
+			for _, tool in tools do
 				tool.Parent = Humanoid
 				tool.Parent = character
 				tool.Parent = backpack
 			end
 		end
 		lgloop:Disconnect()
-		if perma then task.wait(1) end
-		for _,c in bringconns do
+		if perma then
+			task.wait(1)
+		end
+		for _, c in bringconns do
 			c:Disconnect()
 		end
 		if not character:IsDescendantOf(workspace) then
@@ -6769,7 +7769,7 @@ function HatReanimator.Start()
 		CurrentCharacter = character
 		task.wait()
 		if backpack then
-			for _,tool in tools do
+			for _, tool in tools do
 				local i = table.find(toolnames, tool.Name)
 				if i then
 					table.remove(toolnames, i)
@@ -6785,12 +7785,16 @@ function HatReanimator.Start()
 		local h = Player.Character:FindFirstChildOfClass("Humanoid")
 		if h and h.RootPart then
 			InitCFrame = h.RootPart.CFrame
-			pcall(function() Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Dead) end)
-			pcall(function() Player.Character.Humanoid.Health = 0 end)
+			pcall(function()
+				Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+			end)
+			pcall(function()
+				Player.Character.Humanoid.Health = 0
+			end)
 			pcall(replicatesignal, Player.Character.Humanoid.ServerBreakJoints)
 			--pcall(replicatesignal, Player.ConnectDiedSignalBackend)
 			Player.Character.DescendantAdded:Connect(CharOnDesc)
-			for _,v in Player.Character:GetDescendants() do
+			for _, v in Player.Character:GetDescendants() do
 				CharOnDesc(v)
 			end
 			CurrentCharacter = Player.Character
@@ -6803,7 +7807,7 @@ function HatReanimator.Start()
 	local letitgo = 0
 	while not Reanimate.Stopping do
 		RunService.PreSimulation:Wait()
-		workspace.FallenPartsDestroyHeight = 0/0
+		workspace.FallenPartsDestroyHeight = 0 / 0
 		SetSimulationRadius()
 		debug.profilebegin("Uhhhhhh > CharacterCheck")
 		local ReanimOkay = false
@@ -6822,7 +7826,7 @@ function HatReanimator.Start()
 						local midpoint = Vector3.zero
 						local hatsowned = 0
 						local hatsnotowned = {}
-						for _,v in CharHats do
+						for _, v in CharHats do
 							local h = v:FindFirstChild("Handle")
 							if h and h:IsA("BasePart") then
 								if IsNetworkOwner(h) then
@@ -6834,7 +7838,7 @@ function HatReanimator.Start()
 							end
 						end
 						midpoint /= hatsowned
-						for _,v in hatsnotowned do
+						for _, v in hatsnotowned do
 							if (v.Position - midpoint).Magnitude > 2000 then
 								HatReanimator.Status.Permadeath = "Some hats unclaimable. Respawning!"
 								Respawn()
@@ -6866,7 +7870,7 @@ function HatReanimator.Start()
 		debug.profilebegin("Uhhhhhh > BaseParts")
 		local RCRootPart = ReanimCharacter and ReanimCharacter:FindFirstChild("HumanoidRootPart")
 		local ltm = Reanimate.LocalTransparencyModifier
-		for _,v in BaseParts do
+		for _, v in BaseParts do
 			v.CanCollide = false
 			v.LocalTransparencyModifier = ltm
 		end
@@ -6888,7 +7892,7 @@ function HatReanimator.Start()
 				local toolactivated = nil
 				local handlethese = {}
 				debug.profilebegin("Uhhhhhh > CharTools")
-				for _,v in CharTools do
+				for _, v in CharTools do
 					local handle = v:FindFirstChild("Handle")
 					if handle and handle:IsA("BasePart") then
 						handle.CanCollide = false
@@ -6940,9 +7944,12 @@ function HatReanimator.Start()
 						RightGrip.Part0 = rightarm
 						RightGrip.Part1 = FakeToolHandle
 						RightGrip.C0 = RIGHTGRIP_C0
-						Util.LinkDestroyI2C(FakeTool, FakeTool:GetPropertyChangedSignal("Grip"):Connect(function()
-							RightGrip.C1 = FakeTool.Grip
-						end))
+						Util.LinkDestroyI2C(
+							FakeTool,
+							FakeTool:GetPropertyChangedSignal("Grip"):Connect(function()
+								RightGrip.C1 = FakeTool.Grip
+							end)
+						)
 						RightGrip.C1 = FakeTool.Grip
 					end
 					if HatReanimator.ToolAnimMethod == 1 then
@@ -7005,7 +8012,9 @@ function HatReanimator.Start()
 					end
 				else
 					local FakeTool = ReanimCharacter:FindFirstChildOfClass("Tool")
-					if FakeTool then FakeTool:Destroy() end
+					if FakeTool then
+						FakeTool:Destroy()
+					end
 				end
 				debug.profileend()
 				debug.profilebegin("Uhhhhhh > FlingLogic")
@@ -7014,7 +8023,7 @@ function HatReanimator.Start()
 				if t > letitgo then
 					flingtarget = HatReanimator.FlingTargets[1]
 					if flingtarget then
-						if - HatReanimator.FlingMethod == 0 then
+						if -HatReanimator.FlingMethod == 0 then
 							Respawn()
 							flingtarget.Time = nil
 							flingtarget = nil
@@ -7025,7 +8034,11 @@ function HatReanimator.Start()
 									flingtarget = nil
 								end
 							else
-								flingtarget.Time = t + (flingtarget.Duration or (Reanimate.UsePhysicsRepRootPart and Reanimate.PhysicsRepRootPartFling or 2))
+								flingtarget.Time = t
+									+ (
+										flingtarget.Duration
+										or (Reanimate.UsePhysicsRepRootPart and Reanimate.PhysicsRepRootPartFling or 2)
+									)
 							end
 						end
 					end
@@ -7040,14 +8053,20 @@ function HatReanimator.Start()
 				end
 				local blacklist = {}
 				if flingtarget then
-					local flingpart = Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+					local flingpart = Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target)
+						or nil
 					if HatReanimator.FlingMethod == 1 then
 						local biggest = nil
 						local biggesthat = nil
 						local biggestarea = 0
-						for _,hat in CharHats do
+						for _, hat in CharHats do
 							local handle = hat:FindFirstChild("Handle")
-							if handle and handle:IsA("BasePart") and handle:GetAttribute("_Uhhhhhh_HasCollide") and IsNetworkOwner(handle) then
+							if
+								handle
+								and handle:IsA("BasePart")
+								and handle:GetAttribute("_Uhhhhhh_HasCollide")
+								and IsNetworkOwner(handle)
+							then
 								local area = handle.Size.X * handle.Size.Y * handle.Size.Z
 								if biggestarea < area then
 									biggest = handle
@@ -7059,12 +8078,17 @@ function HatReanimator.Start()
 						if biggesthat then
 							blacklist[biggesthat] = true
 							SetUACFrameNetless(biggest, dt, flingcf, Vector3.zero, false, true)
-							pcall(sethiddenproperty, biggest, "PhysicsRepRootPart", Reanimate.UsePhysicsRepRootPart and flingpart or nil)
+							pcall(
+								sethiddenproperty,
+								biggest,
+								"PhysicsRepRootPart",
+								Reanimate.UsePhysicsRepRootPart and flingpart or nil
+							)
 						end
 					end
 					if HatReanimator.FlingMethod == 2 then
 						local collide = false
-						for _,hat in CharHats do
+						for _, hat in CharHats do
 							local handle = hat:FindFirstChild("Handle")
 							if handle and handle:IsA("BasePart") then
 								if handle:GetAttribute("_Uhhhhhh_HasCollide") then
@@ -7073,12 +8097,17 @@ function HatReanimator.Start()
 							end
 						end
 						if collide then
-							for _,hat in CharHats do
+							for _, hat in CharHats do
 								local handle = hat:FindFirstChild("Handle")
 								if handle and handle:IsA("BasePart") then
 									blacklist[hat] = true
 									SetUACFrameNetless(handle, dt, flingcf, Vector3.zero, false, true)
-									pcall(sethiddenproperty, handle, "PhysicsRepRootPart", Reanimate.UsePhysicsRepRootPart and flingpart or nil)
+									pcall(
+										sethiddenproperty,
+										handle,
+										"PhysicsRepRootPart",
+										Reanimate.UsePhysicsRepRootPart and flingpart or nil
+									)
 								end
 							end
 						end
@@ -7087,13 +8116,18 @@ function HatReanimator.Start()
 						for handle, cf in handlethese do
 							blacklist[handle] = true
 							SetUACFrameNetless(handle, dt, flingcf, Vector3.zero, false, true)
-							pcall(sethiddenproperty, handle, "PhysicsRepRootPart", Reanimate.UsePhysicsRepRootPart and flingpart or nil)
+							pcall(
+								sethiddenproperty,
+								handle,
+								"PhysicsRepRootPart",
+								Reanimate.UsePhysicsRepRootPart and flingpart or nil
+							)
 						end
 					end
 				end
 				debug.profileend()
 				debug.profilebegin("Uhhhhhh > Alignments")
-				for _,hat in CharHats do
+				for _, hat in CharHats do
 					local handle = hat:FindFirstChild("Handle")
 					if handle and handle:IsA("BasePart") then
 						handle.CanCollide = false
@@ -7106,12 +8140,16 @@ function HatReanimator.Start()
 						handle.LocalTransparencyModifier = lltm
 						local ref = Hat2HatRefs[hat]
 						if blacklist[hat] then
-							if ref then ref.Aligned = false end
+							if ref then
+								ref.Aligned = false
+							end
 						else
 							if claimoverride then
 								SetUACFrameNetless(handle, dt, claimoverride, Vector3.zero, false, false)
 								pcall(sethiddenproperty, handle, "PhysicsRepRootPart", nil)
-								if ref then ref.Aligned = false end
+								if ref then
+									ref.Aligned = false
+								end
 							else
 								local mapped = nil
 								if ref then
@@ -7122,11 +8160,20 @@ function HatReanimator.Start()
 								local tcf, tvel = GetHatMappedCFrame(mapped)
 								tcf = tcf or RCRootPart.CFrame * CFrame.new(0, 5, 0)
 								tvel = tvel or Vector3.zero
-								local aligned = SetUACFrameNetless(handle, dt, tcf, tvel, HatReanimator.HatFling, HatReanimator.HatSpin)
+								local aligned = SetUACFrameNetless(
+									handle,
+									dt,
+									tcf,
+									tvel,
+									HatReanimator.HatFling,
+									HatReanimator.HatSpin
+								)
 								if aligned then
 									table.insert(slocked, handle)
 								end
-								if ref then ref.Aligned = aligned end
+								if ref then
+									ref.Aligned = aligned
+								end
 								pcall(sethiddenproperty, handle, "PhysicsRepRootPart", mapped and mapped.RepRootPart)
 							end
 						end
@@ -7134,7 +8181,16 @@ function HatReanimator.Start()
 				end
 				for handle, cf in handlethese do
 					if not blacklist[handle] then
-						if SetUACFrameNetless(handle, dt, cf, rightarm.Velocity, HatReanimator.HatFling, HatReanimator.HatSpin) then
+						if
+							SetUACFrameNetless(
+								handle,
+								dt,
+								cf,
+								rightarm.Velocity,
+								HatReanimator.HatFling,
+								HatReanimator.HatSpin
+							)
+						then
 							table.insert(slocked, handle)
 						end
 					end
@@ -7148,7 +8204,7 @@ function HatReanimator.Start()
 			end
 		end
 		debug.profilebegin("Uhhhhhh > Placeholders")
-		for _,ref in HatRefs do
+		for _, ref in HatRefs do
 			local ph = ref.PH
 			if ph then
 				if ReanimOkay and ref.Hat and ref.Aligned then
@@ -7175,10 +8231,11 @@ function HatReanimator.Start()
 		if RCRootPart and Reanimate:ShouldRotationType() then
 			Reanimate:CameraLockCharacter()
 		end
-		for _,ref in HatRefs do
+		for _, ref in HatRefs do
 			local ph = ref.PH
 			if ph then
-				if ReanimOkay and ref.Hat and ref.Aligned then else
+				if ReanimOkay and ref.Hat and ref.Aligned then
+				else
 					local tcf, _ = GetHatMappedCFrame(GetHatMappedOverride(ref.Map))
 					if tcf then
 						ph.CFrame = tcf
@@ -7187,16 +8244,25 @@ function HatReanimator.Start()
 			end
 		end
 		if HatReanimator.HatSpin then
-			for _,handle in slocked do
+			for _, handle in slocked do
 				if math.random() < 0.5 then
-					handle.CFrame = handle.CFrame * CFrame.Angles(math.random() * 2 * math.pi, math.random() * 2 * math.pi, math.random() * 2 * math.pi)
+					handle.CFrame = handle.CFrame
+						* CFrame.Angles(
+							math.random() * 2 * math.pi,
+							math.random() * 2 * math.pi,
+							math.random() * 2 * math.pi
+						)
 				end
 			end
 		end
 		debug.profileend()
 	end
 	ResetHatRefs()
-	for _,v in HatRefs do if v.PH then v.PH:Destroy() end end
+	for _, v in HatRefs do
+		if v.PH then
+			v.PH:Destroy()
+		end
+	end
 	CharConn:Disconnect()
 	--replicatesignal(Player.ConnectDiedSignalBackend)
 	Reanimate.Stopping = false
@@ -7213,7 +8279,9 @@ local function ClearReanimateHitboxes()
 end
 local function ReanimateShowHitboxes()
 	ClearReanimateHitboxes()
-	if not Reanimate.ShowHitboxes then return false end
+	if not Reanimate.ShowHitboxes then
+		return false
+	end
 
 	local Reanimator = Reanimate.Current
 	if Reanimator and Reanimator.ShowHitboxes then
@@ -7268,8 +8336,10 @@ end
 
 do
 	SaveData.SelectedReanimator = SaveData.SelectedReanimator or 1
-	local ReanimateMethodSelect = UI.CreateDropdown(MainPage, "Reanimator", {"Limb Reanimator", "Hats Reanimator"}, SaveData.SelectedReanimator)
-	local ReanimatorConfigTitle = UI.CreateText(MainPage, "-=+ Limb Reanimator Config +=-", 15, Enum.TextXAlignment.Center)
+	local ReanimateMethodSelect =
+		UI.CreateDropdown(MainPage, "Reanimator", { "Limb Reanimator", "Hats Reanimator" }, SaveData.SelectedReanimator)
+	local ReanimatorConfigTitle =
+		UI.CreateText(MainPage, "-=+ Limb Reanimator Config +=-", 15, Enum.TextXAlignment.Center)
 	local SelectedReanimator = LimbReanimator
 	if SaveData.SelectedReanimator == 2 then
 		SelectedReanimator = HatReanimator
@@ -7298,7 +8368,9 @@ do
 		if Reanimate.Current then
 			ReanimateStartButtonText.Text = "Stopping..."
 			Reanimate.Stopping = true
-			repeat task.wait() until not Reanimate.Stopping
+			repeat
+				task.wait()
+			until not Reanimate.Stopping
 			Reanimate.Current.Running = nil
 			Reanimate.Current = nil
 			HumanoidLASetHookState(false)
@@ -7312,7 +8384,9 @@ do
 			HumanoidLASetHookState(Reanimate.UseLoadAnimationHook)
 			ReanimateText.Text = "Running: " .. Reanimate.Current.Name
 			task.spawn(Reanimate.Current.Start)
-			repeat task.wait() until not Reanimate.Starting
+			repeat
+				task.wait()
+			until not Reanimate.Starting
 			Reanimate.Current.Running = true
 			task.wait(1)
 			ReanimateStartButtonText.Text = "* Deanimate *"
@@ -7324,9 +8398,16 @@ do
 		SaveData.ShowReanimateHitboxes = value
 		ReanimateShowHitboxes()
 	end)
-	UI.CreateText(MainPage, "red = original rootpart | cyan = reanimated rootpart | green = collidable hats", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		MainPage,
+		"red = original rootpart | cyan = reanimated rootpart | green = collidable hats",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateButton(MainPage, "Refresh Reanimate Character", 10).Activated:Connect(function()
-		if not Reanimate.Character then return end
+		if not Reanimate.Character then
+			return
+		end
 		Reanimate.CreateCharacter()
 	end)
 end
@@ -7348,7 +8429,7 @@ do
 	end)
 	UI.CreateSwitch(MainPage, "First Person Body", Reanimate.FirstPersonBody).Changed:Connect(function(val)
 		Reanimate.FirstPersonBody = val
-		SaveData.FirstPersonBody = not val
+		SaveData.FirstPersonBody = val
 	end)
 	UI.CreateSwitch(MainPage, "Allow Shiftlock", Reanimate.ShiftlockEnabled).Changed:Connect(function(val)
 		Reanimate.ShiftlockEnabled = val
@@ -7357,12 +8438,22 @@ do
 	local SeatSitSwitch = UI.CreateSwitch(MainPage, "Can Sit on Seats", Reanimate.SeatSit)
 	SeatSitSwitch.Changed:Connect(function(val)
 		Reanimate.SeatSit = val
+		SaveData.SeatSitEnabled = val
 		SaveData.NoSeatSitEnabled = not val
+		local saved = SaveSettingsNow()
+		if not saved then
+			Util.Notify("Failed to immediately save Can Sit on Seats")
+		end
 	end)
-	local KeepSeatSitStateSwitch, KeepSeatSitStateText = UI.CreateSwitch(MainPage, "↳ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
+	local KeepSeatSitStateSwitch, KeepSeatSitStateText =
+		UI.CreateSwitch(MainPage, "↳ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
 	KeepSeatSitStateSwitch.Changed:Connect(function(val)
 		Reanimate.KeepSeatSitState = val
 		SaveData.KeepSeatSitState = val
+		local saved = SaveSettingsNow()
+		if not saved then
+			Util.Notify("Failed to immediately save Keep Humanoid Sit State")
+		end
 	end)
 	local function UpdateKeepSeatSitStateOption()
 		KeepSeatSitStateText.Parent.Interactable = SeatSitSwitch.Value
@@ -7397,9 +8488,12 @@ do
 					g.CFrame = r.CFrame
 					g.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
 					g.Parent = r
-					Util.LinkDestroyI2C(g, h:GetPropertyChangedSignal("Sit"):Once(function()
-						g:Destroy()
-					end))
+					Util.LinkDestroyI2C(
+						g,
+						h:GetPropertyChangedSignal("Sit"):Once(function()
+							g:Destroy()
+						end)
+					)
 				end
 			end
 		end
@@ -7411,18 +8505,25 @@ do
 		Reanimate.CharacterScale = val
 		SaveData.CharacterScale = val
 	end)
-	local PlaceholderTransparencySlider = UI.CreateSlider(MainPage, "Placeholders", Reanimate.PlaceholderTransparency, 0, 1, 0.05)
+	local PlaceholderTransparencySlider =
+		UI.CreateSlider(MainPage, "Placeholders", Reanimate.PlaceholderTransparency, 0, 1, 0.05)
 	PlaceholderTransparencySlider.Changed:Connect(function(val)
 		val = math.clamp(val, 0, 1)
 		PlaceholderTransparencySlider.Value = val
 		Reanimate.PlaceholderTransparency = val
 		SaveData.PlaceholderTransparency = val
 	end)
-	UI.CreateSwitch(MainPage, "Show Red Reset Placeholder", Reanimate.ShowResetPlaceholder).Changed:Connect(function(val)
-		Reanimate.ShowResetPlaceholder = val
-		SaveData.ShowResetPlaceholder = val
-	end)
-	UI.CreateText(MainPage, "shows the original red translucent fake rig before the new real character is detected", 10, Enum.TextXAlignment.Center)
+	UI.CreateSwitch(MainPage, "Show Red Reset Placeholder", Reanimate.ShowResetPlaceholder).Changed
+		:Connect(function(val)
+			Reanimate.ShowResetPlaceholder = val
+			SaveData.ShowResetPlaceholder = val
+		end)
+	UI.CreateText(
+		MainPage,
+		"shows the original red translucent fake rig before the new real character is detected",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateSeparator(MainPage)
 	local function ReanimCharacterTeleport(pos)
 		local ch = Reanimate.Character or Player.Character
@@ -7472,12 +8573,18 @@ do
 	end
 	updatekey()
 	UI.CreateDropdown(MainPage, "TP Key", {
-		"Left Ctrl (default)", "inno's pick (']')", "Tab (idk)",
-		"Z", "X (i like this one on pc)", "F", "T",
-	}, SaveData.CtrlClickKey).Changed:Connect(function(val)
-		SaveData.CtrlClickKey = val
-		updatekey()
-	end)
+		"Left Ctrl (default)",
+		"inno's pick (']')",
+		"Tab (idk)",
+		"Z",
+		"X (i like this one on pc)",
+		"F",
+		"T",
+	}, SaveData.CtrlClickKey).Changed
+		:Connect(function(val)
+			SaveData.CtrlClickKey = val
+			updatekey()
+		end)
 	local Maus = Player:GetMouse()
 	local HoldingCtrl = UI.CreateSwitch(MainPage, "TP Key Held", false)
 	local _lastclick = nil
@@ -7490,7 +8597,10 @@ do
 				HoldingCtrl.Value = true
 			end
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			_lastclick = input
 			_lastclickgpe = gpe
 			_lastclicktick = os.clock()
@@ -7504,7 +8614,10 @@ do
 			end
 		end
 		if _lastclick and _lastclick == input and not _lastclickgpe then
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or (os.clock() - _lastclicktick < 0.3 and (input.Position - _lastclickpos).Magnitude < 10) then
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or (os.clock() - _lastclicktick < 0.3 and (input.Position - _lastclickpos).Magnitude < 10)
+			then
 				if Reanimate.CtrlClick and HoldingCtrl.Value then
 					if Maus.Target and Maus.Target.Parent then
 						ReanimCharacterTeleport(Maus.Hit.Position + Vector3.new(0, 3, 0))
@@ -7512,13 +8625,15 @@ do
 					end
 				end
 				if Reanimate.ClickFling then
-					if Maus.Target and Maus.Target.Parent then 
+					if Maus.Target and Maus.Target.Parent then
 						local target = Maus.Target.Parent
 						if target:IsA("Accessory") then
 							target = target.Parent
 						end
 						if target:FindFirstChildOfClass("Humanoid") then
-							if ReanimateFling(target) then return end
+							if ReanimateFling(target) then
+								return
+							end
 						end
 					end
 				end
@@ -7536,7 +8651,8 @@ do
 	UI.CreateButton(MainPage, "Teleport to 'LastSafe'", 20).Activated:Connect(function()
 		ReanimCharacterTeleport(Vector3.new(0, FallenPartsDestroyHeight - 5000, 0))
 	end)
-	local TeleportToPlayerSel = UI.CreateText(MainPage, "<font color=\"#AAAAAA\">(enter a player name)</font>", 15, Enum.TextXAlignment.Center)
+	local TeleportToPlayerSel =
+		UI.CreateText(MainPage, '<font color="#AAAAAA">(enter a player name)</font>', 15, Enum.TextXAlignment.Center)
 	local TeleportToPlayer = UI.CreateTextbox(MainPage, "", "Teleport To Player", 20)
 	TeleportToPlayer:GetPropertyChangedSignal("Text"):Connect(function()
 		local sel = Util.QueryPlayerSelector(TeleportToPlayer.Text)
@@ -7544,9 +8660,9 @@ do
 			TeleportToPlayerSel.Text = `{sel.DisplayName} (@{sel.Name})`
 		else
 			if #TeleportToPlayer.Text == 0 then
-				TeleportToPlayerSel.Text = "<font color=\"#AAAAAA\">(enter a player name)</font>"
+				TeleportToPlayerSel.Text = '<font color="#AAAAAA">(enter a player name)</font>'
 			else
-				TeleportToPlayerSel.Text = "<font color=\"#FF7777\">(player not found)</font>"
+				TeleportToPlayerSel.Text = '<font color="#FF7777">(player not found)</font>'
 			end
 		end
 	end)
@@ -7577,7 +8693,12 @@ do
 		Reanimate.UsePhysicsRepRootPart = val
 		SaveData.NoPhysicsRepRootPart = not val
 	end)
-	UI.CreateText(MainPage, "internals for physics based reanimation\n(like hat reanimator)", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		MainPage,
+		"internals for physics based reanimation\n(like hat reanimator)",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateSwitch(MainPage, "Patchma-like Netless", Reanimate.UsePatchmaLikeNetless).Changed:Connect(function(val)
 		Reanimate.UsePatchmaLikeNetless = val
 		SaveData.UsePatchmaLikeNetless = val
@@ -7593,14 +8714,27 @@ do
 		Reanimate.UseAngularVelocity = val
 		SaveData.UseAngularVelocity = val
 	end)
+	UI.CreateSwitch(MainPage, "Untrusted Extras", UntrustedExtrasControl.Enabled).Changed
+		:Connect(function(val)
+			SetUntrustedExtrasEnabled(val)
+		end)
+	UI.CreateText(
+		MainPage,
+		"scans UhhhhhhReanim files and connects to the legacy WebSocket; remote code events stay blocked",
+		10,
+		Enum.TextXAlignment.Center
+	)
 end
 UI.CreateSeparator(MainPage)
 
-if type(SaveData.AnimLibOptions) ~= "table" then SaveData.AnimLibOptions = {} end
+if type(SaveData.AnimLibOptions) ~= "table" then
+	SaveData.AnimLibOptions = {}
+end
 local SavedAnimLibOptions = SaveData.AnimLibOptions
 SavedAnimLibOptions.Speed = math.clamp(tonumber(SavedAnimLibOptions.Speed) or 1, 0.25, 2)
 SavedAnimLibOptions.FadeIn = math.clamp(tonumber(SavedAnimLibOptions.FadeIn) or 0, 0, 1)
-SavedAnimLibOptions.JointPreset = type(SavedAnimLibOptions.JointPreset) == "string" and SavedAnimLibOptions.JointPreset or "Full Body"
+SavedAnimLibOptions.JointPreset = type(SavedAnimLibOptions.JointPreset) == "string" and SavedAnimLibOptions.JointPreset
+	or "Full Body"
 SavedAnimLibOptions.SyncToDanceMusic = SavedAnimLibOptions.SyncToDanceMusic == true
 SavedAnimLibOptions.ApplySpeedToMusic = SavedAnimLibOptions.ApplySpeedToMusic == true
 SavedAnimLibOptions.MarkerNotifications = SavedAnimLibOptions.MarkerNotifications == true
@@ -7610,8 +8744,83 @@ SavedAnimLibOptions.KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverrid
 SavedAnimLibOptions.KrystalHeadStrength = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadStrength) or 1, 0, 1.5)
 SavedAnimLibOptions.KrystalHeadSmoothing = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadSmoothing) or 10, 1, 30)
 
+local function ParseDanceEffectColor(value)
+	if type(value) ~= "string" then
+		return nil
+	end
+	local text = value:match("^%s*(.-)%s*$") or ""
+	local hex = text:gsub("^#", ""):gsub("^0[xX]", "")
+	if hex:match("^%x%x%x%x%x%x$") then
+		local success, color = pcall(Color3.fromHex, hex)
+		if success then
+			return color, color:ToHex():upper()
+		end
+	end
+	local rgb = text:gsub("^%s*[rR][gG][bB]%s*%(", ""):gsub("%)%s*$", "")
+	local red, green, blue = rgb:match("^%s*([%+%-]?[%d%.]+)%s*,%s*([%+%-]?[%d%.]+)%s*,%s*([%+%-]?[%d%.]+)%s*$")
+	red, green, blue = tonumber(red), tonumber(green), tonumber(blue)
+	if
+		red
+		and green
+		and blue
+		and red >= 0
+		and red <= 255
+		and green >= 0
+		and green <= 255
+		and blue >= 0
+		and blue <= 255
+	then
+		local color = Color3.fromRGB(math.round(red), math.round(green), math.round(blue))
+		return color, color:ToHex():upper()
+	end
+	return nil
+end
+
+if type(SaveData.DanceEffectsOptions) ~= "table" then
+	SaveData.DanceEffectsOptions = {}
+end
+local DanceEffectAnchorModes = { "Center of Mass", "Torso", "Blue Root Part", "Head", "Middle (Original)" }
+local SavedDanceEffectsOptions = SaveData.DanceEffectsOptions
+SavedDanceEffectsOptions.VisualizerEnabled = SavedDanceEffectsOptions.VisualizerEnabled == true
+SavedDanceEffectsOptions.AfterimageEnabled = SavedDanceEffectsOptions.AfterimageEnabled == true
+SavedDanceEffectsOptions.DynamicPosition = SavedDanceEffectsOptions.DynamicPosition == true
+SavedDanceEffectsOptions.StayVertical = SavedDanceEffectsOptions.StayVertical ~= false
+local _, SavedDanceEffectsAccent = ParseDanceEffectColor(SavedDanceEffectsOptions.Accent or "00FFFF")
+SavedDanceEffectsOptions.Accent = SavedDanceEffectsAccent or "00FFFF"
+SavedDanceEffectsOptions.OffsetX = math.clamp(tonumber(SavedDanceEffectsOptions.OffsetX) or 0, -10, 10)
+SavedDanceEffectsOptions.OffsetY = math.clamp(tonumber(SavedDanceEffectsOptions.OffsetY) or 3.2, -5, 10)
+SavedDanceEffectsOptions.OffsetZ = math.clamp(tonumber(SavedDanceEffectsOptions.OffsetZ) or 0, -10, 10)
+SavedDanceEffectsOptions.Size = math.clamp(tonumber(SavedDanceEffectsOptions.Size) or 1, 0.25, 3)
+SavedDanceEffectsOptions.RotationX = math.clamp(tonumber(SavedDanceEffectsOptions.RotationX) or 0, -180, 180)
+SavedDanceEffectsOptions.RotationY = math.clamp(tonumber(SavedDanceEffectsOptions.RotationY) or 0, -180, 180)
+SavedDanceEffectsOptions.RotationZ = math.clamp(tonumber(SavedDanceEffectsOptions.RotationZ) or 0, -180, 180)
+local LegacyAfterimageSpeed = math.clamp(tonumber(SavedDanceEffectsOptions.AfterimageSpeed) or 1, 0.25, 4)
+SavedDanceEffectsOptions.AfterimageSpawnRate = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageSpawnRate) or LegacyAfterimageSpeed,
+	0.25,
+	4
+)
+SavedDanceEffectsOptions.AfterimageFadeSpeed = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageFadeSpeed) or LegacyAfterimageSpeed,
+	0.25,
+	4
+)
+SavedDanceEffectsOptions.AfterimageScale = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageScale) or 0.86,
+	0.25,
+	1.5
+)
+SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageTransparency) or 55,
+	0,
+	100
+)
+SavedDanceEffectsOptions.AnchorMode = table.find(DanceEffectAnchorModes, SavedDanceEffectsOptions.AnchorMode)
+		and SavedDanceEffectsOptions.AnchorMode
+	or "Center of Mass"
+
 local AnimLib = {
-	Version = "1.5.3",
+	Version = "1.7.5",
 	Settings = {
 		Speed = SavedAnimLibOptions.Speed,
 		FadeIn = SavedAnimLibOptions.FadeIn,
@@ -7624,6 +8833,7 @@ local AnimLib = {
 		KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride,
 		KrystalHeadStrength = SavedAnimLibOptions.KrystalHeadStrength,
 		KrystalHeadSmoothing = SavedAnimLibOptions.KrystalHeadSmoothing,
+		DanceEffects = SavedDanceEffectsOptions,
 		DanceSoundProvider = function()
 			return UISound.DanceMusic
 		end,
@@ -7634,7 +8844,9 @@ do
 		local success, reason = pcall(function()
 			local itemType = typeof(item)
 			if itemType == "RBXScriptConnection" then
-				if item.Connected then item:Disconnect() end
+				if item.Connected then
+					item:Disconnect()
+				end
 			elseif itemType == "Instance" then
 				item:Destroy()
 			elseif type(item) == "thread" then
@@ -7649,7 +8861,9 @@ do
 				end
 			end
 		end)
-		if not success then warn("AnimLib cleanup failed: " .. tostring(reason)) end
+		if not success then
+			warn("AnimLib cleanup failed: " .. tostring(reason))
+		end
 	end
 
 	local ConnectionGroup = {}
@@ -7662,14 +8876,20 @@ do
 	end
 	function ConnectionGroup:Add(item)
 		assert(not self._destroyed, "cannot add to a destroyed ConnectionGroup")
-		if item ~= nil then table.insert(self._items, item) end
+		if item ~= nil then
+			table.insert(self._items, item)
+		end
 		return item
 	end
 	function ConnectionGroup:Remove(item, cleanup)
 		local index = table.find(self._items, item)
-		if not index then return nil end
+		if not index then
+			return nil
+		end
 		local removed = table.remove(self._items, index)
-		if cleanup then CleanupItem(removed) end
+		if cleanup then
+			CleanupItem(removed)
+		end
 		return removed
 	end
 	function ConnectionGroup:Count()
@@ -7691,7 +8911,9 @@ do
 		return self
 	end
 	function ConnectionGroup:Destroy()
-		if self._destroyed then return end
+		if self._destroyed then
+			return
+		end
 		self:Cleanup()
 		self._destroyed = true
 	end
@@ -7705,9 +8927,14 @@ do
 		RenderStepped = true,
 	}
 	local function ResolveRunSignal(signal, defaultName)
-		if typeof(signal) == "RBXScriptSignal" then return signal, "Custom" end
+		if typeof(signal) == "RBXScriptSignal" then
+			return signal, "Custom"
+		end
 		signal = signal or defaultName or "PreAnimation"
-		assert(type(signal) == "string" and SupportedRunSignals[signal], "unsupported RunService signal: " .. tostring(signal))
+		assert(
+			type(signal) == "string" and SupportedRunSignals[signal],
+			"unsupported RunService signal: " .. tostring(signal)
+		)
 		local success, resolved = pcall(function()
 			return RunService[signal]
 		end)
@@ -7722,14 +8949,14 @@ do
 		table.sort(track.Keyframes, function(a, b)
 			return a.Time < b.Time
 		end)
-		for _,keyframe in track.Keyframes do
+		for _, keyframe in track.Keyframes do
 			track.Time = math.max(track.Time, keyframe.Time)
 		end
 		if track.Markers then
 			table.sort(track.Markers, function(a, b)
 				return a.Time < b.Time
 			end)
-			for _,marker in track.Markers do
+			for _, marker in track.Markers do
 				track.Time = math.max(track.Time, marker.Time)
 			end
 		end
@@ -7744,24 +8971,48 @@ do
 		}
 	end
 	function Track.validate(track)
-		if type(track) ~= "table" then return false, "track must be a table" end
-		if type(track.Keyframes) ~= "table" then return false, "track.Keyframes must be a table" end
-		for keyframeindex,keyframe in track.Keyframes do
-			if type(keyframe) ~= "table" then return false, "keyframe " .. keyframeindex .. " must be a table" end
-			if type(keyframe.Time) ~= "number" or keyframe.Time < 0 then return false, "keyframe " .. keyframeindex .. " has an invalid time" end
-			if type(keyframe.Poses) ~= "table" then return false, "keyframe " .. keyframeindex .. " poses must be a table" end
-			for poseindex,pose in keyframe.Poses do
-				if type(pose) ~= "table" then return false, "pose " .. poseindex .. " in keyframe " .. keyframeindex .. " must be a table" end
-				if type(pose.Name) ~= "string" then return false, "pose " .. poseindex .. " has no name" end
-				if typeof(pose.CFrame) ~= "CFrame" then return false, "pose " .. poseindex .. " has no CFrame" end
+		if type(track) ~= "table" then
+			return false, "track must be a table"
+		end
+		if type(track.Keyframes) ~= "table" then
+			return false, "track.Keyframes must be a table"
+		end
+		for keyframeindex, keyframe in track.Keyframes do
+			if type(keyframe) ~= "table" then
+				return false, "keyframe " .. keyframeindex .. " must be a table"
+			end
+			if type(keyframe.Time) ~= "number" or keyframe.Time < 0 then
+				return false, "keyframe " .. keyframeindex .. " has an invalid time"
+			end
+			if type(keyframe.Poses) ~= "table" then
+				return false, "keyframe " .. keyframeindex .. " poses must be a table"
+			end
+			for poseindex, pose in keyframe.Poses do
+				if type(pose) ~= "table" then
+					return false, "pose " .. poseindex .. " in keyframe " .. keyframeindex .. " must be a table"
+				end
+				if type(pose.Name) ~= "string" then
+					return false, "pose " .. poseindex .. " has no name"
+				end
+				if typeof(pose.CFrame) ~= "CFrame" then
+					return false, "pose " .. poseindex .. " has no CFrame"
+				end
 			end
 		end
 		if track.Markers ~= nil then
-			if type(track.Markers) ~= "table" then return false, "track.Markers must be a table" end
-			for markerindex,marker in track.Markers do
-				if type(marker) ~= "table" then return false, "marker " .. markerindex .. " must be a table" end
-				if type(marker.Name) ~= "string" or marker.Name == "" then return false, "marker " .. markerindex .. " has no name" end
-				if type(marker.Time) ~= "number" or marker.Time < 0 then return false, "marker " .. markerindex .. " has an invalid time" end
+			if type(track.Markers) ~= "table" then
+				return false, "track.Markers must be a table"
+			end
+			for markerindex, marker in track.Markers do
+				if type(marker) ~= "table" then
+					return false, "marker " .. markerindex .. " must be a table"
+				end
+				if type(marker.Name) ~= "string" or marker.Name == "" then
+					return false, "marker " .. markerindex .. " has no name"
+				end
+				if type(marker.Time) ~= "number" or marker.Time < 0 then
+					return false, "marker " .. markerindex .. " has an invalid time"
+				end
 			end
 		end
 		return true
@@ -7775,10 +9026,10 @@ do
 		local valid, reason = Track.validate(track)
 		assert(valid, reason)
 		local duration = 0
-		for _,keyframe in track.Keyframes do
+		for _, keyframe in track.Keyframes do
 			duration = math.max(duration, keyframe.Time)
 		end
-		for _,marker in track.Markers or {} do
+		for _, marker in track.Markers or {} do
 			duration = math.max(duration, marker.Time)
 		end
 		track.Time = duration
@@ -7816,9 +9067,9 @@ do
 		starttime = starttime or 0
 		endtime = endtime or Track.getDuration(track)
 		local found = {}
-		for index,keyframe in track.Keyframes do
+		for index, keyframe in track.Keyframes do
 			if keyframe.Time >= starttime and keyframe.Time <= endtime then
-				table.insert(found, {Index = index, Keyframe = keyframe})
+				table.insert(found, { Index = index, Keyframe = keyframe })
 			end
 		end
 		return found
@@ -7852,7 +9103,7 @@ do
 		assert(valid, reason)
 		assert(name == nil or type(name) == "string", "name must be a string or nil")
 		local markers = {}
-		for _,marker in track.Markers or {} do
+		for _, marker in track.Markers or {} do
 			if name == nil or marker.Name == name then
 				table.insert(markers, marker)
 			end
@@ -7864,7 +9115,7 @@ do
 		assert(valid, reason)
 		assert(type(starttime) == "number" and type(endtime) == "number", "starttime and endtime must be numbers")
 		local markers = {}
-		for _,marker in track.Markers or {} do
+		for _, marker in track.Markers or {} do
 			local afterStart = includeStart and marker.Time >= starttime or marker.Time > starttime
 			if afterStart and marker.Time <= endtime then
 				table.insert(markers, marker)
@@ -7907,15 +9158,15 @@ do
 		}
 		anim.Name = readstring() -- name
 		local nkeyframes = readsizet() -- # of keyframes
-		for _=1, nkeyframes do
+		for _ = 1, nkeyframes do
 			local t = readfloat() -- time
 			anim.Time = math.max(anim.Time, t)
 			local nposes = readsizet() -- # of poses
 			local keyframe = {
 				Time = t,
-				Poses = {}
+				Poses = {},
 			}
-			for _=1, nposes do
+			for _ = 1, nposes do
 				local pose = {}
 				pose.Name = readstring() -- "bone" name
 				pose.Weight = readfloat() -- weight (usually 1 or 0)
@@ -7946,7 +9197,9 @@ do
 		if s and data then
 			local buf = buffer.fromstring(data)
 			local parsed, track = pcall(Track.frombuffer, buf)
-			if parsed then return track end
+			if parsed then
+				return track
+			end
 			return nil, track
 		end
 		return nil, data
@@ -7956,7 +9209,9 @@ do
 			return Track.clone(TrackFileCache[path])
 		end
 		local track, reason = Track.fromfile(path)
-		if not track then return nil, reason end
+		if not track then
+			return nil, reason
+		end
 		TrackFileCache[path] = Track.clone(track)
 		return track
 	end
@@ -7976,13 +9231,13 @@ do
 			Markers = {},
 		}
 		anim.Name = ks.Name
-		for _,k in ks:GetKeyframes() do
+		for _, k in ks:GetKeyframes() do
 			local t = k.Time
 			anim.Time = math.max(anim.Time, t)
 			local keyframe = {
 				Name = k.Name,
 				Time = t,
-				Poses = {}
+				Poses = {},
 			}
 			if k.Name ~= "" and k.Name ~= "Keyframe" then
 				table.insert(anim.Markers, {
@@ -7991,7 +9246,7 @@ do
 					Source = "Keyframe",
 				})
 			end
-			for _,marker in k:GetMarkers() do
+			for _, marker in k:GetMarkers() do
 				table.insert(anim.Markers, {
 					Name = marker.Name,
 					Time = t,
@@ -7999,14 +9254,16 @@ do
 					Source = "KeyframeMarker",
 				})
 			end
-			for _,p in k:GetDescendants() do
-				if not p:IsA("Pose") then continue end
+			for _, p in k:GetDescendants() do
+				if not p:IsA("Pose") then
+					continue
+				end
 				table.insert(keyframe.Poses, {
 					Name = p.Name,
 					Weight = p.Weight,
 					EasingStyle = p.EasingStyle.Name,
 					EasingDirection = p.EasingDirection.Name,
-					CFrame = p.CFrame
+					CFrame = p.CFrame,
 				})
 			end
 			table.insert(anim.Keyframes, keyframe)
@@ -8020,14 +9277,14 @@ do
 		assert(sourcevalid, sourcereason)
 		timeoffset = timeoffset or 0
 		assert(type(timeoffset) == "number", "timeoffset must be a number")
-		for _,keyframe in source.Keyframes do
+		for _, keyframe in source.Keyframes do
 			local newkeyframe = Util.DeepcopyTable(keyframe)
 			newkeyframe.Time += timeoffset
 			assert(newkeyframe.Time >= 0, "timeoffset creates a negative keyframe time")
 			table.insert(target.Keyframes, newkeyframe)
 		end
 		target.Markers = target.Markers or {}
-		for _,marker in source.Markers or {} do
+		for _, marker in source.Markers or {} do
 			local newmarker = Util.DeepcopyTable(marker)
 			newmarker.Time += timeoffset
 			assert(newmarker.Time >= 0, "timeoffset creates a negative marker time")
@@ -8043,10 +9300,10 @@ do
 		local valid, reason = Track.validate(track)
 		assert(valid, reason)
 		assert(type(factor) == "number" and factor > 0, "factor must be greater than zero")
-		for _,keyframe in track.Keyframes do
+		for _, keyframe in track.Keyframes do
 			keyframe.Time *= factor
 		end
-		for _,marker in track.Markers or {} do
+		for _, marker in track.Markers or {} do
 			marker.Time *= factor
 		end
 		return SortAndUpdateTrackTime(track)
@@ -8054,9 +9311,9 @@ do
 	function Track.reverse(track)
 		local reversed = Track.clone(track)
 		local duration = Track.getDuration(reversed)
-		for _,keyframe in reversed.Keyframes do
+		for _, keyframe in reversed.Keyframes do
 			keyframe.Time = duration - keyframe.Time
-			for _,pose in keyframe.Poses do
+			for _, pose in keyframe.Poses do
 				if pose.EasingDirection == "In" then
 					pose.EasingDirection = "Out"
 				elseif pose.EasingDirection == "Out" then
@@ -8064,7 +9321,7 @@ do
 				end
 			end
 		end
-		for _,marker in reversed.Markers or {} do
+		for _, marker in reversed.Markers or {} do
 			marker.Time = duration - marker.Time
 		end
 		return SortAndUpdateTrackTime(reversed)
@@ -8078,17 +9335,19 @@ do
 
 		local sliced = Track.new((track.Name or "<unknown>") .. " (slice)")
 		local hasStartKeyframe = false
-		for _,keyframe in track.Keyframes do
+		for _, keyframe in track.Keyframes do
 			if keyframe.Time >= starttime and keyframe.Time <= endtime then
 				local copy = Util.DeepcopyTable(keyframe)
 				copy.Time -= starttime
-				if copy.Time == 0 then hasStartKeyframe = true end
+				if copy.Time == 0 then
+					hasStartKeyframe = true
+				end
 				table.insert(sliced.Keyframes, copy)
 			end
 		end
 		if not hasStartKeyframe and starttime < Track.getDuration(track) then
 			local poses = {}
-			for name,cframe in Track.getPoses(track, starttime, false) do
+			for name, cframe in Track.getPoses(track, starttime, false) do
 				table.insert(poses, {
 					Name = name,
 					Weight = 1,
@@ -8097,9 +9356,9 @@ do
 					CFrame = cframe,
 				})
 			end
-			table.insert(sliced.Keyframes, {Time = 0, Poses = poses})
+			table.insert(sliced.Keyframes, { Time = 0, Poses = poses })
 		end
-		for _,marker in track.Markers or {} do
+		for _, marker in track.Markers or {} do
 			if marker.Time >= starttime and marker.Time <= endtime then
 				local copy = Util.DeepcopyTable(marker)
 				copy.Time -= starttime
@@ -8111,11 +9370,17 @@ do
 	local function GetEasedAlpha(alpha, easingstyle, easingdirection)
 		alpha = math.clamp(alpha, 0, 1)
 		if easingstyle == "Constant" then
-			if easingdirection == "In" then return 1 end
-			if easingdirection == "Out" then return 0 end
+			if easingdirection == "In" then
+				return 1
+			end
+			if easingdirection == "Out" then
+				return 0
+			end
 			return alpha < 0.5 and 0 or 1
 		end
-		if easingstyle == "CubicV2" then easingstyle = "Cubic" end
+		if easingstyle == "CubicV2" then
+			easingstyle = "Cubic"
+		end
 		local style = Enum.EasingStyle[easingstyle] or Enum.EasingStyle.Linear
 		local direction = Enum.EasingDirection[easingdirection] or Enum.EasingDirection.InOut
 		return TweenService:GetValue(alpha, style, direction)
@@ -8125,19 +9390,19 @@ do
 		-- not recommended for use on big anims
 		local poses = {}
 		local keyframes = track.Keyframes
-		for _,keyframe in keyframes do
-			for _,pose in keyframe.Poses do
+		for _, keyframe in keyframes do
+			for _, pose in keyframe.Poses do
 				poses[pose.Name] = CFrame.identity
 			end
 		end
 		if looped and track.Time > 0 then
 			t = t % track.Time
 		end
-		for name,_ in poses do
+		for name, _ in poses do
 			local k1, k2, t1, t2 = nil, nil, -math.huge, math.huge
-			for _,k in keyframes do
+			for _, k in keyframes do
 				local po = nil
-				for _,p in k.Poses do
+				for _, p in k.Poses do
 					if p.Name == name and p.Weight > 0 then
 						po = p
 					end
@@ -8175,20 +9440,50 @@ do
 		["Full Body"] = nil,
 		["Upper Body"] = {
 			Mode = "Blacklist",
-			Names = {"Left Leg", "Right Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"},
+			Names = {
+				"Left Leg",
+				"Right Leg",
+				"LeftUpperLeg",
+				"LeftLowerLeg",
+				"LeftFoot",
+				"RightUpperLeg",
+				"RightLowerLeg",
+				"RightFoot",
+			},
 		},
 		["Lower Body"] = {
 			Mode = "Blacklist",
-			Names = {"Head", "Left Arm", "Right Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"},
+			Names = {
+				"Head",
+				"Left Arm",
+				"Right Arm",
+				"LeftUpperArm",
+				"LeftLowerArm",
+				"LeftHand",
+				"RightUpperArm",
+				"RightLowerArm",
+				"RightHand",
+			},
 		},
 		["Arms Only"] = {
 			Mode = "Whitelist",
-			Names = {"Left Arm", "Right Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"},
+			Names = {
+				"Left Arm",
+				"Right Arm",
+				"LeftUpperArm",
+				"LeftLowerArm",
+				"LeftHand",
+				"RightUpperArm",
+				"RightLowerArm",
+				"RightHand",
+			},
 		},
 	}
 	function AnimLib.GetJointPreset(name)
 		local preset = JointPresets[name]
-		if not preset then return nil, "Blacklist" end
+		if not preset then
+			return nil, "Blacklist"
+		end
 		return table.clone(preset.Names), preset.Mode
 	end
 	local Animator = {}
@@ -8197,7 +9492,7 @@ do
 		local self = setmetatable({}, Animator)
 		self.rig = nil
 		self.track = nil
-		self.map = {{0, 1}, {0, 1}}
+		self.map = { { 0, 1 }, { 0, 1 } }
 		self.looped = false
 		self.speed = 1
 		self.weight = 1
@@ -8239,7 +9534,9 @@ do
 	end
 	function Animator:ApplyDefaults()
 		local settings = AnimLib.Settings
-		if type(settings) ~= "table" then return self end
+		if type(settings) ~= "table" then
+			return self
+		end
 		self.autoFadeIn = math.clamp(tonumber(settings.FadeIn) or 0, 0, 1)
 		self.useDanceMusicSync = settings.SyncToDanceMusic == true
 		self.useGlobalPlaybackSpeed = true
@@ -8276,30 +9573,58 @@ do
 		self._skipsec = nil
 		self._lastTrackTime = nil
 		self._finishedFired = false
-		if not keepTime then self.timePosition = 0 end
+		if not keepTime then
+			self.timePosition = 0
+		end
 		return self
 	end
 	function Animator:Configure(options)
-		if type(options) ~= "table" then return self end
-		if options.Speed ~= nil then self:AdjustSpeed(options.Speed) end
-		if options.Weight ~= nil then self:AdjustWeight(options.Weight) end
-		if options.Looped ~= nil then self.looped = options.Looped == true end
-		if options.Map ~= nil then self.map = options.Map end
+		if type(options) ~= "table" then
+			return self
+		end
+		if options.Speed ~= nil then
+			self:AdjustSpeed(options.Speed)
+		end
+		if options.Weight ~= nil then
+			self:AdjustWeight(options.Weight)
+		end
+		if options.Looped ~= nil then
+			self.looped = options.Looped == true
+		end
+		if options.Map ~= nil then
+			self.map = options.Map
+		end
 		local jointMask = options.JointMask ~= nil and options.JointMask or options.Filter
 		local maskMode = options.MaskMode or options.FilterType
-		if jointMask ~= nil then self:SetJointMask(jointMask, maskMode) end
-		if options.Sound ~= nil then self:SyncToSound(options.Sound, options.SoundOffset) end
+		if jointMask ~= nil then
+			self:SetJointMask(jointMask, maskMode)
+		end
+		if options.Sound ~= nil then
+			self:SyncToSound(options.Sound, options.SoundOffset)
+		end
 		if options.AutoFadeIn ~= nil then
-			assert(type(options.AutoFadeIn) == "number" and options.AutoFadeIn >= 0, "AutoFadeIn must be zero or greater")
+			assert(
+				type(options.AutoFadeIn) == "number" and options.AutoFadeIn >= 0,
+				"AutoFadeIn must be zero or greater"
+			)
 			self.autoFadeIn = options.AutoFadeIn
 		end
-		if options.UseDanceMusicSync ~= nil then self.useDanceMusicSync = options.UseDanceMusicSync == true end
-		if options.UseGlobalPlaybackSpeed ~= nil then self.useGlobalPlaybackSpeed = options.UseGlobalPlaybackSpeed == true end
-		if options.MarkerNotifications ~= nil then self.showMarkerNotifications = options.MarkerNotifications == true end
+		if options.UseDanceMusicSync ~= nil then
+			self.useDanceMusicSync = options.UseDanceMusicSync == true
+		end
+		if options.UseGlobalPlaybackSpeed ~= nil then
+			self.useGlobalPlaybackSpeed = options.UseGlobalPlaybackSpeed == true
+		end
+		if options.MarkerNotifications ~= nil then
+			self.showMarkerNotifications = options.MarkerNotifications == true
+		end
 		return self
 	end
 	function Animator:LoadSequence(sequence, keepTime)
-		assert(typeof(sequence) == "Instance" and sequence:IsA("KeyframeSequence"), "sequence must be a KeyframeSequence")
+		assert(
+			typeof(sequence) == "Instance" and sequence:IsA("KeyframeSequence"),
+			"sequence must be a KeyframeSequence"
+		)
 		return self:SetTrack(Track.frominstance(sequence), keepTime)
 	end
 	function Animator:LoadAnimation(source, keepTime)
@@ -8324,7 +9649,9 @@ do
 		self.playing = true
 		self.paused = false
 		self._finishedFired = false
-		if self.autoFadeIn > 0 then self._manualFadeStart = os.clock() end
+		if self.autoFadeIn > 0 then
+			self._manualFadeStart = os.clock()
+		end
 		return self
 	end
 	function Animator:Pause()
@@ -8332,7 +9659,9 @@ do
 		return self
 	end
 	function Animator:Resume()
-		if self.track then self.playing = true end
+		if self.track then
+			self.playing = true
+		end
 		self.paused = false
 		return self
 	end
@@ -8342,7 +9671,9 @@ do
 		self.timePosition = 0
 		self._fade = nil
 		self._lastTrackTime = nil
-		if resetPose then self:ResetPose() end
+		if resetPose then
+			self:ResetPose()
+		end
 		return self
 	end
 	function Animator:Seek(timePosition)
@@ -8372,10 +9703,14 @@ do
 	end
 	function Animator:GetPlaybackSpeed(usingDanceMusicClock)
 		local speed = type(self.speed) == "number" and math.max(self.speed, 0) or 1
-		if not self.useGlobalPlaybackSpeed then return speed end
+		if not self.useGlobalPlaybackSpeed then
+			return speed
+		end
 		local settings = AnimLib.Settings
 		local globalSpeed = math.clamp(tonumber(settings and settings.Speed) or 1, 0.25, 2)
-		if usingDanceMusicClock and settings and settings.ApplySpeedToMusic then return speed end
+		if usingDanceMusicClock and settings and settings.ApplySpeedToMusic then
+			return speed
+		end
 		return speed * globalSpeed
 	end
 	function Animator:GetPose(timePosition, looped)
@@ -8391,7 +9726,9 @@ do
 				t = map[2][1] + (t - map[1][1]) * (map[2][2] - map[2][1]) / inputduration
 			end
 		end
-		if looped == nil then looped = self.looped end
+		if looped == nil then
+			looped = self.looped
+		end
 		return Track.getPoses(self.track, t, looped == true)
 	end
 	Animator.GetPoses = Animator.GetPose
@@ -8399,24 +9736,32 @@ do
 		return self.playing and not self.paused
 	end
 	function Animator:SetJointMask(mask, mode)
-		if mask == nil then return self:ClearJointMask() end
+		if mask == nil then
+			return self:ClearJointMask()
+		end
 		assert(type(mask) == "table", "mask must be a table")
 		mode = mode or self.jointMaskMode or "Blacklist"
 		if type(mode) == "string" then
 			local normalized = string.lower(mode)
-			if normalized == "blacklist" then mode = "Blacklist" end
-			if normalized == "whitelist" then mode = "Whitelist" end
+			if normalized == "blacklist" then
+				mode = "Blacklist"
+			end
+			if normalized == "whitelist" then
+				mode = "Whitelist"
+			end
 		end
 		assert(mode == "Blacklist" or mode == "Whitelist", "mode must be Blacklist or Whitelist")
 		local normalizedMask = {}
-		for key,value in mask do
+		for key, value in mask do
 			local joint = type(key) == "number" and value or key
 			local enabled = type(key) == "number" or value == true
 			if typeof(joint) == "Instance" and joint:IsA("Motor6D") then
 				joint = joint.Part1 and joint.Part1.Name or joint.Name
 			end
 			assert(type(joint) == "string", "joint mask entries must be names or Motor6Ds")
-			if enabled then normalizedMask[joint] = true end
+			if enabled then
+				normalizedMask[joint] = true
+			end
 		end
 		self.jointMask = normalizedMask
 		self.jointMaskMode = mode
@@ -8436,7 +9781,9 @@ do
 		return self:ClearJointMask()
 	end
 	function Animator:_ShouldAnimateJoint(name)
-		if not self.jointMask then return true end
+		if not self.jointMask then
+			return true
+		end
 		local listed = self.jointMask[name] == true
 		return self.jointMaskMode == "Whitelist" and listed or not listed
 	end
@@ -8458,10 +9805,16 @@ do
 		return self._syncSound, self._soundOffset
 	end
 	function Animator:_GetSyncSound()
-		if self._syncSound and self._syncSound.Parent then return self._syncSound, false end
-		if not self.useDanceMusicSync then return nil end
+		if self._syncSound and self._syncSound.Parent then
+			return self._syncSound, false
+		end
+		if not self.useDanceMusicSync then
+			return nil
+		end
 		local provider = AnimLib.Settings and AnimLib.Settings.DanceSoundProvider
-		if type(provider) ~= "function" then return nil end
+		if type(provider) ~= "function" then
+			return nil
+		end
 		local success, sound = pcall(provider)
 		if success and typeof(sound) == "Instance" and sound:IsA("Sound") and sound.Parent and sound.IsPlaying then
 			return sound, true
@@ -8475,7 +9828,9 @@ do
 		if duration == 0 then
 			self:AdjustWeight(weight)
 			self._fade = nil
-			if stopOnComplete then self:Stop(resetPose) end
+			if stopOnComplete then
+				self:Stop(resetPose)
+			end
 			return self
 		end
 		self._fade = {
@@ -8493,7 +9848,9 @@ do
 		self.autoFadeIn = 0
 		self._manualFadeStart = nil
 		self:AdjustWeight(0)
-		if not self.playing then self:Play() end
+		if not self.playing then
+			self:Play()
+		end
 		return self:FadeTo(targetWeight, duration, false, false)
 	end
 	function Animator:FadeOut(duration, resetPose)
@@ -8501,13 +9858,17 @@ do
 	end
 	function Animator:_UpdateFade(dt)
 		local fade = self._fade
-		if not fade then return end
+		if not fade then
+			return
+		end
 		fade.Elapsed = math.min(fade.Elapsed + dt, fade.Duration)
 		local alpha = fade.Duration > 0 and fade.Elapsed / fade.Duration or 1
 		self.weight = fade.From + (fade.To - fade.From) * alpha
 		if alpha >= 1 then
 			self._fade = nil
-			if fade.StopOnComplete then self:Stop(fade.ResetPose) end
+			if fade.StopOnComplete then
+				self:Stop(fade.ResetPose)
+			end
 		end
 	end
 	function Animator:GetMarkerReachedSignal(name)
@@ -8522,18 +9883,22 @@ do
 	function Animator:_FireMarker(marker)
 		self._markerEvent:Fire(marker.Name, marker.Value, marker)
 		local markerEvent = self._markerEvents[marker.Name]
-		if markerEvent then markerEvent:Fire(marker.Value, marker) end
+		if markerEvent then
+			markerEvent:Fire(marker.Value, marker)
+		end
 		if self.showMarkerNotifications then
 			Util.UINotify("Animation marker: " .. marker.Name)
 		end
 	end
 	function Animator:_ProcessMarkers(previousTime, currentTime, duration)
 		local function fireRange(startTime, endTime, includeStart)
-			for _,marker in Track.getMarkersBetween(self.track, startTime, endTime, includeStart) do
+			for _, marker in Track.getMarkersBetween(self.track, startTime, endTime, includeStart) do
 				self:_FireMarker(marker)
 			end
 		end
-		if not self.track then return end
+		if not self.track then
+			return
+		end
 		if previousTime == nil then
 			fireRange(currentTime, currentTime, true)
 			self._lastTrackTime = currentTime
@@ -8548,7 +9913,9 @@ do
 		self._lastTrackTime = currentTime
 	end
 	function Animator:_FireFinished()
-		if self._finishedFired then return end
+		if self._finishedFired then
+			return
+		end
 		self._finishedFired = true
 		self._finishedEvent:Fire(self.track)
 	end
@@ -8577,8 +9944,10 @@ do
 		return self:Bind(signal)
 	end
 	function Animator:ResetPose()
-		if not self.rig then return self end
-		for _,descendant in self.rig:GetDescendants() do
+		if not self.rig then
+			return self
+		end
+		for _, descendant in self.rig:GetDescendants() do
 			if descendant:IsA("Motor6D") then
 				descendant.Transform = CFrame.identity
 			end
@@ -8586,10 +9955,14 @@ do
 		return self
 	end
 	function Animator:Update(dt)
-		if not self:IsPlaying() or not self.track then return false end
+		if not self:IsPlaying() or not self.track then
+			return false
+		end
 		assert(type(dt) == "number" and dt >= 0, "dt must be zero or greater")
 		self:_UpdateFade(dt)
-		if not self:IsPlaying() then return false end
+		if not self:IsPlaying() then
+			return false
+		end
 		local syncSound, usingDanceMusicClock = self:_GetSyncSound()
 		if syncSound then
 			self.timePosition = math.max(syncSound.TimePosition + self._soundOffset, 0)
@@ -8617,10 +9990,14 @@ do
 		return true
 	end
 	function Animator:Destroy(resetPose)
-		if self._destroyed then return end
+		if self._destroyed then
+			return
+		end
 		self._destroyed = true
 		self:Unbind()
-		if resetPose then self:ResetPose() end
+		if resetPose then
+			self:ResetPose()
+		end
 		self.playing = false
 		self.rig = nil
 		self.track = nil
@@ -8631,7 +10008,7 @@ do
 		self._syncSound = nil
 		self._fade = nil
 		self._lastTrackTime = nil
-		for _,markerEvent in self._markerEvents do
+		for _, markerEvent in self._markerEvents do
 			markerEvent:Destroy()
 		end
 		self._markerEvents = {}
@@ -8641,13 +10018,19 @@ do
 	function Animator:Step(t)
 		assert(type(t) == "number", "time must be a number")
 		local syncSound, usingDanceMusicClock = self:_GetSyncSound()
-		if syncSound then t = math.max(syncSound.TimePosition + self._soundOffset, 0) end
-		if not usingDanceMusicClock then usingDanceMusicClock = IsDanceMusicDrivenStep(self, t) end
+		if syncSound then
+			t = math.max(syncSound.TimePosition + self._soundOffset, 0)
+		end
+		if not usingDanceMusicClock then
+			usingDanceMusicClock = IsDanceMusicDrivenStep(self, t)
+		end
 		self.timePosition = math.max(t, 0)
 		local rig, track, map, weight, looped = self.rig, self.track, self.map, self.weight, self.looped
 		local speed = self:GetPlaybackSpeed(usingDanceMusicClock)
 		weight = type(weight) == "number" and math.clamp(weight, 0, 1) or 1
-		if track and self._track ~= track then self._manualFadeStart = os.clock() end
+		if track and self._track ~= track then
+			self._manualFadeStart = os.clock()
+		end
 		if self.autoFadeIn > 0 and self._manualFadeStart then
 			weight *= math.clamp((os.clock() - self._manualFadeStart) / self.autoFadeIn, 0, 1)
 		end
@@ -8671,7 +10054,7 @@ do
 			end
 			if not jointmap then
 				jointmap = {}
-				for _,v in rig:GetDescendants() do
+				for _, v in rig:GetDescendants() do
 					if v:IsA("Motor6D") and v.Part0 and v.Part1 then
 						jointmap[v.Part1.Name] = v
 					end
@@ -8693,9 +10076,9 @@ do
 						while scan > 0 do
 							local k2 = keyframes[scan]
 							local ok = true
-							for name,_ in jointmap do
+							for name, _ in jointmap do
 								if not poses[name] then
-									for _,p in k2.Poses do
+									for _, p in k2.Poses do
 										if p.Name == name and p.Weight > 0 then
 											poses[name] = true
 											j = scan
@@ -8705,15 +10088,17 @@ do
 								end
 								ok = poses[name] and ok
 							end
-							if ok then break end
+							if ok then
+								break
+							end
 							scan -= 1
 						end
-						table.insert(skipsec, {j, j})
+						table.insert(skipsec, { j, j })
 						oldsec += 1
 					end
 					i += 1
 				end
-				for i,v in skipsec do
+				for i, v in skipsec do
 					while v[2] < #keyframes and keyframes[v[2]].Time <= (i + 1) * self._optimiser do
 						v[2] += 1
 					end
@@ -8721,7 +10106,7 @@ do
 				self._skipsec = skipsec
 			end
 			local poses = {}
-			for name,_ in jointmap do
+			for name, _ in jointmap do
 				poses[name] = CFrame.identity
 			end
 			if looped and track.Time > 0 then
@@ -8739,12 +10124,12 @@ do
 					skip1, skip2 = skipsec[#skipsec][1], #keyframes
 				end
 			end
-			for name,_ in poses do
+			for name, _ in poses do
 				local k1, k2, t1, t2 = nil, nil, -math.huge, math.huge
-				for i=skip1, skip2 do
+				for i = skip1, skip2 do
 					local k = keyframes[i]
 					local po = nil
-					for _,p in k.Poses do
+					for _, p in k.Poses do
 						if p.Name == name and p.Weight > 0 then
 							po = p
 						end
@@ -8775,8 +10160,10 @@ do
 				end
 				poses[name] = cf
 			end
-			for name,joint in jointmap do
-				if not self:_ShouldAnimateJoint(name) then continue end
+			for name, joint in jointmap do
+				if not self:_ShouldAnimateJoint(name) then
+					continue
+				end
 				local cf = poses[name] or CFrame.identity
 				cf = cf.Rotation + (cf.Position * scale)
 				if weight == 1 then
@@ -8794,9 +10181,13 @@ do
 	local DanceQueue = {}
 	DanceQueue.__index = DanceQueue
 	local function ResolveDanceTrack(value)
-		if type(value) == "string" then return Track.fromfilecached(value) end
+		if type(value) == "string" then
+			return Track.fromfilecached(value)
+		end
 		local valid, reason = Track.validate(value)
-		if not valid then return nil, reason end
+		if not valid then
+			return nil, reason
+		end
 		return value
 	end
 	function DanceQueue.new(rig)
@@ -8853,18 +10244,24 @@ do
 	end
 	function DanceQueue:_StartNext()
 		local item = table.remove(self.items, 1)
-		if not item then return false end
+		if not item then
+			return false
+		end
 		self.current = item
 		local options = item.Options
 		local targetWeight = options.Weight == nil and 1 or options.Weight
 		self.animator:ApplyDefaults()
 		self.animator:SetRig(self.rig)
 		self.animator:SetTrack(item.Track)
-		if options.Speed ~= nil then self.animator:AdjustSpeed(options.Speed) end
+		if options.Speed ~= nil then
+			self.animator:AdjustSpeed(options.Speed)
+		end
 		self.animator:AdjustWeight(targetWeight)
 		self.animator.looped = options.Looped == true
 		self.animator.map = options.Map
-		if options.FadeIn ~= nil then self.animator.autoFadeIn = 0 end
+		if options.FadeIn ~= nil then
+			self.animator.autoFadeIn = 0
+		end
 		local jointMask = options.JointMask ~= nil and options.JointMask or options.Filter
 		if jointMask then
 			self.animator:SetJointMask(jointMask, options.MaskMode or options.FilterType)
@@ -8883,13 +10280,17 @@ do
 	end
 	function DanceQueue:_FinishCurrent(reason)
 		local item = self.current
-		if not item then return end
+		if not item then
+			return
+		end
 		self.current = nil
 		self._itemFinishedEvent:Fire(item, reason)
 	end
 	function DanceQueue:_FinishQueue()
 		self.playing = false
-		if self._finishedFired then return end
+		if self._finishedFired then
+			return
+		end
 		self._finishedFired = true
 		self._finishedEvent:Fire()
 	end
@@ -8897,7 +10298,9 @@ do
 		self.playing = true
 		self.paused = false
 		self._finishedFired = false
-		if not self.current and not self:_StartNext() then self:_FinishQueue() end
+		if not self.current and not self:_StartNext() then
+			self:_FinishQueue()
+		end
 		return self
 	end
 	function DanceQueue:Pause()
@@ -8907,7 +10310,9 @@ do
 	end
 	function DanceQueue:Resume()
 		self.paused = false
-		if self.current then self.animator:Resume() end
+		if self.current then
+			self.animator:Resume()
+		end
 		return self
 	end
 	function DanceQueue:Skip(resetPose)
@@ -8915,7 +10320,9 @@ do
 			self.animator:Stop(resetPose)
 			self:_FinishCurrent("Skipped")
 		end
-		if self.playing and not self:_StartNext() then self:_FinishQueue() end
+		if self.playing and not self:_StartNext() then
+			self:_FinishQueue()
+		end
 		return self
 	end
 	function DanceQueue:Clear(stopCurrent, resetPose)
@@ -8931,11 +10338,15 @@ do
 		self.paused = false
 		self.animator:Stop(resetPose)
 		self:_FinishCurrent("Stopped")
-		if clearQueue then table.clear(self.items) end
+		if clearQueue then
+			table.clear(self.items)
+		end
 		return self
 	end
 	function DanceQueue:Update(dt)
-		if not self.playing or self.paused then return false end
+		if not self.playing or self.paused then
+			return false
+		end
 		assert(type(dt) == "number" and dt >= 0, "dt must be zero or greater")
 		if not self.current and not self:_StartNext() then
 			self:_FinishQueue()
@@ -8954,11 +10365,17 @@ do
 				self.animator:FadeTo(0, fadeOut, false, false)
 			end
 		end
-		if self.animator:Update(dt) then return true end
+		if self.animator:Update(dt) then
+			return true
+		end
 		local reason = self.animator._finishedFired and "Finished" or "Stopped"
-		if options.ResetPoseOnFinish and reason == "Finished" then self.animator:ResetPose() end
+		if options.ResetPoseOnFinish and reason == "Finished" then
+			self.animator:ResetPose()
+		end
 		self:_FinishCurrent(reason)
-		if self:_StartNext() then return true end
+		if self:_StartNext() then
+			return true
+		end
 		self:_FinishQueue()
 		return false
 	end
@@ -8987,7 +10404,9 @@ do
 		return self:Bind(signal)
 	end
 	function DanceQueue:Destroy(resetPose)
-		if self._destroyed then return end
+		if self._destroyed then
+			return
+		end
 		self._destroyed = true
 		self:Unbind()
 		self:Stop(true, resetPose)
@@ -9022,8 +10441,12 @@ do
 	end
 	local function ResolveWorldCFrame(value, fallback, name)
 		value = value or fallback
-		if typeof(value) == "CFrame" then return value end
-		if typeof(value) == "Instance" and value:IsA("BasePart") then return value.CFrame end
+		if typeof(value) == "CFrame" then
+			return value
+		end
+		if typeof(value) == "Instance" and value:IsA("BasePart") then
+			return value.CFrame
+		end
 		error((name or "value") .. " must be a BasePart or CFrame", 3)
 	end
 	function Motor6DUtil.Validate(motor)
@@ -9062,13 +10485,21 @@ do
 	end
 	function Motor6DUtil.TryHiddenReplication(motor, transform)
 		local valid, reason = ValidateMotor(motor)
-		if not valid then return false, reason end
-		if typeof(transform) ~= "CFrame" then return false, "transform must be a CFrame" end
-		if ismissing(sethiddenproperty) then return false, "sethiddenproperty is unavailable" end
+		if not valid then
+			return false, reason
+		end
+		if typeof(transform) ~= "CFrame" then
+			return false, "transform must be a CFrame"
+		end
+		if ismissing(sethiddenproperty) then
+			return false, "sethiddenproperty is unavailable"
+		end
 		local offset, angle = Motor6DUtil.ToReplicationVectors(transform)
 		local offsetSuccess, offsetReason = pcall(sethiddenproperty, motor, "ReplicateCurrentOffset6D", offset)
 		local angleSuccess, angleReason = pcall(sethiddenproperty, motor, "ReplicateCurrentAngle6D", angle)
-		if offsetSuccess and angleSuccess then return true end
+		if offsetSuccess and angleSuccess then
+			return true
+		end
 		return false, tostring(not offsetSuccess and offsetReason or angleReason)
 	end
 	function Motor6DUtil.ApplyTransform(motor, transform, options)
@@ -9142,8 +10573,10 @@ do
 	}
 	local function BuildMotorMap(rig)
 		local motors = {}
-		if not rig then return motors end
-		for _,descendant in rig:GetDescendants() do
+		if not rig then
+			return motors
+		end
+		for _, descendant in rig:GetDescendants() do
 			if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
 				motors[descendant.Part1.Name] = descendant
 			end
@@ -9193,8 +10626,12 @@ do
 	function RigMapper:SetMode(mode)
 		if type(mode) == "string" then
 			local normalized = string.lower(mode):gsub("[%s_%-]", "")
-			if normalized == "transform" then mode = "Transform" end
-			if normalized == "world" or normalized == "worldcframe" then mode = "WorldCFrame" end
+			if normalized == "transform" then
+				mode = "Transform"
+			end
+			if normalized == "world" or normalized == "worldcframe" then
+				mode = "WorldCFrame"
+			end
 		end
 		assert(RigMapper.Modes[mode], "unknown RigMapper mode: " .. tostring(mode))
 		self.mode = mode
@@ -9217,7 +10654,7 @@ do
 		self._sourceMotors = BuildMotorMap(self.sourceRig)
 		self._targetMotors = BuildMotorMap(self.targetRig)
 		self._mappedMotors = {}
-		for targetName,targetMotor in self._targetMotors do
+		for targetName, targetMotor in self._targetMotors do
 			local sourceName = self.aliases[targetName] or targetName
 			local sourceMotor = self._sourceMotors[sourceName]
 			if sourceMotor then
@@ -9231,7 +10668,7 @@ do
 	end
 	function RigMapper:GetMappedJointNames()
 		local names = {}
-		for name,_ in self._mappedMotors do
+		for name, _ in self._mappedMotors do
 			table.insert(names, name)
 		end
 		table.sort(names)
@@ -9249,18 +10686,28 @@ do
 			LastError = nil,
 		}
 		self._lastHiddenReplication = replicationStatus
-		if weight == 0 then return 0, table.clone(replicationStatus) end
+		if weight == 0 then
+			return 0, table.clone(replicationStatus)
+		end
 
 		local positionScale = 1
-		if scalePositions and self.sourceRig and self.targetRig and self.sourceRig:IsA("Model") and self.targetRig:IsA("Model") then
+		if
+			scalePositions
+			and self.sourceRig
+			and self.targetRig
+			and self.sourceRig:IsA("Model")
+			and self.targetRig:IsA("Model")
+		then
 			local sourceScale = self.sourceRig:GetScale()
-			if sourceScale ~= 0 then positionScale = self.targetRig:GetScale() / sourceScale end
+			if sourceScale ~= 0 then
+				positionScale = self.targetRig:GetScale() / sourceScale
+			end
 		end
 
 		local copied = 0
-		for _,mapping in self._mappedMotors do
+		for _, mapping in self._mappedMotors do
 			local transform = self.mode == "WorldCFrame"
-				and Motor6DUtil.RetargetTransform(mapping.Source, mapping.Target)
+					and Motor6DUtil.RetargetTransform(mapping.Source, mapping.Target)
 				or mapping.Source.Transform
 			local _, replication = Motor6DUtil.ApplyTransform(mapping.Target, transform, {
 				Weight = weight,
@@ -9270,7 +10717,9 @@ do
 			replicationStatus.Attempted += replication.Attempted
 			replicationStatus.Succeeded += replication.Succeeded
 			replicationStatus.Failed += replication.Failed
-			if replication.LastError then replicationStatus.LastError = replication.LastError end
+			if replication.LastError then
+				replicationStatus.LastError = replication.LastError
+			end
 			copied += 1
 		end
 		return copied, table.clone(replicationStatus)
@@ -9282,12 +10731,14 @@ do
 			Failed = 0,
 			LastError = nil,
 		}
-		for _,motor in self._targetMotors do
+		for _, motor in self._targetMotors do
 			local _, replication = Motor6DUtil.Reset(motor, self.hiddenReplication)
 			replicationStatus.Attempted += replication.Attempted
 			replicationStatus.Succeeded += replication.Succeeded
 			replicationStatus.Failed += replication.Failed
-			if replication.LastError then replicationStatus.LastError = replication.LastError end
+			if replication.LastError then
+				replicationStatus.LastError = replication.LastError
+			end
 		end
 		self._lastHiddenReplication = replicationStatus
 		return self, table.clone(replicationStatus)
@@ -9314,7 +10765,9 @@ do
 	end
 	function RigMapper:Destroy(resetPose)
 		self:Unbind()
-		if resetPose then self:ResetTargetPose() end
+		if resetPose then
+			self:ResetTargetPose()
+		end
 		self.sourceRig = nil
 		self.targetRig = nil
 		self._sourceMotors = {}
@@ -9355,7 +10808,9 @@ do
 		swimidle = "SwimIdle",
 	}
 	local function NormalizeStateName(name)
-		if type(name) ~= "string" then return nil end
+		if type(name) ~= "string" then
+			return nil
+		end
 		return StateAliases[string.lower(name):gsub("[%s_%-]", "")]
 	end
 	local function ResolveTrackValue(value)
@@ -9363,7 +10818,9 @@ do
 			return Track.fromfilecached(value)
 		end
 		local valid, reason = Track.validate(value)
-		if not valid then return nil, reason end
+		if not valid then
+			return nil, reason
+		end
 		return value
 	end
 	function StateMachine.new(rig)
@@ -9448,7 +10905,9 @@ do
 		local animation = self:GetAnimation(stateName)
 		assert(animation, "animation state is not configured: " .. tostring(stateName))
 		animation.Speed = speed
-		if self.animator.track == animation.Track then self.animator:AdjustSpeed(speed) end
+		if self.animator.track == animation.Track then
+			self.animator:AdjustSpeed(speed)
+		end
 		return self
 	end
 	function StateMachine:SetWeight(stateName, weight)
@@ -9456,12 +10915,14 @@ do
 		local animation = self:GetAnimation(stateName)
 		assert(animation, "animation state is not configured: " .. tostring(stateName))
 		animation.Weight = math.clamp(weight, 0, 1)
-		if self.animator.track == animation.Track then self.animator:AdjustWeight(animation.Weight) end
+		if self.animator.track == animation.Track then
+			self.animator:AdjustWeight(animation.Weight)
+		end
 		return self
 	end
 	function StateMachine:SetAnimations(animations)
 		assert(type(animations) == "table", "animations must be a table")
-		for stateName,value in animations do
+		for stateName, value in animations do
 			if type(value) == "table" and value.Track then
 				self:SetAnimation(stateName, value.Track, value)
 			else
@@ -9505,25 +10966,47 @@ do
 		return self.state
 	end
 	function StateMachine:ResolveState()
-		if self.forcedState then return self.forcedState end
+		if self.forcedState then
+			return self.forcedState
+		end
 		local humanoid = self.humanoid
-		if not humanoid then return "Idle" end
-		if self._landedUntil > os.clock() and self.animations.Land then return "Land" end
+		if not humanoid then
+			return "Idle"
+		end
+		if self._landedUntil > os.clock() and self.animations.Land then
+			return "Land"
+		end
 
 		local humanoidState = humanoid:GetState()
-		if humanoidState == Enum.HumanoidStateType.Jumping then return "Jump" end
-		if humanoidState == Enum.HumanoidStateType.Freefall then return "Fall" end
-		if humanoidState == Enum.HumanoidStateType.Seated then return "Sit" end
-		if humanoidState == Enum.HumanoidStateType.Climbing then return "Climb" end
+		if humanoidState == Enum.HumanoidStateType.Jumping then
+			return "Jump"
+		end
+		if humanoidState == Enum.HumanoidStateType.Freefall then
+			return "Fall"
+		end
+		if humanoidState == Enum.HumanoidStateType.Seated then
+			return "Sit"
+		end
+		if humanoidState == Enum.HumanoidStateType.Climbing then
+			return "Climb"
+		end
 		if humanoidState == Enum.HumanoidStateType.Swimming then
 			return humanoid.MoveDirection.Magnitude > 0.05 and "Swim" or "SwimIdle"
 		end
-		if humanoid.MoveDirection.Magnitude <= 0.05 then return "Idle" end
-		if self.sprinting and self.animations.Sprint then return "Sprint" end
-		if not self.directional then return "Walk" end
+		if humanoid.MoveDirection.Magnitude <= 0.05 then
+			return "Idle"
+		end
+		if self.sprinting and self.animations.Sprint then
+			return "Sprint"
+		end
+		if not self.directional then
+			return "Walk"
+		end
 
 		local root = self.rig and self.rig:FindFirstChild("HumanoidRootPart")
-		if not root then return "Walk" end
+		if not root then
+			return "Walk"
+		end
 		local direction = root.CFrame:VectorToObjectSpace(humanoid.MoveDirection)
 		if math.abs(direction.X) > math.abs(direction.Z) then
 			return direction.X > 0 and "WalkRight" or "WalkLeft"
@@ -9532,11 +11015,15 @@ do
 	end
 	function StateMachine:_GetAnimation(state)
 		local animation = self.animations[state]
-		if animation then return animation end
+		if animation then
+			return animation
+		end
 		if state == "WalkForward" or state == "WalkBackward" or state == "WalkLeft" or state == "WalkRight" then
 			return self.animations.Walk
 		end
-		if state == "SwimIdle" then return self.animations.Idle end
+		if state == "SwimIdle" then
+			return self.animations.Idle
+		end
 		return nil
 	end
 	function StateMachine:Restart()
@@ -9563,7 +11050,9 @@ do
 	function StateMachine:Start()
 		self.enabled = true
 		self.paused = false
-		if self.animator.track then self.animator:Play() end
+		if self.animator.track then
+			self.animator:Play()
+		end
 		return self
 	end
 	function StateMachine:Bind(signal)
@@ -9591,7 +11080,9 @@ do
 		return self:Bind(signal)
 	end
 	function StateMachine:Update(dt)
-		if not self.enabled or self.paused then return false end
+		if not self.enabled or self.paused then
+			return false
+		end
 		local nextState = self:ResolveState()
 		local animation = self:_GetAnimation(nextState)
 		if not animation then
@@ -9651,8 +11142,12 @@ local function _UpdateDownloadStatus()
 	end
 end
 local function AssetDownloadAgent(source, filename, path)
-	if isfile(path) then return true end
-	if _Assetdownloading[filename] then return false end
+	if isfile(path) then
+		return true
+	end
+	if _Assetdownloading[filename] then
+		return false
+	end
 	source = source:gsub(" ", "%%20")
 	_Assetdownloading[filename] = true
 	task.spawn(function()
@@ -9696,7 +11191,9 @@ local function AssetDownload(filename)
 end
 local function AssetGetContentId(filename)
 	local path = AssetGetPathFromFilename(filename)
-	if not isfile(path) then return "" end
+	if not isfile(path) then
+		return ""
+	end
 	local s, id = pcall(getcustomasset, path)
 	if s and id then
 		return id
@@ -9705,7 +11202,7 @@ local function AssetGetContentId(filename)
 end
 local function AssetEnsure(list)
 	local ok = true
-	for _,filename in list do
+	for _, filename in list do
 		if not AssetDownload(filename) then
 			ok = false
 		end
@@ -9714,13 +11211,16 @@ local function AssetEnsure(list)
 end
 local function ProtectedChat(content)
 	pcall(function()
-		TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration").TargetTextChannel:SendAsync(content, Util.RandomString(64))
+		TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration").TargetTextChannel
+			:SendAsync(content, Util.RandomString(64))
 	end)
 end
 local OnPlayerChatted = Util.Instance("BindableEvent")
 TextChatService.MessageReceived:Connect(function(message)
 	if message.Status ~= Enum.TextChatMessageStatus.Sending and message.TextSource and message.TextSource.UserId then
-		local plr, msg = Players:GetPlayerByUserId(message.TextSource.UserId), message.Text:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&quot;", "\""):gsub("&apos;", "'"):gsub("&amp;", "&")
+		local plr, msg =
+			Players:GetPlayerByUserId(message.TextSource.UserId),
+			message.Text:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&quot;", '"'):gsub("&apos;", "'"):gsub("&amp;", "&")
 		if plr then
 			OnPlayerChatted:Fire(plr, msg)
 			if msg == "67" then
@@ -9750,13 +11250,20 @@ local function SetAnimLibOption(name, value)
 end
 
 local function ResetDancePose(figure, force)
-	if not force and not AnimLib.Settings.ResetPoseOnStop then return end
-	if typeof(figure) ~= "Instance" then return end
-	for _,descendant in figure:GetDescendants() do
-		if descendant:IsA("Motor6D") then descendant.Transform = CFrame.identity end
+	if not force and not AnimLib.Settings.ResetPoseOnStop then
+		return
+	end
+	if typeof(figure) ~= "Instance" then
+		return
+	end
+	for _, descendant in figure:GetDescendants() do
+		if descendant:IsA("Motor6D") then
+			descendant.Transform = CFrame.identity
+		end
 	end
 end
 
+do
 -- Forked from the mouse/camera head tracking in the bundled Krystal Dance V3
 -- moveset. This is applied at the final render stage so it can layer over, or
 -- deliberately replace, the neck pose written by a moveset or dance.
@@ -9770,21 +11277,29 @@ local KrystalHeadOverlay = {
 }
 
 local function CFrameAlmostEqual(a, b)
-	if typeof(a) ~= "CFrame" or typeof(b) ~= "CFrame" then return false end
+	if typeof(a) ~= "CFrame" or typeof(b) ~= "CFrame" then
+		return false
+	end
 	local delta = a:ToObjectSpace(b)
 	local _, angle = delta:ToAxisAngle()
 	return delta.Position.Magnitude < 0.0001 and math.abs(angle) < 0.0001
 end
 
 local function FindCharacterNeck(figure)
-	if typeof(figure) ~= "Instance" then return nil end
+	if typeof(figure) ~= "Instance" then
+		return nil
+	end
 	local head = figure:FindFirstChild("Head")
 	local torso = figure:FindFirstChild("Torso") or figure:FindFirstChild("UpperTorso")
-	if not head or not torso then return nil end
+	if not head or not torso then
+		return nil
+	end
 
 	local neck = torso:FindFirstChild("Neck")
-	if neck and neck:IsA("Motor6D") then return head, torso, neck end
-	for _,descendant in figure:GetDescendants() do
+	if neck and neck:IsA("Motor6D") then
+		return head, torso, neck
+	end
+	for _, descendant in figure:GetDescendants() do
 		if descendant:IsA("Motor6D") and descendant.Name == "Neck" and descendant.Part1 == head then
 			return head, descendant.Part0 or torso, descendant
 		end
@@ -9831,21 +11346,31 @@ local function ApplyKrystalHeadOverlay(dt, figure)
 	local targetPosition = nil
 	if UserInputService.TouchEnabled then
 		local camera = workspace.CurrentCamera
-		if camera then targetPosition = camera.CFrame * Vector3.new(0, 0, -10000) end
+		if camera then
+			targetPosition = camera.CFrame * Vector3.new(0, 0, -10000)
+		end
 	else
 		local success, mousePosition = pcall(function()
 			return Player:GetMouse().Hit.Position
 		end)
-		if success then targetPosition = mousePosition end
+		if success then
+			targetPosition = mousePosition
+		end
 	end
 	if typeof(targetPosition) ~= "Vector3" then
 		local camera = workspace.CurrentCamera
-		if camera then targetPosition = camera.CFrame * Vector3.new(0, 0, -10000) end
+		if camera then
+			targetPosition = camera.CFrame * Vector3.new(0, 0, -10000)
+		end
 	end
-	if typeof(targetPosition) ~= "Vector3" then return end
+	if typeof(targetPosition) ~= "Vector3" then
+		return
+	end
 
 	local difference = head.Position - targetPosition
-	if difference.Magnitude < 0.0001 then return end
+	if difference.Magnitude < 0.0001 then
+		return
+	end
 	local direction = difference.Unit
 	local strength = math.clamp(tonumber(AnimLib.Settings.KrystalHeadStrength) or 1, 0, 1.5)
 	local pitch = math.clamp(math.atan(direction.Y) * strength, math.rad(-75), math.rad(75))
@@ -9856,7 +11381,8 @@ local function ApplyKrystalHeadOverlay(dt, figure)
 	KrystalHeadOverlay.Offset = KrystalHeadOverlay.Offset:Lerp(targetOffset, math.clamp(alpha, 0, 1))
 
 	local animationTransform = neck.Transform
-	if KrystalHeadOverlay.LastAppliedTransform
+	if
+		KrystalHeadOverlay.LastAppliedTransform
 		and CFrameAlmostEqual(animationTransform, KrystalHeadOverlay.LastAppliedTransform)
 	then
 		animationTransform = KrystalHeadOverlay.UnderlyingTransform or CFrame.identity
@@ -9878,9 +11404,641 @@ AddToRenderStep(function(_, dt)
 	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
 end)
 
+-- Adapted from the visualizer and character-afterimage effects in Valtta's
+-- bundled Eyes Closed community dance. These are global, saved dance effects
+-- now, so they can be used without coupling them to one animation module.
+local DanceEffects = {
+	Character = nil,
+	RingPart = nil,
+	RingBars = {},
+	Ghosts = {},
+	GhostTimer = 0,
+	SmoothedLoudness = 0,
+	AnchorSource = "Waiting for a dance",
+}
+local DanceEffectRingSegments = 64
+
+local function GetDanceEffectAccent()
+	local color = ParseDanceEffectColor(SavedDanceEffectsOptions.Accent)
+	return color or Color3.fromRGB(0, 255, 255)
+end
+
+local function DestroyDanceEffectVisualizer()
+	if DanceEffects.RingPart then
+		DanceEffects.RingPart:Destroy()
+	end
+	DanceEffects.RingPart = nil
+	DanceEffects.RingBars = {}
+	DanceEffects.SmoothedLoudness = 0
+end
+
+local function DestroyDanceEffectGhosts()
+	for _, ghost in DanceEffects.Ghosts do
+		if ghost.Model then
+			ghost.Model:Destroy()
+		end
+	end
+	DanceEffects.Ghosts = {}
+	DanceEffects.GhostTimer = 0
+end
+
+local function ResetDanceEffects(figure)
+	DestroyDanceEffectVisualizer()
+	DestroyDanceEffectGhosts()
+	DanceEffects.Character = figure
+	DanceEffects.AnchorSource = "Waiting for a dance"
+end
+
+local function IsFiniteDanceEffectPosition(value)
+	return typeof(value) == "Vector3"
+		and value.X == value.X
+		and value.Y == value.Y
+		and value.Z == value.Z
+		and value.X > -math.huge
+		and value.X < math.huge
+		and value.Y > -math.huge
+		and value.Y < math.huge
+		and value.Z > -math.huge
+		and value.Z < math.huge
+end
+
+local function IsFiniteDanceEffectCFrame(value)
+	if typeof(value) ~= "CFrame" then
+		return false
+	end
+	for _, component in { value:GetComponents() } do
+		if type(component) ~= "number" or component ~= component or component <= -math.huge or component >= math.huge then
+			return false
+		end
+	end
+	return true
+end
+
+local function GetDanceEffectScale(figure)
+	local scale = 1
+	local success, value = pcall(function()
+		return figure:GetScale()
+	end)
+	if success and type(value) == "number" and value == value and value > 0 and value < math.huge then
+		scale = value
+	end
+	return scale
+end
+
+local function GetDanceEffectAnchor(figure, anchorMode)
+	if not figure or not figure.Parent or not figure:IsA("Model") then
+		return nil
+	end
+	local root = figure:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return nil
+	end
+	local cframeSuccess, rootCFrame = pcall(function()
+		return root.CFrame
+	end)
+	if not cframeSuccess or not IsFiniteDanceEffectCFrame(rootCFrame) then
+		return nil
+	end
+	local scale = GetDanceEffectScale(figure)
+	local position = nil
+	if anchorMode == "Blue Root Part" then
+		position = root.Position
+	elseif anchorMode == "Head" then
+		local head = figure:FindFirstChild("Head")
+		if head and head:IsA("BasePart") then
+			position = head.Position
+		end
+	elseif anchorMode == "Torso" then
+		local torso = figure:FindFirstChild("UpperTorso")
+			or figure:FindFirstChild("Torso")
+			or figure:FindFirstChild("LowerTorso")
+		if torso and torso:IsA("BasePart") then
+			position = torso.Position
+		end
+	elseif anchorMode == "Middle (Original)" then
+		local head = figure:FindFirstChild("Head")
+		local headY = head and head:IsA("BasePart") and head.Position.Y or root.Position.Y
+		position = Vector3.new(root.Position.X, headY + 3.2 * scale, root.Position.Z)
+	else
+		local success, center = pcall(function()
+			return root.AssemblyCenterOfMass
+		end)
+		if success then
+			position = center
+		end
+	end
+	if not IsFiniteDanceEffectPosition(position) then
+		return nil
+	end
+	return position, root, scale, rootCFrame
+end
+
+local function GetDanceEffectAnchorRotation(anchorCFrame)
+	if not SavedDanceEffectsOptions.StayVertical then
+		return anchorCFrame.Rotation
+	end
+	local look = anchorCFrame.LookVector
+	local flatLook = Vector3.new(look.X, 0, look.Z)
+	if flatLook.Magnitude < 0.0001 then
+		local right = anchorCFrame.RightVector
+		local flatRight = Vector3.new(right.X, 0, right.Z)
+		if flatRight.Magnitude >= 0.0001 then
+			flatLook = Vector3.yAxis:Cross(flatRight.Unit)
+		end
+	end
+	if flatLook.Magnitude < 0.0001 then
+		return CFrame.identity
+	end
+	return CFrame.lookAt(Vector3.zero, flatLook.Unit, Vector3.yAxis)
+end
+
+local function CreateDanceEffectBar(parent, index, face)
+	local angleDirection = face == Enum.NormalId.Bottom and -1 or 1
+	local angle = angleDirection * (index / DanceEffectRingSegments) * math.pi * 2
+	local bar = Instance.new("Frame")
+	bar.Name = "Bar" .. index
+	bar.AnchorPoint = Vector2.new(0.5, 1)
+	bar.BackgroundColor3 = GetDanceEffectAccent()
+	bar.BorderSizePixel = 0
+	bar.Position = UDim2.fromOffset(128 + 88 * math.cos(angle) - 2.5, 128 + 88 * math.sin(angle))
+	bar.Size = UDim2.fromOffset(5, 2)
+	bar.Rotation = math.deg(angle) + 90
+	bar.Parent = parent
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = GetDanceEffectAccent():Lerp(Color3.new(1, 1, 1), 0.45)
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.2
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = bar
+	return bar, stroke
+end
+
+local function BuildDanceEffectFace(part, face)
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "DanceEffectRing_" .. face.Name
+	surface.Face = face
+	surface.LightInfluence = 0
+	surface.Brightness = 4
+	surface.AlwaysOnTop = false
+	surface.MaxDistance = 100
+	surface.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	surface.CanvasSize = Vector2.new(256, 256)
+	surface.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	surface.Parent = part
+	local background = Instance.new("Frame")
+	background.Size = UDim2.fromScale(1, 1)
+	background.BackgroundTransparency = 1
+	background.BorderSizePixel = 0
+	background.Parent = surface
+	local bars = {}
+	for index = 1, DanceEffectRingSegments do
+		local bar, stroke = CreateDanceEffectBar(background, index, face)
+		bars[index] = { Bar = bar, Stroke = stroke }
+	end
+	return bars
+end
+
+local function BuildDanceEffectVisualizer()
+	DestroyDanceEffectVisualizer()
+	local part = Instance.new("Part")
+	part.Name = "_UhhhhhhDanceEffectVisualizer"
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Size = Vector3.new(8, 0.01, 8)
+	-- Keep the anchored visualizer outside Reanimate.Character. The character's
+	-- PreSimulation collision controller rewrites CanCollide on every direct
+	-- BasePart child, which otherwise makes this invisible ring collidable in
+	-- seated/physics states even though it starts with CanCollide = false.
+	part.Parent = workspace
+	DanceEffects.RingPart = part
+	local top = BuildDanceEffectFace(part, Enum.NormalId.Top)
+	local bottom = BuildDanceEffectFace(part, Enum.NormalId.Bottom)
+	for index = 1, DanceEffectRingSegments do
+		DanceEffects.RingBars[index] = {
+			Top = top[index].Bar,
+			TopStroke = top[index].Stroke,
+			Bottom = bottom[index].Bar,
+			BottomStroke = bottom[index].Stroke,
+		}
+	end
+end
+
+local function CloneDanceEffectInstance(source)
+	local wasArchivable = source.Archivable
+	local success, clone = pcall(function()
+		if not wasArchivable then
+			source.Archivable = true
+		end
+		return source:Clone()
+	end)
+	if not wasArchivable then
+		pcall(function()
+			source.Archivable = false
+		end)
+	end
+	if not success then
+		return nil
+	end
+	return clone
+end
+
+local function CloneDanceEffectPart(source, accent, imageScale, baseTransparency)
+	local part = CloneDanceEffectInstance(source)
+	if
+		not part
+		or not part:IsA("BasePart")
+		or part.ClassName ~= source.ClassName
+	then
+		if part then
+			part:Destroy()
+		end
+		return nil
+	end
+	-- MeshPart.MeshId cannot be assigned directly from ordinary scripts.
+	-- ApplyMesh is the supported way to reassert the source geometry if a
+	-- cloned avatar MeshPart was sanitized by the current experience/executor.
+	if part:IsA("MeshPart") and source:IsA("MeshPart") then
+		pcall(part.ApplyMesh, part, source)
+	end
+	for _, child in part:GetDescendants() do
+		if child:IsA("DataModelMesh") then
+			pcall(function()
+				child.TextureId = ""
+			end)
+			pcall(function()
+				child.VertexColor = Vector3.new(accent.R, accent.G, accent.B)
+			end)
+			-- FileMesh geometry uses SpecialMesh.Scale instead of the ordinary
+			-- part-size path. Built-in Head/Brick/Sphere/Cylinder mesh types are
+			-- already scaled by their parent part and must not be scaled twice.
+			if child:IsA("SpecialMesh") and child.MeshType == Enum.MeshType.FileMesh then
+				pcall(function()
+					child.Scale *= imageScale
+					child.Offset *= imageScale
+				end)
+			end
+		elseif not child:IsA("Bone") then
+			child:Destroy()
+		end
+	end
+	if part:IsA("MeshPart") then
+		pcall(function()
+			part.TextureID = ""
+		end)
+	end
+	part.Name = source.Name
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Material = Enum.Material.Neon
+	part.Color = accent
+	part.Transparency = baseTransparency
+	part.LocalTransparencyModifier = 0
+	part.AssemblyLinearVelocity = Vector3.zero
+	part.AssemblyAngularVelocity = Vector3.zero
+	-- Shrink around this body's own center. Scaling the complete ghost model
+	-- would pull limbs toward a shared pivot, causing a leg afterimage to drift
+	-- away from the center of the live leg.
+	part.Size = source.Size * imageScale
+	part.CFrame = source.CFrame
+	return part
+end
+
+-- Keep afterimages limited to the avatar skeleton. Community modules often
+-- parent their props and visual-effect parts directly below the character, so
+-- scanning every BasePart also cloned swords, rings, trails, and similar
+-- addon geometry. The name filter covers the standard R6/R15 body layouts;
+-- GetBodyPartR15 additionally rejects a lookalike part on R15 characters.
+local DanceEffectBodyPartNames = {
+	Head = true,
+	Torso = true,
+	UpperTorso = true,
+	LowerTorso = true,
+	["Left Arm"] = true,
+	["Right Arm"] = true,
+	["Left Leg"] = true,
+	["Right Leg"] = true,
+	LeftUpperArm = true,
+	LeftLowerArm = true,
+	LeftHand = true,
+	RightUpperArm = true,
+	RightLowerArm = true,
+	RightHand = true,
+	LeftUpperLeg = true,
+	LeftLowerLeg = true,
+	LeftFoot = true,
+	RightUpperLeg = true,
+	RightLowerLeg = true,
+	RightFoot = true,
+}
+
+local function IsDanceEffectBodyPart(figure, source)
+	if
+		not source:IsA("BasePart")
+		or source.Parent ~= figure
+		or DanceEffectBodyPartNames[source.Name] ~= true
+	then
+		return false
+	end
+	local humanoid = figure:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+		local success, bodyPart = pcall(humanoid.GetBodyPartR15, humanoid, source)
+		if success then
+			return bodyPart ~= Enum.BodyPartR15.Unknown
+		end
+	end
+	return true
+end
+
+local function GetDanceEffectGhostSource(figure)
+	local realCharacter = Player.Character
+	if realCharacter and realCharacter ~= figure and realCharacter.Parent then
+		local humanoid = realCharacter:FindFirstChildOfClass("Humanoid")
+		local isAlive = humanoid
+			and humanoid.Health > 0
+			and humanoid:GetState() ~= Enum.HumanoidStateType.Dead
+		if isAlive then
+			for _, source in realCharacter:GetChildren() do
+				if IsDanceEffectBodyPart(realCharacter, source) then
+					return realCharacter
+				end
+			end
+		end
+	end
+	return figure
+end
+
+local DanceEffectR6CharacterMeshParts = {
+	[Enum.BodyPart.Head] = { "Head", Vector3.new(2, 1, 1) },
+	[Enum.BodyPart.Torso] = { "Torso", Vector3.new(2, 2, 1) },
+	[Enum.BodyPart.LeftArm] = { "Left Arm", Vector3.new(1, 2, 1) },
+	[Enum.BodyPart.RightArm] = { "Right Arm", Vector3.new(1, 2, 1) },
+	[Enum.BodyPart.LeftLeg] = { "Left Leg", Vector3.new(1, 2, 1) },
+	[Enum.BodyPart.RightLeg] = { "Right Leg", Vector3.new(1, 2, 1) },
+}
+
+local function ApplyDanceEffectR6CharacterMeshes(sourceFigure, ghost, accent, imageScale)
+	local sourceHumanoid = sourceFigure:FindFirstChildOfClass("Humanoid")
+	if not sourceHumanoid or sourceHumanoid.RigType ~= Enum.HumanoidRigType.R6 then
+		return
+	end
+	for _, sourceAppearance in sourceFigure:GetChildren() do
+		if sourceAppearance:IsA("CharacterMesh") then
+			local mapping = DanceEffectR6CharacterMeshParts[sourceAppearance.BodyPart]
+			local meshId = tonumber(sourceAppearance.MeshId)
+			if mapping and meshId and meshId > 0 then
+				local partName, standardSize = mapping[1], mapping[2]
+				local sourcePart = sourceFigure:FindFirstChild(partName)
+				local ghostPart = ghost:FindFirstChild(partName)
+				if sourcePart and sourcePart:IsA("BasePart") and ghostPart and ghostPart:IsA("BasePart") then
+					-- CharacterMesh normally needs a Humanoid, but an effect Humanoid can
+					-- rewrite collision/state on its model. Convert the package geometry
+					-- to a local SpecialMesh instead so every ghost remains visual-only.
+					for _, child in ghostPart:GetChildren() do
+						if child:IsA("DataModelMesh") then
+							child:Destroy()
+						end
+					end
+					local packageMesh = Instance.new("SpecialMesh")
+					packageMesh.Name = "_UhhhhhhR6CharacterMesh"
+					packageMesh.MeshType = Enum.MeshType.FileMesh
+					packageMesh.MeshId = "rbxassetid://" .. math.floor(meshId)
+					packageMesh.TextureId = ""
+					packageMesh.VertexColor = Vector3.new(accent.R, accent.G, accent.B)
+					packageMesh.Scale = Vector3.new(
+						sourcePart.Size.X / standardSize.X,
+						sourcePart.Size.Y / standardSize.Y,
+						sourcePart.Size.Z / standardSize.Z
+					) * imageScale
+					packageMesh.Parent = ghostPart
+				end
+			end
+		end
+	end
+end
+
+local function SpawnDanceEffectGhost(figure)
+	local accent = GetDanceEffectAccent()
+	local imageScale = math.clamp(tonumber(SavedDanceEffectsOptions.AfterimageScale) or 0.86, 0.25, 1.5)
+	local baseTransparency = math.clamp(
+		(tonumber(SavedDanceEffectsOptions.AfterimageTransparency) or 55) / 100,
+		0,
+		1
+	)
+	local sourceFigure = GetDanceEffectGhostSource(figure)
+	local ghost = Instance.new("Model")
+	ghost.Name = "_UhhhhhhDanceEffectAfterimage"
+	local partCount = 0
+	local lightParent = nil
+	for _, source in sourceFigure:GetDescendants() do
+		if IsDanceEffectBodyPart(sourceFigure, source) and partCount < 20 then
+			local part = CloneDanceEffectPart(source, accent, imageScale, baseTransparency)
+			if part then
+				part.Parent = ghost
+				partCount += 1
+				if source.Name == "Torso" or source.Name == "UpperTorso" then
+					lightParent = part
+				end
+			end
+		end
+	end
+	if partCount == 0 then
+		ghost:Destroy()
+		return
+	end
+	ApplyDanceEffectR6CharacterMeshes(sourceFigure, ghost, accent, imageScale)
+	lightParent = lightParent or ghost:FindFirstChildWhichIsA("BasePart")
+	if lightParent then
+		local light = Instance.new("PointLight")
+		light.Brightness = 1.5
+		light.Range = 7 * imageScale
+		light.Color = accent
+		light.Shadows = false
+		light.Parent = lightParent
+	end
+	ghost.Parent = workspace
+	table.insert(DanceEffects.Ghosts, { Model = ghost, Elapsed = 0 })
+end
+
+local function UpdateDanceEffectGhosts(dt)
+	local accent = GetDanceEffectAccent()
+	local fadeSpeed = math.clamp(tonumber(SavedDanceEffectsOptions.AfterimageFadeSpeed) or 1, 0.25, 4)
+	local baseTransparency = math.clamp(
+		(tonumber(SavedDanceEffectsOptions.AfterimageTransparency) or 55) / 100,
+		0,
+		1
+	)
+	local lightVisibility = math.clamp((1 - baseTransparency) / 0.45, 0, 2.25)
+	local index = 1
+	while index <= #DanceEffects.Ghosts do
+		local ghost = DanceEffects.Ghosts[index]
+		ghost.Elapsed += dt
+		local alpha = ghost.Elapsed * fadeSpeed
+		if alpha >= 1 or not ghost.Model.Parent then
+			ghost.Model:Destroy()
+			table.remove(DanceEffects.Ghosts, index)
+		else
+			for _, descendant in ghost.Model:GetDescendants() do
+				if descendant:IsA("BasePart") then
+					-- Enforce this throughout the ghost lifetime. This also repairs any
+					-- collision flags copied or rewritten after the model was parented.
+					descendant.Anchored = true
+					descendant.CanCollide = false
+					descendant.CanTouch = false
+					descendant.CanQuery = false
+					descendant.AssemblyLinearVelocity = Vector3.zero
+					descendant.AssemblyAngularVelocity = Vector3.zero
+					descendant.Transparency = baseTransparency + alpha * (1 - baseTransparency)
+					descendant.Color = accent:Lerp(Color3.new(0, 0, 0), alpha * 0.75)
+				elseif descendant:IsA("PointLight") then
+					descendant.Color = accent
+					descendant.Brightness = 1.5 * lightVisibility * (1 - alpha)
+				end
+			end
+			index += 1
+		end
+	end
+end
+
+local function UpdateDanceEffectVisualizer(dt, figure)
+	local root = nil
+	local position = nil
+	local scale = 1
+	local anchorCFrame = nil
+	local anchorMode = SavedDanceEffectsOptions.AnchorMode
+	if anchorMode == "Blue Root Part" then
+		-- The cyan hitbox always represents the controller rig's root. Keep this
+		-- selection explicit even when DyPos would normally prefer Player.Character.
+		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
+		if position then
+			DanceEffects.AnchorSource = "Cyan reanimated root — Blue Root Part"
+		end
+	elseif SavedDanceEffectsOptions.DynamicPosition then
+		local realCharacter = Player.Character
+		if realCharacter and realCharacter ~= figure then
+			position, root, scale, anchorCFrame = GetDanceEffectAnchor(realCharacter, anchorMode)
+			if position then
+				DanceEffects.AnchorSource = "Real character — " .. anchorMode
+			end
+		end
+		if not position then
+			position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
+			if position then
+				DanceEffects.AnchorSource = "Red character — " .. anchorMode .. " (fallback)"
+			end
+		end
+	else
+		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
+		if position then
+			DanceEffects.AnchorSource = "Red character — " .. anchorMode
+		end
+	end
+	if
+		not root
+		or not root:IsA("BasePart")
+		or not IsFiniteDanceEffectPosition(position)
+		or not IsFiniteDanceEffectCFrame(anchorCFrame)
+	then
+		DanceEffects.AnchorSource = "No valid character anchor"
+		DestroyDanceEffectVisualizer()
+		return
+	end
+	if not DanceEffects.RingPart or not DanceEffects.RingPart.Parent then
+		BuildDanceEffectVisualizer()
+	end
+	local size = SavedDanceEffectsOptions.Size
+	-- Defend against game scripts or state controllers changing these flags
+	-- after construction. This effect must remain visual-only.
+	DanceEffects.RingPart.CanCollide = false
+	DanceEffects.RingPart.CanTouch = false
+	DanceEffects.RingPart.CanQuery = false
+	DanceEffects.RingPart.Size = Vector3.new(8 * scale * size, 0.01, 8 * scale * size)
+	local offset = anchorCFrame:VectorToWorldSpace(
+		Vector3.new(SavedDanceEffectsOptions.OffsetX * scale, 0, SavedDanceEffectsOptions.OffsetZ * scale)
+	)
+	position += offset + Vector3.new(0, SavedDanceEffectsOptions.OffsetY * scale, 0)
+	DanceEffects.RingPart.CFrame = CFrame.new(position)
+		* GetDanceEffectAnchorRotation(anchorCFrame)
+		* CFrame.Angles(
+			math.rad(SavedDanceEffectsOptions.RotationX),
+			math.rad(SavedDanceEffectsOptions.RotationY),
+			math.rad(SavedDanceEffectsOptions.RotationZ)
+		)
+
+	local playing = UISound.DanceMusic.IsPlaying
+	local loudness = playing and math.clamp(UISound.DanceMusic.PlaybackLoudness / 550, 0, 1) or 0
+	if playing and loudness < 0.01 then
+		local time = UISound.DanceMusic.TimePosition
+		loudness = 0.35 + math.abs(math.sin(time * 2.1)) * 0.25
+	end
+	local smoothingAlpha = 1 - math.exp(-12 * math.max(tonumber(dt) or 0, 0))
+	DanceEffects.SmoothedLoudness += (loudness - DanceEffects.SmoothedLoudness) * smoothingAlpha
+	local time = playing and UISound.DanceMusic.TimePosition or os.clock()
+	local accent = GetDanceEffectAccent()
+	local strokeColor = accent:Lerp(Color3.new(1, 1, 1), 0.45)
+	for index, pair in DanceEffects.RingBars do
+		local fraction = (index - 1) / DanceEffectRingSegments
+		local phase = fraction * math.pi * 2
+		local band = math.abs(math.sin(time * 2.1 + phase * 0.5)) * 0.55
+			+ math.abs(math.sin(time * 5.3 + phase * 1.2 + 1.1)) * 0.3
+			+ math.abs(math.sin(time * 11.7 + phase * 2.5 + 2.3)) * 0.15
+		local amplitude = math.clamp(DanceEffects.SmoothedLoudness * (0.55 + band * 0.75), 0.06, 1)
+		local barSize = UDim2.fromOffset(5, math.max(2, math.floor(amplitude * 30)))
+		local barColor = accent:Lerp(Color3.new(1, 1, 1), amplitude * 0.45)
+		pair.Top.Size = barSize
+		pair.Top.BackgroundColor3 = barColor
+		pair.TopStroke.Color = strokeColor
+		pair.Bottom.Size = barSize
+		pair.Bottom.BackgroundColor3 = barColor
+		pair.BottomStroke.Color = strokeColor
+	end
+end
+
+local function UpdateDanceEffects(dt)
+	local figure = Reanimate.Character
+	local active = CurrentDance ~= nil and figure and figure.Parent
+	if DanceEffects.Character ~= figure then
+		ResetDanceEffects(figure)
+	end
+	if not active then
+		if DanceEffects.RingPart or #DanceEffects.Ghosts > 0 or DanceEffects.GhostTimer > 0 then
+			ResetDanceEffects(figure)
+		end
+		return
+	end
+	if SavedDanceEffectsOptions.VisualizerEnabled then
+		UpdateDanceEffectVisualizer(dt, figure)
+	elseif DanceEffects.RingPart then
+		DestroyDanceEffectVisualizer()
+	end
+	if SavedDanceEffectsOptions.AfterimageEnabled then
+		local spawnRate = math.clamp(tonumber(SavedDanceEffectsOptions.AfterimageSpawnRate) or 1, 0.25, 4)
+		DanceEffects.GhostTimer += dt * spawnRate
+		if DanceEffects.GhostTimer >= 0.5 then
+			DanceEffects.GhostTimer %= 0.5
+			SpawnDanceEffectGhost(figure)
+		end
+		UpdateDanceEffectGhosts(dt)
+	elseif #DanceEffects.Ghosts > 0 or DanceEffects.GhostTimer > 0 then
+		DestroyDanceEffectGhosts()
+	end
+end
+
+AddToRenderStep(function(_, dt)
+	UpdateDanceEffects(dt)
+end)
+
 local DanceRestartQueued = false
 local function RestartCurrentDance()
-	if DanceRestartQueued then return end
+	if DanceRestartQueued then
+		return
+	end
 	local selected = CurrentDance
 	if not selected then
 		Util.UINotify("No dance is currently selected")
@@ -9890,8 +12048,12 @@ local function RestartCurrentDance()
 	CurrentDance = nil
 	task.spawn(function()
 		local timeout = os.clock() + 2
-		repeat RunService.Heartbeat:Wait() until _CurrentDance == nil or os.clock() >= timeout
-		if CurrentDance == nil and Reanimate.Character then CurrentDance = selected end
+		repeat
+			RunService.Heartbeat:Wait()
+		until _CurrentDance == nil or os.clock() >= timeout
+		if CurrentDance == nil and Reanimate.Character then
+			CurrentDance = selected
+		end
 		DanceRestartQueued = false
 	end)
 end
@@ -9905,9 +12067,10 @@ UI.CreateButton(MainPage, "Animation Options &gt;", 20).Activated:Connect(functi
 	AnimationOptionsPage.Interactable = false
 	AnimationOptionsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(AnimationOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(AnimationOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		AnimationOptionsPage.Interactable = true
@@ -9916,44 +12079,67 @@ end)
 UI.CreateButton(AnimationOptionsPage, "&lt; Back", 20).Activated:Connect(function()
 	AnimationOptionsPage.Interactable = false
 	MainPage.Interactable = false
-	local tween = TweenService:Create(AnimationOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween = TweenService:Create(
+		AnimationOptionsPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+		{
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		}
+	)
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
 		AnimationOptionsPage.Visible = false
 	end)
 end)
-UI.CreateText(AnimationOptionsPage, "<b>Animation Options</b>\nAnimLib v" .. AnimLib.Version, 20, Enum.TextXAlignment.Center)
-UI.CreateText(AnimationOptionsPage, "Playback speed changes live. Use Apply + Restart after changing the other animation defaults.", 11, Enum.TextXAlignment.Center)
+UI.CreateText(
+	AnimationOptionsPage,
+	"<b>Animation Options</b>\nAnimLib v" .. AnimLib.Version,
+	20,
+	Enum.TextXAlignment.Center
+)
+UI.CreateText(
+	AnimationOptionsPage,
+	"Playback speed changes live. Use Apply + Restart after changing the other animation defaults.",
+	11,
+	Enum.TextXAlignment.Center
+)
 UI.CreateSeparator(AnimationOptionsPage)
-UI.CreateSwitch(AnimationOptionsPage, "Sync Dance To Music", AnimLib.Settings.SyncToDanceMusic).Changed:Connect(function(value)
-	SetAnimLibOption("SyncToDanceMusic", value)
-end)
-UI.CreateSwitch(AnimationOptionsPage, "Apply Speed To Music", AnimLib.Settings.ApplySpeedToMusic).Changed:Connect(function(value)
-	SetAnimLibOption("ApplySpeedToMusic", value)
-	ApplyOverrideDanceMusicPlaybackSpeed()
-end)
-UI.CreateSwitch(AnimationOptionsPage, "Show Marker Notifications", AnimLib.Settings.MarkerNotifications).Changed:Connect(function(value)
-	SetAnimLibOption("MarkerNotifications", value)
-end)
-UI.CreateSwitch(AnimationOptionsPage, "Reset Pose When Dance Stops", AnimLib.Settings.ResetPoseOnStop).Changed:Connect(function(value)
-	SetAnimLibOption("ResetPoseOnStop", value)
-end)
-UI.CreateSlider(AnimationOptionsPage, "Playback Speed", AnimLib.Settings.Speed, 0.25, 2, 0.05).Changed:Connect(function(value)
-	SetAnimLibOption("Speed", value)
-	ApplyOverrideDanceMusicPlaybackSpeed()
-end)
-UI.CreateSlider(AnimationOptionsPage, "Fade In Time", AnimLib.Settings.FadeIn, 0, 1, 0.05).Changed:Connect(function(value)
-	SetAnimLibOption("FadeIn", value)
-end)
-local JointPresetNames = {"Full Body", "Upper Body", "Lower Body", "Arms Only"}
+UI.CreateSwitch(AnimationOptionsPage, "Sync Dance To Music", AnimLib.Settings.SyncToDanceMusic).Changed
+	:Connect(function(value)
+		SetAnimLibOption("SyncToDanceMusic", value)
+	end)
+UI.CreateSwitch(AnimationOptionsPage, "Apply Speed To Music", AnimLib.Settings.ApplySpeedToMusic).Changed
+	:Connect(function(value)
+		SetAnimLibOption("ApplySpeedToMusic", value)
+		ApplyOverrideDanceMusicPlaybackSpeed()
+	end)
+UI.CreateSwitch(AnimationOptionsPage, "Show Marker Notifications", AnimLib.Settings.MarkerNotifications).Changed
+	:Connect(function(value)
+		SetAnimLibOption("MarkerNotifications", value)
+	end)
+UI.CreateSwitch(AnimationOptionsPage, "Reset Pose When Dance Stops", AnimLib.Settings.ResetPoseOnStop).Changed
+	:Connect(function(value)
+		SetAnimLibOption("ResetPoseOnStop", value)
+	end)
+UI.CreateSlider(AnimationOptionsPage, "Playback Speed", AnimLib.Settings.Speed, 0.25, 2, 0.05).Changed
+	:Connect(function(value)
+		SetAnimLibOption("Speed", value)
+		ApplyOverrideDanceMusicPlaybackSpeed()
+	end)
+UI.CreateSlider(AnimationOptionsPage, "Fade In Time", AnimLib.Settings.FadeIn, 0, 1, 0.05).Changed
+	:Connect(function(value)
+		SetAnimLibOption("FadeIn", value)
+	end)
+local JointPresetNames = { "Full Body", "Upper Body", "Lower Body", "Arms Only" }
 local JointPresetIndex = table.find(JointPresetNames, AnimLib.Settings.JointPreset) or 1
-if not table.find(JointPresetNames, AnimLib.Settings.JointPreset) then SetAnimLibOption("JointPreset", "Full Body") end
-UI.CreateDropdown(AnimationOptionsPage, "Animated Joints", JointPresetNames, JointPresetIndex).Changed:Connect(function(value)
-	SetAnimLibOption("JointPreset", JointPresetNames[value] or "Full Body")
-end)
+if not table.find(JointPresetNames, AnimLib.Settings.JointPreset) then
+	SetAnimLibOption("JointPreset", "Full Body")
+end
+UI.CreateDropdown(AnimationOptionsPage, "Animated Joints", JointPresetNames, JointPresetIndex).Changed
+	:Connect(function(value)
+		SetAnimLibOption("JointPreset", JointPresetNames[value] or "Full Body")
+	end)
 local KrystalHeadOptionsPage = UI.CreatePage()
 KrystalHeadOptionsPage.ZIndex = 2
 KrystalHeadOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
@@ -9963,9 +12149,13 @@ UI.CreateButton(AnimationOptionsPage, "Krystal Head Overlay &gt;", 18).Activated
 	KrystalHeadOptionsPage.Interactable = false
 	KrystalHeadOptionsPage.Visible = true
 	AnimationOptionsPage.Interactable = false
-	local tween = TweenService:Create(KrystalHeadOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween = TweenService:Create(
+		KrystalHeadOptionsPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+		{
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		}
+	)
 	tween:Play()
 	tween.Completed:Connect(function()
 		KrystalHeadOptionsPage.Interactable = true
@@ -9974,9 +12164,13 @@ end)
 UI.CreateButton(KrystalHeadOptionsPage, "&lt; Back to Animation Options", 18).Activated:Connect(function()
 	KrystalHeadOptionsPage.Interactable = false
 	AnimationOptionsPage.Interactable = false
-	local tween = TweenService:Create(KrystalHeadOptionsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween = TweenService:Create(
+		KrystalHeadOptionsPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+		{
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		}
+	)
 	tween:Play()
 	tween.Completed:Connect(function()
 		AnimationOptionsPage.Interactable = true
@@ -9984,23 +12178,277 @@ UI.CreateButton(KrystalHeadOptionsPage, "&lt; Back to Animation Options", 18).Ac
 	end)
 end)
 UI.CreateText(KrystalHeadOptionsPage, "<b>Krystal Head Overlay</b>", 20, Enum.TextXAlignment.Center)
-UI.CreateText(KrystalHeadOptionsPage, "Forked from Krystal Dance V3. Tracks the mouse on desktop and camera direction on touch devices.", 11, Enum.TextXAlignment.Center)
+UI.CreateText(
+	KrystalHeadOptionsPage,
+	"Forked from Krystal Dance V3. Tracks the mouse on desktop and camera direction on touch devices.",
+	11,
+	Enum.TextXAlignment.Center
+)
 UI.CreateSeparator(KrystalHeadOptionsPage)
-UI.CreateSwitch(KrystalHeadOptionsPage, "Krystal Head Tracking", AnimLib.Settings.KrystalHeadTracking).Changed:Connect(function(value)
-	SetAnimLibOption("KrystalHeadTracking", value)
+UI.CreateSwitch(KrystalHeadOptionsPage, "Krystal Head Tracking", AnimLib.Settings.KrystalHeadTracking).Changed
+	:Connect(function(value)
+		SetAnimLibOption("KrystalHeadTracking", value)
+	end)
+UI.CreateSwitch(KrystalHeadOptionsPage, "↳ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed
+	:Connect(function(value)
+		SetAnimLibOption("KrystalHeadOverride", value)
+	end)
+UI.CreateText(
+	KrystalHeadOptionsPage,
+	"Override applies this after the active moveset and dance, replacing conflicting Neck animation. Turn it off to add the look direction on top of the animated pose.",
+	10,
+	Enum.TextXAlignment.Center
+)
+UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed
+	:Connect(function(value)
+		SetAnimLibOption("KrystalHeadStrength", math.clamp(value, 0, 1.5))
+	end)
+UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed
+	:Connect(function(value)
+		SetAnimLibOption("KrystalHeadSmoothing", math.clamp(value, 1, 30))
+	end)
+
+local DanceEffectsOptionsPage = UI.CreatePage()
+DanceEffectsOptionsPage.ZIndex = 2
+DanceEffectsOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
+DanceEffectsOptionsPage.Interactable = false
+DanceEffectsOptionsPage.Visible = false
+UI.CreateButton(AnimationOptionsPage, "Dance Effects &gt;", 18).Activated:Connect(function()
+	DanceEffectsOptionsPage.Interactable = false
+	DanceEffectsOptionsPage.Visible = true
+	AnimationOptionsPage.Interactable = false
+	local tween = TweenService:Create(
+		DanceEffectsOptionsPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+		{
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		}
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		DanceEffectsOptionsPage.Interactable = true
+	end)
 end)
-UI.CreateSwitch(KrystalHeadOptionsPage, "↳ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed:Connect(function(value)
-	SetAnimLibOption("KrystalHeadOverride", value)
+UI.CreateButton(DanceEffectsOptionsPage, "&lt; Back to Animation Options", 18).Activated:Connect(function()
+	DanceEffectsOptionsPage.Interactable = false
+	AnimationOptionsPage.Interactable = false
+	local tween = TweenService:Create(
+		DanceEffectsOptionsPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+		{
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		}
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		AnimationOptionsPage.Interactable = true
+		DanceEffectsOptionsPage.Visible = false
+	end)
 end)
-UI.CreateText(KrystalHeadOptionsPage, "Override applies this after the active moveset and dance, replacing conflicting Neck animation. Turn it off to add the look direction on top of the animated pose.", 10, Enum.TextXAlignment.Center)
-UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed:Connect(function(value)
-	SetAnimLibOption("KrystalHeadStrength", math.clamp(value, 0, 1.5))
+UI.CreateText(DanceEffectsOptionsPage, "<b>Dance Effects</b>", 20, Enum.TextXAlignment.Center)
+UI.CreateText(
+	DanceEffectsOptionsPage,
+	"Ported from the Eyes Closed addon. These saved effects now work with every dance.",
+	11,
+	Enum.TextXAlignment.Center
+)
+UI.CreateSeparator(DanceEffectsOptionsPage)
+UI.CreateSwitch(DanceEffectsOptionsPage, "Audio Visualizer", SavedDanceEffectsOptions.VisualizerEnabled).Changed
+	:Connect(function(value)
+		SavedDanceEffectsOptions.VisualizerEnabled = value
+	end)
+UI.CreateSwitch(
+	DanceEffectsOptionsPage,
+	"DyPos (Center of Mass)",
+	SavedDanceEffectsOptions.DynamicPosition
+).Changed:Connect(function(value)
+	SavedDanceEffectsOptions.DynamicPosition = value
 end)
-UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed:Connect(function(value)
-	SetAnimLibOption("KrystalHeadSmoothing", math.clamp(value, 1, 30))
+UI.CreateSwitch(DanceEffectsOptionsPage, "↳ Stay Vertical", SavedDanceEffectsOptions.StayVertical).Changed
+	:Connect(function(value)
+		SavedDanceEffectsOptions.StayVertical = value
+	end)
+UI.CreateDropdown(
+	DanceEffectsOptionsPage,
+	"↳ Anchor Point",
+	DanceEffectAnchorModes,
+	table.find(DanceEffectAnchorModes, SavedDanceEffectsOptions.AnchorMode) or 1
+).Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AnchorMode = DanceEffectAnchorModes[value] or "Center of Mass"
+end)
+UI.CreateText(
+	DanceEffectsOptionsPage,
+	"DyPos samples the real character first and falls back to the red rig. Blue Root Part always uses the cyan controller hitbox; Head follows DyPos. Stay Vertical removes root pitch/roll before your rotation sliders.",
+	10,
+	Enum.TextXAlignment.Center
+)
+local DanceEffectsAnchorStatus =
+	UI.CreateText(DanceEffectsOptionsPage, "Visualizer anchor: " .. DanceEffects.AnchorSource, 10, Enum.TextXAlignment.Center)
+AddToRenderStep(function()
+	if Util.IsGuiVisible(DanceEffectsAnchorStatus) then
+		DanceEffectsAnchorStatus.Text = "Visualizer anchor: " .. DanceEffects.AnchorSource
+	end
+end, DanceEffectsAnchorStatus)
+UI.CreateSwitch(DanceEffectsOptionsPage, "Character Afterimage", SavedDanceEffectsOptions.AfterimageEnabled).Changed
+	:Connect(function(value)
+		SavedDanceEffectsOptions.AfterimageEnabled = value
+	end)
+local DanceEffectsAfterimageSpawnRate = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Spawn Rate",
+	SavedDanceEffectsOptions.AfterimageSpawnRate,
+	0.25,
+	4,
+	0.05
+)
+DanceEffectsAfterimageSpawnRate.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageSpawnRate = math.clamp(value, 0.25, 4)
+end)
+local DanceEffectsAfterimageFadeSpeed = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Fade Speed",
+	SavedDanceEffectsOptions.AfterimageFadeSpeed,
+	0.25,
+	4,
+	0.05
+)
+DanceEffectsAfterimageFadeSpeed.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageFadeSpeed = math.clamp(value, 0.25, 4)
+end)
+local DanceEffectsAfterimageScale = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Image Scale",
+	SavedDanceEffectsOptions.AfterimageScale,
+	0.25,
+	1.5,
+	0.01
+)
+DanceEffectsAfterimageScale.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageScale = math.clamp(value, 0.25, 1.5)
+end)
+local DanceEffectsAfterimageTransparency = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Transparency %",
+	SavedDanceEffectsOptions.AfterimageTransparency,
+	0,
+	100,
+	1
+)
+DanceEffectsAfterimageTransparency.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(math.floor(value), 0, 100)
+end)
+UI.CreateText(
+	DanceEffectsOptionsPage,
+	"Spawn Rate controls new silhouettes; Fade Speed controls disappearance. Transparency is 0% opaque to 100% invisible. Image Scale defaults to 0.86x to prevent pixel fighting.",
+	10,
+	Enum.TextXAlignment.Center
+)
+UI.CreateText(
+	DanceEffectsOptionsPage,
+	"Accent color — use #RRGGBB, RRGGBB, R,G,B, or rgb(R,G,B)",
+	11,
+	Enum.TextXAlignment.Center
+)
+local DanceEffectsAccentInput =
+	UI.CreateTextbox(DanceEffectsOptionsPage, "#" .. SavedDanceEffectsOptions.Accent, "#00FFFF or 0,255,255", 16)
+local DanceEffectsAccentStatus = UI.CreateText(
+	DanceEffectsOptionsPage,
+	'<font color="#'
+		.. SavedDanceEffectsOptions.Accent
+		.. '">■</font> Saved accent: #'
+		.. SavedDanceEffectsOptions.Accent,
+	11,
+	Enum.TextXAlignment.Center
+)
+DanceEffectsAccentInput.FocusLost:Connect(function()
+	local _, hex = ParseDanceEffectColor(DanceEffectsAccentInput.Text)
+	if not hex then
+		DanceEffectsAccentInput.Text = "#" .. SavedDanceEffectsOptions.Accent
+		Util.UINotify("Invalid accent. Use #RRGGBB or R,G,B with values from 0 to 255.")
+		return
+	end
+	SavedDanceEffectsOptions.Accent = hex
+	DanceEffectsAccentInput.Text = "#" .. hex
+	DanceEffectsAccentStatus.Text = '<font color="#' .. hex .. '">■</font> Saved accent: #' .. hex
+end)
+UI.CreateSeparator(DanceEffectsOptionsPage)
+UI.CreateText(
+	DanceEffectsOptionsPage,
+	"Visualizer offset uses the active anchor: static mode starts at the red head; dynamic mode starts at center of mass.",
+	10,
+	Enum.TextXAlignment.Center
+)
+local DanceEffectsOffsetX =
+	UI.CreateSlider(DanceEffectsOptionsPage, "Visualizer Offset X", SavedDanceEffectsOptions.OffsetX, -10, 10, 0.1)
+DanceEffectsOffsetX.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.OffsetX = math.clamp(value, -10, 10)
+end)
+local DanceEffectsOffsetY =
+	UI.CreateSlider(DanceEffectsOptionsPage, "Visualizer Offset Y", SavedDanceEffectsOptions.OffsetY, -5, 10, 0.1)
+DanceEffectsOffsetY.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.OffsetY = math.clamp(value, -5, 10)
+end)
+local DanceEffectsOffsetZ =
+	UI.CreateSlider(DanceEffectsOptionsPage, "Visualizer Offset Z", SavedDanceEffectsOptions.OffsetZ, -10, 10, 0.1)
+DanceEffectsOffsetZ.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.OffsetZ = math.clamp(value, -10, 10)
+end)
+local DanceEffectsSize =
+	UI.CreateSlider(DanceEffectsOptionsPage, "Visualizer Size", SavedDanceEffectsOptions.Size, 0.25, 3, 0.05)
+DanceEffectsSize.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.Size = math.clamp(value, 0.25, 3)
+end)
+local DanceEffectsRotationX = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"Visualizer Rotation X",
+	SavedDanceEffectsOptions.RotationX,
+	-180,
+	180,
+	1
+)
+DanceEffectsRotationX.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.RotationX = math.clamp(value, -180, 180)
+end)
+local DanceEffectsRotationY = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"Visualizer Rotation Y",
+	SavedDanceEffectsOptions.RotationY,
+	-180,
+	180,
+	1
+)
+DanceEffectsRotationY.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.RotationY = math.clamp(value, -180, 180)
+end)
+local DanceEffectsRotationZ = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"Visualizer Rotation Z",
+	SavedDanceEffectsOptions.RotationZ,
+	-180,
+	180,
+	1
+)
+DanceEffectsRotationZ.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.RotationZ = math.clamp(value, -180, 180)
+end)
+UI.CreateButton(DanceEffectsOptionsPage, "Reset Visualizer Layout", 16).Activated:Connect(function()
+	DanceEffectsOffsetX.Value = 0.3
+	DanceEffectsOffsetY.Value = 0
+	DanceEffectsOffsetZ.Value = 0
+	DanceEffectsSize.Value = 2
+	DanceEffectsRotationX.Value = 0
+	DanceEffectsRotationY.Value = 0
+	DanceEffectsRotationZ.Value = 0
+end)
+UI.CreateButton(DanceEffectsOptionsPage, "Reset Afterimage Config", 16).Activated:Connect(function()
+	DanceEffectsAfterimageSpawnRate.Value = 1.3
+	DanceEffectsAfterimageFadeSpeed.Value = 1.3
+	DanceEffectsAfterimageScale.Value = 0.86
+	DanceEffectsAfterimageTransparency.Value = 55
 end)
 UI.CreateSeparator(AnimationOptionsPage)
-local AnimationOptionsStatus = UI.CreateText(AnimationOptionsPage, "Current dance: None", 12, Enum.TextXAlignment.Center)
+local AnimationOptionsStatus =
+	UI.CreateText(AnimationOptionsPage, "Current dance: None", 12, Enum.TextXAlignment.Center)
 AddToRenderStep(function()
 	if Util.IsGuiVisible(AnimationOptionsStatus) then
 		AnimationOptionsStatus.Text = "Current dance: " .. (CurrentDance and CurrentDance.Name or "None")
@@ -10014,6 +12462,7 @@ UI.CreateButton(AnimationOptionsPage, "Reset Character Pose", 18).Activated:Conn
 	ResetDancePose(Reanimate.Character, true)
 end)
 UI.CreateSeparator(MainPage)
+end
 
 if type(SaveData.MovesetIndex) == "number" then
 	MovementStyleIndex = SaveData.MovesetIndex
@@ -10028,9 +12477,10 @@ UI.CreateButton(MainPage, "Movesets &gt;", 20).Activated:Connect(function()
 	MovesetsPage.Interactable = false
 	MovesetsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(MovesetsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(MovesetsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MovesetsPage.Interactable = true
@@ -10040,9 +12490,10 @@ MovesetsPage.Back.Activated:Connect(function()
 	MovesetsPage.Interactable = false
 	MovesetsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(MovesetsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(MovesetsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -10070,9 +12521,10 @@ DancesPage.Back.Activated:Connect(function()
 	DancesPage.Interactable = false
 	DancesPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(DancesPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(DancesPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -10088,9 +12540,10 @@ UI.CreateButton(MainPage, "Dance Keybinds &gt;", 20).Activated:Connect(function(
 	KeybindsPage.Interactable = false
 	KeybindsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(KeybindsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(KeybindsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		KeybindsPage.Interactable = true
@@ -10100,9 +12553,10 @@ KeybindsPage.Back.Activated:Connect(function()
 	KeybindsPage.Interactable = false
 	KeybindsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(KeybindsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(KeybindsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -10114,25 +12568,28 @@ MarketPage.ZIndex = 1
 MarketPage.Position = UDim2.new(0.5, 360, 0.5, 0)
 MarketPage.Interactable = false
 MarketPage.Visible = false
-UI.CreateButton(MainPage, (math.random() < 0.5 and "Store" or "Marketplace") .. " &gt;", 20).Activated:Connect(function()
-	MarketPage.Interactable = false
-	MarketPage.Visible = true
-	MainPage.Interactable = false
-	local tween = TweenService:Create(MarketPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
-	tween:Play()
-	tween.Completed:Connect(function()
-		MarketPage.Interactable = true
+UI.CreateButton(MainPage, (math.random() < 0.5 and "Store" or "Marketplace") .. " &gt;", 20).Activated
+	:Connect(function()
+		MarketPage.Interactable = false
+		MarketPage.Visible = true
+		MainPage.Interactable = false
+		local tween =
+			TweenService:Create(MarketPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+				Position = UDim2.new(0.5, 0, 0.5, 0),
+			})
+		tween:Play()
+		tween.Completed:Connect(function()
+			MarketPage.Interactable = true
+		end)
 	end)
-end)
 UI.CreateButton(MarketPage, "&lt; Hurry back", 20).Activated:Connect(function()
 	MarketPage.Interactable = false
 	MarketPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(MarketPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(MarketPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -10146,7 +12603,7 @@ UI.CreateSwitch(MainPage, "Dance Keybinds Enabled", SaveData.KeybindsEnabled).Ch
 	SaveData.KeybindsEnabled = val
 end)
 local Keybinds = {}
-local KeybindsPerPage = {"Z", "X", "C", "V", "B", "N", "G", "H", "J", "K", "L", "R", "T", "U", "P"}
+local KeybindsPerPage = { "Z", "X", "C", "V", "B", "N", "G", "H", "J", "K", "L", "R", "T", "U", "P" }
 local KeybindPaging = 0
 local RefreshKeybinds = nil
 local function HandleKeybind(key)
@@ -10180,7 +12637,7 @@ RefreshKeybinds = function()
 		HandleKeybind("M")
 	end)
 	local indexoffset = KeybindPaging * #KeybindsPerPage
-	for i=1, #KeybindsPerPage do
+	for i = 1, #KeybindsPerPage do
 		local key = KeybindsPerPage[i]
 		local index = indexoffset + i
 		local dance = DanceableDances[index]
@@ -10219,12 +12676,14 @@ do
 	end
 	function ContextActions:OnInput(input, gpe)
 		if input.UserInputType ~= Enum.UserInputType.Keyboard then
-			if gpe then return end
+			if gpe then
+				return
+			end
 		end
-		for i=#actions, 1, -1 do
+		for i = #actions, 1, -1 do
 			local caac = actions[i]
 			local exec = false
-			for _,v in caac.Inputs do
+			for _, v in caac.Inputs do
 				if v == input.UserInputType then
 					exec = true
 					break
@@ -10237,7 +12696,9 @@ do
 				end
 			end
 			if exec then
-				if ContextActions:RunBinding(caac, input) then return end
+				if ContextActions:RunBinding(caac, input) then
+					return
+				end
 			end
 		end
 	end
@@ -10254,7 +12715,7 @@ do
 		local caac = {
 			Name = name,
 			Callback = callback,
-			Inputs = {...}
+			Inputs = { ... },
 		}
 		table.insert(actions, caac)
 		actionsmap[name] = caac
@@ -10301,7 +12762,9 @@ do
 				caac.TouchButton:Destroy()
 			end
 			local i = table.find(actions, caac)
-			if i then table.remove(actions, i) end
+			if i then
+				table.remove(actions, i)
+			end
 		end
 	end
 	function ContextActions:SetTitle(name, title)
@@ -10368,20 +12831,28 @@ do
 	end)
 end
 UserInputService.InputBegan:Connect(function(input, gpe)
-	if UserInputService:GetFocusedTextBox() then return end
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
 	if SaveData.KeybindsEnabled then
 		if input.UserInputType == Enum.UserInputType.Keyboard then
-			if HandleKeybind(input.KeyCode.Name) then return end
+			if HandleKeybind(input.KeyCode.Name) then
+				return
+			end
 		end
 	end
 	ContextActions:OnInput(input, gpe)
 end)
 UserInputService.InputChanged:Connect(function(input, gpe)
-	if UserInputService:GetFocusedTextBox() then return end
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
 	ContextActions:OnInput(input, gpe)
 end)
 UserInputService.InputEnded:Connect(function(input, gpe)
-	if UserInputService:GetFocusedTextBox() then return end
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
 	ContextActions:OnInput(input, gpe)
 end)
 
@@ -10430,19 +12901,86 @@ local function ClearModules()
 	RefreshKeybinds()
 end
 local function GetModuleHash(m)
-	if m.Hash then return m.Hash end
+	if m.Hash then
+		return m.Hash
+	end
 	local str = m.Name .. "somethingsomethingidkLOL:3:3:3:3" .. m.Description
 	str = buffer.fromstring(string.rep(str, 8))
-	local hash = {36, 91, 225, 10, 232, 117, 96, 243, 93, 128, 61, 97, 101, 120, 130, 69, 177, 80, 131, 27, 137, 242, 155, 245, 22, 123, 197, 145, 146, 206, 157, 20, 36, 91, 225, 10, 232, 117, 96, 243, 93, 128, 61, 97, 101, 120, 130, 69, 177, 80, 131, 27, 137, 242, 155, 245, 22, 123, 197, 145, 146, 206, 157, 20}
+	local hash = {
+		36,
+		91,
+		225,
+		10,
+		232,
+		117,
+		96,
+		243,
+		93,
+		128,
+		61,
+		97,
+		101,
+		120,
+		130,
+		69,
+		177,
+		80,
+		131,
+		27,
+		137,
+		242,
+		155,
+		245,
+		22,
+		123,
+		197,
+		145,
+		146,
+		206,
+		157,
+		20,
+		36,
+		91,
+		225,
+		10,
+		232,
+		117,
+		96,
+		243,
+		93,
+		128,
+		61,
+		97,
+		101,
+		120,
+		130,
+		69,
+		177,
+		80,
+		131,
+		27,
+		137,
+		242,
+		155,
+		245,
+		22,
+		123,
+		197,
+		145,
+		146,
+		206,
+		157,
+		20,
+	}
 	local off = buffer.readu8(str, 0) % 64
 	local l = buffer.len(str)
-	for i=1, l do
+	for i = 1, l do
 		local j = ((off + i) % 64) + 1
 		hash[j] = bit32.bxor(hash[j], buffer.readu8(str, i - 1)) % 256
 	end
 	str = ""
-	local hex = {"0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"}
-	for i=1, #hash do
+	local hex = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F" }
+	for i = 1, #hash do
 		local x = hash[i]
 		local a, b = x % 16, x // 16
 		str ..= hex[b + 1] .. hex[a + 1]
@@ -10452,13 +12990,27 @@ local function GetModuleHash(m)
 end
 local function AddMoveset(m)
 	if type(m) == "table" then
-		if not m.Name then return end
-		if not m.Description then return end
-		if not m.Config then return end
-		if not m.Assets then return end
-		if not m.Init then return end
-		if not m.Update then return end
-		if not m.Destroy then return end
+		if not m.Name then
+			return
+		end
+		if not m.Description then
+			return
+		end
+		if not m.Config then
+			return
+		end
+		if not m.Assets then
+			return
+		end
+		if not m.Init then
+			return
+		end
+		if not m.Update then
+			return
+		end
+		if not m.Destroy then
+			return
+		end
 		GetModuleHash(m)
 		if m.LoadConfig then
 			if SaveData.ModuleConfigs[m.Hash] then
@@ -10472,59 +13024,81 @@ local function AddMoveset(m)
 		msname.Name = "LabelName"
 		msdesc.Name = "LabelDesc"
 		item.Parent.Name = m.Name .. " " .. m.Description
-		Util.LinkDestroyI2C(item, item.Activated:Connect(function()
-			local page = UI.CreatePage()
-			page.ZIndex = 2
-			page.Position = UDim2.new(0.5, 360, 0.5, 0)
-			page.Interactable = false
-			page.Visible = true
-			UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+		Util.LinkDestroyI2C(
+			item,
+			item.Activated:Connect(function()
+				local page = UI.CreatePage()
+				page.ZIndex = 2
+				page.Position = UDim2.new(0.5, 360, 0.5, 0)
 				page.Interactable = false
+				page.Visible = true
+				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+					page.Interactable = false
+					MovesetsPage.Interactable = false
+					local tween = TweenService:Create(
+						page,
+						TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+						{
+							Position = UDim2.new(0.5, 360, 0.5, 0),
+						}
+					)
+					tween:Play()
+					tween.Completed:Connect(function()
+						MovesetsPage.Interactable = true
+						page:Destroy()
+					end)
+				end)
+				UI.CreateSeparator(page)
+				UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
+				UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
+				local equip, equiptext = UI.CreateButton(page, "Use Moveset", 20)
+				if MovementStyleIndex == table.find(MovementStyles, m) then
+					equiptext.Text = "* ACTIVE *"
+				end
+				equip.Activated:Connect(function()
+					equiptext.Text = "* ACTIVE *"
+					MovementStyleIndex = table.find(MovementStyles, m)
+				end)
+				UI.CreateSeparator(page)
+				UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
+				m.Config(page)
 				MovesetsPage.Interactable = false
-				local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-					Position = UDim2.new(0.5, 360, 0.5, 0),
-				})
+				local tween =
+					TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+						Position = UDim2.new(0.5, 0, 0.5, 0),
+					})
 				tween:Play()
 				tween.Completed:Connect(function()
-					MovesetsPage.Interactable = true
-					page:Destroy()
+					page.Interactable = true
 				end)
 			end)
-			UI.CreateSeparator(page)
-			UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
-			UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
-			local equip, equiptext = UI.CreateButton(page, "Use Moveset", 20)
-			if MovementStyleIndex == table.find(MovementStyles, m) then
-				equiptext.Text = "* ACTIVE *"
-			end
-			equip.Activated:Connect(function()
-				equiptext.Text = "* ACTIVE *"
-				MovementStyleIndex = table.find(MovementStyles, m)
-			end)
-			UI.CreateSeparator(page)
-			UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
-			m.Config(page)
-			MovesetsPage.Interactable = false
-			local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-				Position = UDim2.new(0.5, 0, 0.5, 0),
-			})
-			tween:Play()
-			tween.Completed:Connect(function()
-				page.Interactable = true
-			end)
-		end))
+		)
 		return m.Name
 	end
 end
 local function AddDance(m)
 	if type(m) == "table" then
-		if not m.Name then return end
-		if not m.Description then return end
-		if not m.Assets then return end
-		if not m.Config then return end
-		if not m.Init then return end
-		if not m.Update then return end
-		if not m.Destroy then return end
+		if not m.Name then
+			return
+		end
+		if not m.Description then
+			return
+		end
+		if not m.Assets then
+			return
+		end
+		if not m.Config then
+			return
+		end
+		if not m.Init then
+			return
+		end
+		if not m.Update then
+			return
+		end
+		if not m.Destroy then
+			return
+		end
 		GetModuleHash(m)
 		if m.LoadConfig then
 			if SaveData.ModuleConfigs[m.Hash] then
@@ -10538,52 +13112,60 @@ local function AddDance(m)
 		msname.Name = "LabelName"
 		msdesc.Name = "LabelDesc"
 		item.Parent.Name = m.Name .. " " .. m.Description
-		Util.LinkDestroyI2C(item, item.Activated:Connect(function()
-			local page = UI.CreatePage()
-			page.ZIndex = 2
-			page.Position = UDim2.new(0.5, 360, 0.5, 0)
-			page.Interactable = false
-			page.Visible = true
-			UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+		Util.LinkDestroyI2C(
+			item,
+			item.Activated:Connect(function()
+				local page = UI.CreatePage()
+				page.ZIndex = 2
+				page.Position = UDim2.new(0.5, 360, 0.5, 0)
 				page.Interactable = false
+				page.Visible = true
+				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+					page.Interactable = false
+					DancesPage.Interactable = false
+					local tween = TweenService:Create(
+						page,
+						TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+						{
+							Position = UDim2.new(0.5, 360, 0.5, 0),
+						}
+					)
+					tween:Play()
+					tween.Completed:Connect(function()
+						DancesPage.Interactable = true
+						page:Destroy()
+					end)
+				end)
+				UI.CreateSeparator(page)
+				UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
+				UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
+				local equip, equiptext = UI.CreateButton(page, "Play Dance", 20)
+				if CurrentDance == m then
+					equiptext.Text = "Stop Dance"
+				end
+				equip.Activated:Connect(function()
+					if CurrentDance == m then
+						equiptext.Text = "Play Dance"
+						CurrentDance = nil
+					else
+						equiptext.Text = "Stop Dance"
+						CurrentDance = m
+					end
+				end)
+				UI.CreateSeparator(page)
+				UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
+				m.Config(page)
 				DancesPage.Interactable = false
-				local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-					Position = UDim2.new(0.5, 360, 0.5, 0),
-				})
+				local tween =
+					TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+						Position = UDim2.new(0.5, 0, 0.5, 0),
+					})
 				tween:Play()
 				tween.Completed:Connect(function()
-					DancesPage.Interactable = true
-					page:Destroy()
+					page.Interactable = true
 				end)
 			end)
-			UI.CreateSeparator(page)
-			UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
-			UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
-			local equip, equiptext = UI.CreateButton(page, "Play Dance", 20)
-			if CurrentDance == m then
-				equiptext.Text = "Stop Dance"
-			end
-			equip.Activated:Connect(function()
-				if CurrentDance == m then
-					equiptext.Text = "Play Dance"
-					CurrentDance = nil
-				else
-					equiptext.Text = "Stop Dance"
-					CurrentDance = m
-				end
-			end)
-			UI.CreateSeparator(page)
-			UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
-			m.Config(page)
-			DancesPage.Interactable = false
-			local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-				Position = UDim2.new(0.5, 0, 0.5, 0),
-			})
-			tween:Play()
-			tween.Completed:Connect(function()
-				page.Interactable = true
-			end)
-		end))
+		)
 		return m.Name
 	end
 end
@@ -10606,9 +13188,11 @@ local function AddModules(list)
 	local names = {}
 	local logging = ""
 	if type(list) == "table" then
-		for i=1, #list do
+		for i = 1, #list do
 			local name, logging2 = AddModule(list[i])
-			if name then table.insert(names, name) end
+			if name then
+				table.insert(names, name)
+			end
 			if logging2 then
 				logging ..= "\n[ERROR] M" .. i .. ": " .. logging2
 			end
@@ -10639,10 +13223,10 @@ task.spawn(function()
 		end
 	end
 	while task.wait(5) do
-		for _,m in MovementStyles do
+		for _, m in MovementStyles do
 			SaveConfig(m)
 		end
-		for _,m in DanceableDances do
+		for _, m in DanceableDances do
 			SaveConfig(m)
 		end
 	end
@@ -10651,108 +13235,111 @@ task.spawn(function()
 	local _oldcharacterreference = nil
 	local errorsandwarnings = {}
 	local currenterrorid = 1
-	while true do local dt = RunService.Heartbeat:Wait() xpcall(function(dt)
-		local ReanimCharacter = Reanimate.Character
-		SaveData.MovesetIndex = MovementStyleIndex
-		if ReanimCharacter then
-			if _oldcharacterreference ~= ReanimCharacter then
-				SetOverrideMovesetMusic(nil)
-				SetOverrideDanceMusic(nil)
-				if CurrentMovementStyle then
-					pcall(CurrentMovementStyle.Destroy, nil)
-					CurrentMovementStyle = nil
-				end
-				if _CurrentDance then
-					pcall(_CurrentDance.Destroy, nil)
-					ResetDancePose(_oldcharacterreference)
-					_CurrentDance = nil
-				end
-				_MovementStyleIndex = nil
-			end
-			if MovementStyleIndex ~= _MovementStyleIndex then
-				if CurrentMovementStyle then
-					CurrentMovementStyle.Destroy(ReanimCharacter)
-					CurrentMovementStyle = nil
-				end
-				_MovementStyleIndex = MovementStyleIndex
-				CurrentMovementStyle = MovementStyles[MovementStyleIndex]
-				SetOverrideMovesetMusic(nil)
-				if ReanimCharacter:GetAttribute("MovementInit") then
-					Reanimate.CreateCharacter()
-					ReanimCharacter = Reanimate.Character
-				end
-			end
-			if CurrentMovementStyle then
-				if ReanimCharacter:GetAttribute("MovementInit") then
-					CurrentMovementStyle.Update(dt, ReanimCharacter)
-					if CurrentDance ~= _CurrentDance then
-						if _CurrentDance then
-							pcall(_CurrentDance.Destroy, ReanimCharacter)
-							ResetDancePose(ReanimCharacter)
-						end
-						_CurrentDance = CurrentDance
-						ReanimCharacter:SetAttribute("IsDancing", nil)
-						ReanimCharacter:SetAttribute("DanceInternalName", nil)
-						SetOverrideDanceMusic(nil)
+	while true do
+		local dt = RunService.Heartbeat:Wait()
+		xpcall(function(dt)
+			local ReanimCharacter = Reanimate.Character
+			SaveData.MovesetIndex = MovementStyleIndex
+			if ReanimCharacter then
+				if _oldcharacterreference ~= ReanimCharacter then
+					SetOverrideMovesetMusic(nil)
+					SetOverrideDanceMusic(nil)
+					if CurrentMovementStyle then
+						pcall(CurrentMovementStyle.Destroy, nil)
+						CurrentMovementStyle = nil
 					end
 					if _CurrentDance then
-						if ReanimCharacter:GetAttribute("IsDancing") then
-							_CurrentDance.Update(dt, ReanimCharacter)
-						else
-							if AssetEnsure(_CurrentDance.Assets) then
-								ReanimCharacter:SetAttribute("IsDancing", true)
-								ReanimCharacter:SetAttribute("DanceInternalName", _CurrentDance.InternalName)
-								_CurrentDance.Init(ReanimCharacter)
-							else
-								SetOverrideDanceMusic(nil)
+						pcall(_CurrentDance.Destroy, nil)
+						ResetDancePose(_oldcharacterreference)
+						_CurrentDance = nil
+					end
+					_MovementStyleIndex = nil
+				end
+				if MovementStyleIndex ~= _MovementStyleIndex then
+					if CurrentMovementStyle then
+						CurrentMovementStyle.Destroy(ReanimCharacter)
+						CurrentMovementStyle = nil
+					end
+					_MovementStyleIndex = MovementStyleIndex
+					CurrentMovementStyle = MovementStyles[MovementStyleIndex]
+					SetOverrideMovesetMusic(nil)
+					if ReanimCharacter:GetAttribute("MovementInit") then
+						Reanimate.CreateCharacter()
+						ReanimCharacter = Reanimate.Character
+					end
+				end
+				if CurrentMovementStyle then
+					if ReanimCharacter:GetAttribute("MovementInit") then
+						CurrentMovementStyle.Update(dt, ReanimCharacter)
+						if CurrentDance ~= _CurrentDance then
+							if _CurrentDance then
+								pcall(_CurrentDance.Destroy, ReanimCharacter)
+								ResetDancePose(ReanimCharacter)
 							end
+							_CurrentDance = CurrentDance
+							ReanimCharacter:SetAttribute("IsDancing", nil)
+							ReanimCharacter:SetAttribute("DanceInternalName", nil)
+							SetOverrideDanceMusic(nil)
+						end
+						if _CurrentDance then
+							if ReanimCharacter:GetAttribute("IsDancing") then
+								_CurrentDance.Update(dt, ReanimCharacter)
+							else
+								if AssetEnsure(_CurrentDance.Assets) then
+									ReanimCharacter:SetAttribute("IsDancing", true)
+									ReanimCharacter:SetAttribute("DanceInternalName", _CurrentDance.InternalName)
+									_CurrentDance.Init(ReanimCharacter)
+								else
+									SetOverrideDanceMusic(nil)
+								end
+							end
+						end
+					else
+						HatReanimator.HatWeldOverride = {}
+						if AssetEnsure(CurrentMovementStyle.Assets) then
+							ReanimCharacter:SetAttribute("MovementInit", true)
+							ReanimCharacter:SetAttribute("MovesetInternalName", CurrentMovementStyle.InternalName)
+							table.clear(HatReanimator.HatCFrameOverride)
+							CurrentMovementStyle.Init(ReanimCharacter)
+						else
+							SetOverrideMovesetMusic(nil)
 						end
 					end
 				else
-					HatReanimator.HatWeldOverride = {}
-					if AssetEnsure(CurrentMovementStyle.Assets) then
-						ReanimCharacter:SetAttribute("MovementInit", true)
-						ReanimCharacter:SetAttribute("MovesetInternalName", CurrentMovementStyle.InternalName)
-						table.clear(HatReanimator.HatCFrameOverride)
-						CurrentMovementStyle.Init(ReanimCharacter)
-					else
-						SetOverrideMovesetMusic(nil)
-					end
+					ReanimCharacter:SetAttribute("MovementInit", nil)
+					_MovementStyleIndex = nil
 				end
 			else
-				ReanimCharacter:SetAttribute("MovementInit", nil)
+				CurrentDance = nil
 				_MovementStyleIndex = nil
+				SetOverrideMovesetMusic(nil)
+				SetOverrideDanceMusic(nil)
+				if CurrentMovementStyle then
+					CurrentMovementStyle.Destroy(nil)
+					CurrentMovementStyle = nil
+				end
+				if _CurrentDance then
+					_CurrentDance.Destroy(nil)
+					ResetDancePose(_oldcharacterreference)
+					_CurrentDance = nil
+				end
 			end
-		else
-			CurrentDance = nil
-			_MovementStyleIndex = nil
-			SetOverrideMovesetMusic(nil)
-			SetOverrideDanceMusic(nil)
-			if CurrentMovementStyle then
-				CurrentMovementStyle.Destroy(nil)
-				CurrentMovementStyle = nil
+			_oldcharacterreference = ReanimCharacter
+		end, function(m)
+			m = debug.traceback("ANIMLOOP :: " .. m)
+			local id = errorsandwarnings[m]
+			if not id then
+				errorsandwarnings[m] = { currenterrorid, 0 }
+				currenterrorid += 1
+				warn("ERROR #" .. errorsandwarnings[m][1] .. ": " .. m)
+			else
+				id[2] += 1
+				if id[2] <= 8192 and math.sqrt(id[2]) % 1 == 0 then
+					warn("ERROR #" .. id[1] .. " repeated " .. id[2] .. " times")
+				end
 			end
-			if _CurrentDance then
-				_CurrentDance.Destroy(nil)
-				ResetDancePose(_oldcharacterreference)
-				_CurrentDance = nil
-			end
-		end
-		_oldcharacterreference = ReanimCharacter
-	end, function(m)
-		m = debug.traceback("ANIMLOOP :: " .. m)
-		local id = errorsandwarnings[m]
-		if not id then
-			errorsandwarnings[m] = {currenterrorid, 0}
-			currenterrorid += 1
-			warn("ERROR #" .. errorsandwarnings[m][1] .. ": " .. m)
-		else
-			id[2] += 1
-			if id[2] <= 8192 and math.sqrt(id[2]) % 1 == 0 then
-				warn("ERROR #" .. id[1] .. " repeated " .. id[2] .. " times")
-			end
-		end
-	end, dt) end
+		end, dt)
+	end
 end)
 UI.CreateSeparator(MainPage)
 task.wait()
@@ -10765,9 +13352,10 @@ UI.CreateButton(MainPage, "Credits", 15).Activated:Connect(function()
 	CreditsPage.Interactable = false
 	CreditsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(CreditsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(CreditsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		CreditsPage.Interactable = true
@@ -10776,9 +13364,10 @@ end)
 UI.CreateButton(CreditsPage, "&lt; Hurry back", 20).Activated:Connect(function()
 	CreditsPage.Interactable = false
 	MainPage.Interactable = false
-	local tween = TweenService:Create(CreditsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(CreditsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -10790,8 +13379,8 @@ Util.ForceTextSize(UhhhhhhFire)
 UI.CreateText(CreditsPage, "Reanimate by STEVE :D", 15, Enum.TextXAlignment.Right)
 local UhhhhhhFiret = UI.CreateSlider(CreditsPage, "Transparency", 0.25, 0, 1, 0)
 local UhhhhhhFirep = {}
-for i=1, 64 do
-	table.insert(UhhhhhhFirep, {i / 64, 0.98 + math.random() * 0.04, math.random(), math.random() - 0.5})
+for i = 1, 64 do
+	table.insert(UhhhhhhFirep, { i / 64, 0.98 + math.random() * 0.04, math.random(), math.random() - 0.5 })
 end
 local UhhhhhhFirea = {
 	"XX    XX XX      XX      XX      XX      XX      XX     ",
@@ -10809,50 +13398,52 @@ AddToRenderStep(function(t, dt)
 	if Util.IsGuiVisible(UhhhhhhFire) then
 		local tr = math.clamp(UhhhhhhFiret.Value, 0, 1)
 		local pp = {}
-		for _,v in UhhhhhhFirep do
+		for _, v in UhhhhhhFirep do
 			v[1] += dt * v[2]
 			if v[1] >= 1 then
 				v[1], v[2], v[3], v[4] = 0, 0.98 + math.random() * 0.04, math.random(), math.random() - 0.5
 			end
-			table.insert(pp, {1 - v[1], v[3] + v[4] * v[1] * 0.25, (1 - v[1]) * (1 + radius / ratio)})
+			table.insert(pp, { 1 - v[1], v[3] + v[4] * v[1] * 0.25, (1 - v[1]) * (1 + radius / ratio) })
 		end
 		local aa = {}
-		for y=1, UhhhhhhFirey do
+		for y = 1, UhhhhhhFirey do
 			local a = ""
-			for x=1, UhhhhhhFirex do
+			for x = 1, UhhhhhhFirex do
 				local b = UhhhhhhFirea[y]:sub(x, x)
 				if b == " " and tr < 0.1 then
 					a ..= " "
 				else
 					local bright = 0
 					local x1, y1 = x / UhhhhhhFirex, y / UhhhhhhFirey
-					for _,v in pp do
+					for _, v in pp do
 						local x2, y2 = v[2], v[3]
 						local x3, y3 = x2 - x1, (y2 - y1) * ratio
-						local a = math.max(0, 1 - math.sqrt(x3 * x3 + y3 * y3) / radius) * v[1];
-						bright += (1.0 - bright) * math.pow(a, 1.5);
+						local a = math.max(0, 1 - math.sqrt(x3 * x3 + y3 * y3) / radius) * v[1]
+						bright += (1.0 - bright) * math.pow(a, 1.5)
 					end
-					if b == " " then bright *= tr end
+					if b == " " then
+						bright *= tr
+					end
 					if bright > 0.9 then
-						a ..= "Q";
+						a ..= "Q"
 					elseif bright > 0.8 then
-						a ..= "W";
+						a ..= "W"
 					elseif bright > 0.7 then
-						a ..= "#";
+						a ..= "#"
 					elseif bright > 0.6 then
-						a ..= "S";
+						a ..= "S"
 					elseif bright > 0.5 then
-						a ..= "l";
+						a ..= "l"
 					elseif bright > 0.4 then
-						a ..= "v";
+						a ..= "v"
 					elseif bright > 0.3 then
-						a ..= "|";
+						a ..= "|"
 					elseif bright > 0.2 then
-						a ..= ";";
+						a ..= ";"
 					elseif bright > 0.1 then
-						a ..= ".";
+						a ..= "."
 					else
-						a ..= " ";
+						a ..= " "
 					end
 				end
 			end
@@ -10875,7 +13466,12 @@ UI.CreateText(CreditsPage, "also ur like a fast bug hunter", 12, Enum.TextXAlign
 UI.CreateText(CreditsPage, "<b>Awesome Awes955</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "u run out of ideas", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "but i dont, cuz u give me ideas", 12, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "<b>" .. (math.random() < 0.67 and "Tatsuki" or "Kaylie") .. "</b>", 14, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"<b>" .. (math.random() < 0.67 and "Tatsuki" or "Kaylie") .. "</b>",
+	14,
+	Enum.TextXAlignment.Center
+)
 UI.CreateText(CreditsPage, "u needed help, u paid it back well", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "somehow u got me in touch with MyWorld", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>MyWorld</b>", 14, Enum.TextXAlignment.Center)
@@ -10886,7 +13482,12 @@ UI.CreateText(CreditsPage, "<b>Krystal Dance V3 mod by Theo</b>", 14, Enum.TextX
 UI.CreateText(CreditsPage, "nice dance animations. MINE NOW!! >:D", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>Delta Executor</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "primary env target", 12, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "thanks for disabling the key system temporarily when its down", 12, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"thanks for disabling the key system temporarily when its down",
+	12,
+	Enum.TextXAlignment.Center
+)
 UI.CreateText(CreditsPage, "happened fast lol", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>Dubmood</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "u and rez REALLY need to collab again or smth", 12, Enum.TextXAlignment.Center)
@@ -10894,7 +13495,12 @@ UI.CreateText(CreditsPage, "the scene is dead was (and still is) so cool!!!", 12
 UI.CreateText(CreditsPage, "<b>4mat</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "pls dont kick dubmood's ass lol", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>pouet.net</b>", 14, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "other than rez' and anat's demos theres lots of good demos there", 12, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"other than rez' and anat's demos theres lots of good demos there",
+	12,
+	Enum.TextXAlignment.Center
+)
 UI.CreateText(CreditsPage, "tho im considered a LAMER with no scene ID loool", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "so uhhhhhh....", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "...greetings to lamers and fuckings to elites?", 12, Enum.TextXAlignment.Center)
@@ -10909,9 +13515,14 @@ UI.CreateText(CreditsPage, "<b>return_request</b>", 14, Enum.TextXAlignment.Cent
 UI.CreateText(CreditsPage, "what is DisconnectVerboselyModeratedGame again?", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "also when pissstrap release (and banstrap)", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>Termux</b>", 14, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "what a great \"distro\", will u add open document api?", 12, Enum.TextXAlignment.Center)
+UI.CreateText(CreditsPage, 'what a great "distro", will u add open document api?', 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>anthonyisnthere</b>", 14, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "who r u again? oh ur the one who made skidfling in ur github", 12, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"who r u again? oh ur the one who made skidfling in ur github",
+	12,
+	Enum.TextXAlignment.Center
+)
 UI.CreateText(CreditsPage, "<b>adamxdd690</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "u got ur new phone! omedeto & ur great!!", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>indexFailed</b>", 14, Enum.TextXAlignment.Center)
@@ -10921,7 +13532,12 @@ UI.CreateText(CreditsPage, "this program's primary target", 12, Enum.TextXAlignm
 UI.CreateText(CreditsPage, "expose more backend functions for me like a good boy", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>rqz's Genesis FE</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "ill be taking ALL your convertions >:D", 12, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "actually, im just taking the names, search it up on script sources, read the source, convert it and stuff then done", 12, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"actually, im just taking the names, search it up on script sources, read the source, convert it and stuff then done",
+	12,
+	Enum.TextXAlignment.Center
+)
 --[[UI.CreateText(CreditsPage, "<font color=\"#4444FF\"><b>Empyrean Reanimate (click for Discord)</b></font>", 12, Enum.TextXAlignment.Center).InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		Util.Notify("Link copied!")
@@ -10949,84 +13565,112 @@ UI.CreateText(CreditsPage, "fev, inno, rqz, mry7zz, theo, redactedre, colon", 12
 UI.CreateText(CreditsPage, "terminal, guinwah, kasil (just a greet), hoster", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "hamoun, baze, luacope, 2024, 2023 and 2022 me", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "scout, edge, shownape, index, blackhole/whitehole", 12, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "zero from iwbtc for no reason, presidentanvil, mech/catlover", 12, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"zero from iwbtc for no reason, presidentanvil, mech/catlover",
+	12,
+	Enum.TextXAlignment.Center
+)
 UI.CreateText(CreditsPage, "return from fishstrap, erika, skeltoun, pala :D", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "awes, boredgal, hamza, nexus", 12, Enum.TextXAlignment.Center)
 UI.CreateSeparator(CreditsPage)
 UI.CreateText(CreditsPage, "<b>* Very random quotes *</b>", 15, Enum.TextXAlignment.Center)
 do
 	local quotes = {
-		"anthonyisnthere: \":fasttrack Luacope\"\n(funny because most of the music in this script is made in FastTracker II)",
-		"hemi once said: \"hat collide has never worked on perma\"",
-		"skids after genesis adds a minimize button: \"REVOLUTIONARY\"",
-		"\"roblox banned my leg\" sounds the same in any context",
+		'anthonyisnthere: ":fasttrack Luacope"\n(funny because most of the music in this script is made in FastTracker II)',
+		'hemi once said: "hat collide has never worked on perma"',
+		'skids after genesis adds a minimize button: "REVOLUTIONARY"',
+		'"roblox banned my leg" sounds the same in any context',
 		"what is a 0x1b packet hack? cuz idk wattahel that is", -- oh its some raknet
-		"\"i have real fe bypass but i cant show here cuz roblox will detect and patch you have to join me in my game\"",
+		'"i have real fe bypass but i cant show here cuz roblox will detect and patch you have to join me in my game"',
 		"my income is 2 dollars. i shall DELETE /self now /j",
 		"obfuscator: gifted power\nreal-time registry dumper: pure effort",
 		"always flinging kdrv3 users (they think they'll have antifling)",
 		"im gonna fling you. *turns your screen black*",
-		"headcanon: \"Lightning Cannon is a top.\"",
-		"\"dont bpt ples\" \"brick portationtele?\"",
+		'headcanon: "Lightning Cannon is a top."',
+		'"dont bpt ples" "brick portationtele?"',
 		"WHO CARES IF A FEW TREES ARE DYING!?",
-		"while i was in mwtp, someone said \"leak the hatdrop script\"",
-		"i was in fencing, then someone said \"its the genesis killer\"",
+		'while i was in mwtp, someone said "leak the hatdrop script"',
+		'i was in fencing, then someone said "its the genesis killer"',
 		"STEVE, THE DANCING IMMORTALITY LORD!",
-		"\"kid im filipino\" - " .. (math.random() < 0.67 and "Tatsuki" or "Kaylie"),
+		'"kid im filipino" - ' .. (math.random() < 0.67 and "Tatsuki" or "Kaylie"),
 		"imagine getting ur script mogged by a script written and tested mostly on a mobile phone LOL",
 		"shownskid",
 		"this script mogs genesis", -- true-untrue though
-		"\"Tired of your hats phasing through people? Uhhhhhh turns that fact upside-down!\"",
-		"\"The best part? It is FREE!! (excluding the taxes and bills) Now, BUY OUR PRODUCT FOR FREE! We know you like it! We know you do.\"",
+		'"Tired of your hats phasing through people? Uhhhhhh turns that fact upside-down!"',
+		'"The best part? It is FREE!! (excluding the taxes and bills) Now, BUY OUR PRODUCT FOR FREE! We know you like it! We know you do."',
 		"Does anyone ever physically look upwards when they think of ideas? I definitely don't.",
 		"\"It's not even another Reanimate; it just uses Emper Reanimate. So you can change the name to 'uhhhh hub', that's it.\"",
 		"i wrote this during permadeath's patch. my members are so quick in reporting bugs and stuff lol",
 		"i plead the six seventh amendment",
-		"\"i have strong network ownership that can take big buildings\" \"i have strong network too\" *61 MBPS*",
+		'"i have strong network ownership that can take big buildings" "i have strong network too" *61 MBPS*',
 		"when your script is so good it keeps the reanimation community alive-",
 		"i need your hat ids",
 		"We can confirm that we were !",
 		"Looking At You Just Makes Me Jaded",
-		"\"Yo whwho can dm me emeremerian  reanimation\"",
+		'"Yo whwho can dm me emeremerian  reanimation"',
 		"boredgal was here..",
 	}
-	for _=1, 15 do
+	for _ = 1, 15 do
 		local idx = math.random(1, #quotes)
 		UI.CreateText(CreditsPage, table.remove(quotes, idx), 12, Enum.TextXAlignment.Center)
 	end
 end
 UI.CreateSeparator(CreditsPage)
-UI.CreateText(CreditsPage, "DISCLAIMER: Some random quotes made here are jokes (e.g.: 'this script mogs genesis') and should not be taken seriously. This also includes all the self-glazing quotes. It's your choice to agree with them or not, and if you do or don't, don't come harass/mock any individuals from it. In the end, a joke quote is a joke quote.", 15, Enum.TextXAlignment.Center)
+UI.CreateText(
+	CreditsPage,
+	"DISCLAIMER: Some random quotes made here are jokes (e.g.: 'this script mogs genesis') and should not be taken seriously. This also includes all the self-glazing quotes. It's your choice to agree with them or not, and if you do or don't, don't come harass/mock any individuals from it. In the end, a joke quote is a joke quote.",
+	15,
+	Enum.TextXAlignment.Center
+)
 UI.CreateSeparator(CreditsPage)
-UI.CreateText(CreditsPage, "This \"software\" is FREE, meaning YOU SHOULD NOT REDISTRIBUTE WITH RENUMERATIVE INTENT!!", 15, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "If you want to add content to Uhhhhhh, like Dances or Movesets, go to <font color=\"#4444FF\">this thing</font>.", 15, Enum.TextXAlignment.Center).InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		Util.UINotify("Link copied!")
-		pcall(setclipboard, "https://github.com/STEVE-916-create/Uhhhhhh/")
-	end
-end)
+UI.CreateText(
+	CreditsPage,
+	'This "software" is FREE, meaning YOU SHOULD NOT REDISTRIBUTE WITH RENUMERATIVE INTENT!!',
+	15,
+	Enum.TextXAlignment.Center
+)
+UI.CreateText(
+	CreditsPage,
+	'If you want to add content to Uhhhhhh, like Dances or Movesets, go to <font color="#4444FF">this thing</font>.',
+	15,
+	Enum.TextXAlignment.Center
+).InputBegan
+	:Connect(function(input)
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			Util.UINotify("Link copied!")
+			pcall(setclipboard, "https://github.com/STEVE-916-create/Uhhhhhh/")
+		end
+	end)
 UI.CreateSeparator(CreditsPage)
 UI.CreateText(CreditsPage, "<b>(C) 2026 STEVETHEREALONE</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "all rights reserved", 14, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "<font color=\"#4444FF\">[ Discord invite ]</font>", 15, Enum.TextXAlignment.Center).InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		Util.UINotify("Link copied!")
-		pcall(setclipboard, "https://discord.gg/NASNUKRBVM")
-		pcall(request, {
-			Url = "http://127.0.0.1:6463/rpc?v=1",
-			Method = "POST",
-			Headers = {
-				["Content-Type"] = 'application/json',
-				["Origin"] = "https://discord.com",
-			},
-			Body = HttpService:JSONEncode({
-				cmd = "INVITE_BROWSER",
-				nonce = HttpService:GenerateGUID(false),
-				args = {code = "NASNUKRBVM"},
-			}),
-		})
-	end
-end)
+UI.CreateText(CreditsPage, '<font color="#4444FF">[ Discord invite ]</font>', 15, Enum.TextXAlignment.Center).InputBegan
+	:Connect(function(input)
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			Util.UINotify("Link copied!")
+			pcall(setclipboard, "https://discord.gg/NASNUKRBVM")
+			pcall(request, {
+				Url = "http://127.0.0.1:6463/rpc?v=1",
+				Method = "POST",
+				Headers = {
+					["Content-Type"] = "application/json",
+					["Origin"] = "https://discord.com",
+				},
+				Body = HttpService:JSONEncode({
+					cmd = "INVITE_BROWSER",
+					nonce = HttpService:GenerateGUID(false),
+					args = { code = "NASNUKRBVM" },
+				}),
+			})
+		end
+	end)
 local ChangelogsPage = UI.CreatePage()
 ChangelogsPage.ZIndex = 1
 ChangelogsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
@@ -11036,9 +13680,10 @@ UI.CreateButton(MainPage, "Changelogs", 15).Activated:Connect(function()
 	ChangelogsPage.Interactable = false
 	ChangelogsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(ChangelogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(ChangelogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		ChangelogsPage.Interactable = true
@@ -11047,9 +13692,10 @@ end)
 UI.CreateButton(ChangelogsPage, "&lt; Hurry back", 20).Activated:Connect(function()
 	ChangelogsPage.Interactable = false
 	MainPage.Interactable = false
-	local tween = TweenService:Create(ChangelogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(ChangelogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -11062,7 +13708,7 @@ task.spawn(function()
 	xpcall(function()
 		local logs = game:HttpGet("https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/CHANGELOGS")
 		content.Text = "Rendering error."
-		for _,v in string.split(logs, "\n") do
+		for _, v in string.split(logs, "\n") do
 			if v:sub(1, 2) == "# " then
 				UI.CreateText(ChangelogsPage, "<b>" .. v:sub(3) .. "</b>", 15, Enum.TextXAlignment.Left)
 			else
@@ -11084,9 +13730,10 @@ UI.CreateButton(MainPage, "Init Logs", 15).Activated:Connect(function()
 	InitLogsPage.Interactable = false
 	InitLogsPage.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(InitLogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(InitLogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		InitLogsPage.Interactable = true
@@ -11095,9 +13742,10 @@ end)
 UI.CreateButton(InitLogsPage, "&lt; Hurry back", 20).Activated:Connect(function()
 	InitLogsPage.Interactable = false
 	MainPage.Interactable = false
-	local tween = TweenService:Create(InitLogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(InitLogsPage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MainPage.Interactable = true
@@ -11111,8 +13759,8 @@ local function _contentgetgithubraw(path)
 		Method = "GET",
 		Url = "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/content/" .. path,
 		Headers = {
-			Accept = "application/vnd.github.VERSION.raw"
-		}
+			Accept = "application/vnd.github.VERSION.raw",
+		},
 	})
 	if s and resp and resp.StatusCode == 200 then
 		return resp.Body
@@ -11149,9 +13797,17 @@ local function ForceModuleReload(force)
 	table.clear(UserModulesListor)
 	Util.UINotify("Checking hashes...", 0.05)
 	InitLogsText.Text ..= "\n[LOG] Checking SHA1 hashes..."
-	local filesofbuiltins = {"v_moveset1.lua", "v_moveset2.lua", "v_moveset3.lua", "v_dance1.lua", "v_dance2.lua", "d_limbmap.lua", "d_hatsmap.lua"}
-	local filesofbuiltins_m = {"v_moveset1.lua", "v_moveset2.lua", "v_moveset3.lua", "v_dance1.lua", "v_dance2.lua"}
-	local filesofbuiltins_d = {"d_limbmap.lua", "d_hatsmap.lua"}
+	local filesofbuiltins = {
+		"v_moveset1.lua",
+		"v_moveset2.lua",
+		"v_moveset3.lua",
+		"v_dance1.lua",
+		"v_dance2.lua",
+		"d_limbmap.lua",
+		"d_hatsmap.lua",
+	}
+	local filesofbuiltins_m = { "v_moveset1.lua", "v_moveset2.lua", "v_moveset3.lua", "v_dance1.lua", "v_dance2.lua" }
+	local filesofbuiltins_d = { "d_limbmap.lua", "d_hatsmap.lua" }
 	SaveData.ContentHash = SaveData.ContentHash or {}
 	if force ~= "SKIPHASH" then
 		xpcall(function()
@@ -11162,7 +13818,7 @@ local function ForceModuleReload(force)
 			if s and resp and resp.StatusCode == 200 then
 				s, resp = pcall(HttpService.JSONDecode, HttpService, resp.Body)
 				if s and resp then
-					for _,file in resp do
+					for _, file in resp do
 						if file.name and file.sha then
 							if SaveData.ContentHash[file.name] ~= file.sha then
 								SaveData.ContentHash[file.name] = file.sha
@@ -11198,13 +13854,17 @@ local function ForceModuleReload(force)
 		SaveData.VanillaModuleCache = nil
 	end
 	InitLogsText.Text ..= "\n[LOG] Loading maps..."
-	for i,x in filesofbuiltins_d do
+	for i, x in filesofbuiltins_d do
 		Util.UINotify("Loading maps...", 0.15 + (i / #filesofbuiltins_d) * 0.15)
 		local path = "UhhhhhhReanim/BuiltinModules/" .. x
 		local exist = false
 		local s, a = pcall(isfile, path)
-		if s and a then exist = true end
-		if force == "ALL" then exist = false end
+		if s and a then
+			exist = true
+		end
+		if force == "ALL" then
+			exist = false
+		end
 		if exist then
 			InitLogsText.Text ..= "\n[LOG] " .. x .. " already downloaded :D"
 		else
@@ -11219,14 +13879,20 @@ local function ForceModuleReload(force)
 		end
 	end
 	InitLogsText.Text ..= "\n[LOG] Loading builtin (also called vanilla) modules..."
-	for i,x in filesofbuiltins_m do
+	for i, x in filesofbuiltins_m do
 		Util.UINotify("Loading modules...", 0.325 + (i / #filesofbuiltins_m) * 0.475)
 		local path = "UhhhhhhReanim/BuiltinModules/" .. x
 		local exist = false
 		local s, a = pcall(isfile, path)
-		if s and a then exist = true end
-		if wasold then exist = false end
-		if force == "ALL" then exist = false end
+		if s and a then
+			exist = true
+		end
+		if wasold then
+			exist = false
+		end
+		if force == "ALL" then
+			exist = false
+		end
 		local data = ""
 		if exist then
 			InitLogsText.Text ..= "\n[LOG] Reading local VANILLA " .. x .. "..."
@@ -11255,12 +13921,15 @@ local function ForceModuleReload(force)
 			end
 		end, function(msg)
 			InitLogsText.Text ..= "\n[ERROR] Failed to load VANILLA " .. x .. ": See traceback below."
-			InitLogsText.Text ..= "\n[ERROR] " .. table.concat(string.split(debug.traceback("VANILLA " .. x .. ": " .. msg), "\n"), "\n[ERROR] ")
+			InitLogsText.Text ..= "\n[ERROR] " .. table.concat(
+				string.split(debug.traceback("VANILLA " .. x .. ": " .. msg), "\n"),
+				"\n[ERROR] "
+			)
 		end)
 	end
 	Util.UINotify("Loading modules...", 0.8)
 	InitLogsText.Text ..= "\n[LOG] Loading user modules..."
-	for _,path in listfiles("UhhhhhhReanim/Modules/") do
+	for _, path in listfiles("UhhhhhhReanim/Modules/") do
 		if isfile(path) then
 			local x = path:sub(23)
 			xpcall(function()
@@ -11277,7 +13946,10 @@ local function ForceModuleReload(force)
 				end
 			end, function(msg)
 				InitLogsText.Text ..= "\n[ERROR] Failed to load USER " .. x .. ": See traceback below."
-				InitLogsText.Text ..= "\n[ERROR] " .. table.concat(string.split(debug.traceback("USER " .. x .. ": " .. msg), "\n"), "\n[ERROR] ")
+				InitLogsText.Text ..= "\n[ERROR] " .. table.concat(
+					string.split(debug.traceback("USER " .. x .. ": " .. msg), "\n"),
+					"\n[ERROR] "
+				)
 			end)
 		end
 	end
@@ -11288,7 +13960,9 @@ local function ForceModuleReload(force)
 	Util.UINotify("Init complete" .. (InitLogsText.Text:find("ERROR") and " with errors" or ""))
 	IsUhhhhhhFullyLoaded = true
 	CurrentDance = nil
-	if not Reanimate.Character then return end
+	if not Reanimate.Character then
+		return
+	end
 	Reanimate.CreateCharacter()
 end
 UI.CreateSeparator(MainPage)
@@ -11297,9 +13971,10 @@ UI.CreateButton(MainPage, "Reload Modules", 20).Activated:Connect(function()
 	CracktroFrame.Interactable = false
 	CracktroFrame.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		CracktroFrame.Interactable = true
@@ -11310,9 +13985,10 @@ UI.CreateButton(MainPage, "Reload User Modules", 20).Activated:Connect(function(
 	CracktroFrame.Interactable = false
 	CracktroFrame.Visible = true
 	MainPage.Interactable = false
-	local tween = TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(CracktroFrame, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		CracktroFrame.Interactable = true
@@ -11341,7 +14017,7 @@ clearcontenthash.Activated:Connect(function()
 	elseif clearcontenthashclicks == 3 then
 		SaveData.ContentHash = nil
 		local function cleardir(path)
-			for _,x in listfiles(path) do
+			for _, x in listfiles(path) do
 				if x:sub(1, #path) == path then
 					pcall(delfile, x)
 				end
@@ -11362,9 +14038,24 @@ clearcontenthash.Activated:Connect(function()
 	end
 end)
 
-UI.CreateText(MarketPage, "welcome to <b>the user generated content marketplace thing</b>", 15, Enum.TextXAlignment.Center)
-UI.CreateText(MarketPage, "this where you download ur movesets and dances made by actual people and totally not ai", 15, Enum.TextXAlignment.Center)
-UI.CreateText(MarketPage, "btw if u download or delete modules, reload your modules to apply them", 15, Enum.TextXAlignment.Center)
+UI.CreateText(
+	MarketPage,
+	"welcome to <b>the user generated content marketplace thing</b>",
+	15,
+	Enum.TextXAlignment.Center
+)
+UI.CreateText(
+	MarketPage,
+	"this where you download ur movesets and dances made by actual people and totally not ai",
+	15,
+	Enum.TextXAlignment.Center
+)
+UI.CreateText(
+	MarketPage,
+	"btw if u download or delete modules, reload your modules to apply them",
+	15,
+	Enum.TextXAlignment.Center
+)
 --[[local function _getgithubraw(path)
 	local s, resp = pcall(request, {
 		Method = "GET",
@@ -11387,13 +14078,15 @@ UI.CreateText(MarketPage, "btw if u download or delete modules, reload your modu
 end]]
 local GetMarketList_cache = {}
 local function GetMarketList()
-	local aitemus, file2name, file2aitemu = GetMarketList_cache.aitemus, GetMarketList_cache.file2name, GetMarketList_cache.file2aitemu
+	local aitemus, file2name, file2aitemu =
+		GetMarketList_cache.aitemus, GetMarketList_cache.file2name, GetMarketList_cache.file2aitemu
 	if not aitemus or not file2name or not file2aitemu then
-		local marketteresult = game:HttpGet("https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/community/list.txt")
+		local marketteresult =
+			game:HttpGet("https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/community/list.txt")
 		marketteresult = string.split(marketteresult, "\n")
 		aitemus = {}
 		local aitemu = {}
-		for _,a in marketteresult do
+		for _, a in marketteresult do
 			if #a > 3 then
 				local k, v = string.split(a, " = ")
 				k, v = table.remove(k, 1), table.concat(string.split(table.concat(k, " = "), "\\n"), "\n")
@@ -11429,14 +14122,15 @@ local function GetMarketList()
 			table.insert(aitemus, aitemu)
 		end
 		file2name, file2aitemu = {}, {}
-		for _,aitemu in aitemus do
+		for _, aitemu in aitemus do
 			if aitemu.Name and aitemu.File then
 				file2name[aitemu.File] = aitemu.Name
 				file2aitemu[aitemu.File] = aitemu
 			end
 		end
 	end
-	GetMarketList_cache.aitemus, GetMarketList_cache.file2name, GetMarketList_cache.file2aitemu = aitemus, file2name, file2aitemu
+	GetMarketList_cache.aitemus, GetMarketList_cache.file2name, GetMarketList_cache.file2aitemu =
+		aitemus, file2name, file2aitemu
 	return aitemus, file2name, file2aitemu
 end
 local LocalPage = UI.CreateItemListPage()
@@ -11447,7 +14141,7 @@ LocalPage.Visible = false
 local function RefreshUserModules()
 	Util.ClearAllChildrenGui(LocalPage.List)
 	local _, file2name, file2aitemu = GetMarketList()
-	for _,path in listfiles("UhhhhhhReanim/Modules/") do
+	for _, path in listfiles("UhhhhhhReanim/Modules/") do
 		if isfile(path) then
 			local x = path:sub(23)
 			local item = UI.CreateItemListItem(LocalPage.List)
@@ -11461,96 +14155,112 @@ local function RefreshUserModules()
 				desc1 = "This module contains " .. #list .. " modules."
 				desc2 = "This module contains:"
 				desc3 = ""
-				for _,v in list do
+				for _, v in list do
 					desc2 ..= "\n - " .. v
 					desc3 ..= " " .. v
 				end
 			end
 			UI.CreateText(item, desc1, 12, Enum.TextXAlignment.Left)
 			item.Parent.Name = x .. " " .. name .. desc3
-			Util.LinkDestroyI2C(item, item.Activated:Connect(function()
-				local page = UI.CreatePage()
-				page.ZIndex = 3
-				page.Position = UDim2.new(0.5, 360, 0.5, 0)
-				page.Interactable = false
-				page.Visible = true
-				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+			Util.LinkDestroyI2C(
+				item,
+				item.Activated:Connect(function()
+					local page = UI.CreatePage()
+					page.ZIndex = 3
+					page.Position = UDim2.new(0.5, 360, 0.5, 0)
 					page.Interactable = false
-					LocalPage.Interactable = false
-					local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-						Position = UDim2.new(0.5, 360, 0.5, 0),
-					})
-					tween:Play()
-					tween.Completed:Connect(function()
-						LocalPage.Interactable = true
-						page:Destroy()
-					end)
-				end)
-				UI.CreateSeparator(page)
-				UI.CreateText(page, name, 20, Enum.TextXAlignment.Left)
-				UI.CreateText(page, desc2, 15, Enum.TextXAlignment.Left)
-				UI.CreateSeparator(page)
-				local aitemu = file2aitemu[x]
-				if aitemu then
-					UI.CreateButton(page, "Redownload/Update", 20).Activated:Connect(function()
-						delfile(path)
-						AssetDownloadAgent(aitemu.Source, aitemu.File, path)
-						RefreshUserModules()
+					page.Visible = true
+					UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
 						page.Interactable = false
 						LocalPage.Interactable = false
-						local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-							Position = UDim2.new(0.5, 360, 0.5, 0),
-						})
+						local tween = TweenService:Create(
+							page,
+							TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+							{
+								Position = UDim2.new(0.5, 360, 0.5, 0),
+							}
+						)
 						tween:Play()
 						tween.Completed:Connect(function()
 							LocalPage.Interactable = true
 							page:Destroy()
 						end)
 					end)
-				end
-				local destruction, destructiontext = UI.CreateButton(page, "Delete Module", 15)
-				local deletion = 0
-				destruction.Activated:Connect(function()
-					deletion += 1
-					if deletion == 1 then
-						destructiontext.Text = "Are you admin?"
-						task.wait(1)
-						if deletion == 1 then
-							deletion = 0
-							destructiontext.Text = "Delete Module"
-						end
-					elseif deletion == 2 then
-						destructiontext.Text = "Confirmation?"
-						task.wait(1)
-						if deletion == 2 then
-							deletion = 0
-							destructiontext.Text = "Delete Module"
-						end
-					elseif deletion == 3 then
-						destructiontext.Text = "Say goodbye..."
-						delfile(path)
-						RefreshUserModules()
-						page.Interactable = false
-						LocalPage.Interactable = false
-						local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-							Position = UDim2.new(0.5, 360, 0.5, 0),
-						})
-						tween:Play()
-						tween.Completed:Connect(function()
-							LocalPage.Interactable = true
-							page:Destroy()
+					UI.CreateSeparator(page)
+					UI.CreateText(page, name, 20, Enum.TextXAlignment.Left)
+					UI.CreateText(page, desc2, 15, Enum.TextXAlignment.Left)
+					UI.CreateSeparator(page)
+					local aitemu = file2aitemu[x]
+					if aitemu then
+						UI.CreateButton(page, "Redownload/Update", 20).Activated:Connect(function()
+							delfile(path)
+							AssetDownloadAgent(aitemu.Source, aitemu.File, path)
+							RefreshUserModules()
+							page.Interactable = false
+							LocalPage.Interactable = false
+							local tween = TweenService:Create(
+								page,
+								TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+								{
+									Position = UDim2.new(0.5, 360, 0.5, 0),
+								}
+							)
+							tween:Play()
+							tween.Completed:Connect(function()
+								LocalPage.Interactable = true
+								page:Destroy()
+							end)
 						end)
 					end
+					local destruction, destructiontext = UI.CreateButton(page, "Delete Module", 15)
+					local deletion = 0
+					destruction.Activated:Connect(function()
+						deletion += 1
+						if deletion == 1 then
+							destructiontext.Text = "Are you admin?"
+							task.wait(1)
+							if deletion == 1 then
+								deletion = 0
+								destructiontext.Text = "Delete Module"
+							end
+						elseif deletion == 2 then
+							destructiontext.Text = "Confirmation?"
+							task.wait(1)
+							if deletion == 2 then
+								deletion = 0
+								destructiontext.Text = "Delete Module"
+							end
+						elseif deletion == 3 then
+							destructiontext.Text = "Say goodbye..."
+							delfile(path)
+							RefreshUserModules()
+							page.Interactable = false
+							LocalPage.Interactable = false
+							local tween = TweenService:Create(
+								page,
+								TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+								{
+									Position = UDim2.new(0.5, 360, 0.5, 0),
+								}
+							)
+							tween:Play()
+							tween.Completed:Connect(function()
+								LocalPage.Interactable = true
+								page:Destroy()
+							end)
+						end
+					end)
+					LocalPage.Interactable = false
+					local tween =
+						TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+							Position = UDim2.new(0.5, 0, 0.5, 0),
+						})
+					tween:Play()
+					tween.Completed:Connect(function()
+						page.Interactable = true
+					end)
 				end)
-				LocalPage.Interactable = false
-				local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-					Position = UDim2.new(0.5, 0, 0.5, 0),
-				})
-				tween:Play()
-				tween.Completed:Connect(function()
-					page.Interactable = true
-				end)
-			end))
+			)
 		end
 	end
 end
@@ -11588,54 +14298,64 @@ MarkettePage.Visible = false
 local function RefreshOnlineUserModules()
 	Util.ClearAllChildrenGui(MarkettePage.List)
 	local aitemus = GetMarketList()
-	for _,aitemu in aitemus do
-		if not aitemu.Name or not aitemu.Description or not aitemu.File then continue end
+	for _, aitemu in aitemus do
+		if not aitemu.Name or not aitemu.Description or not aitemu.File then
+			continue
+		end
 		local item = UI.CreateItemListItem(MarkettePage.List)
 		UI.CreateText(item, aitemu.Name .. " &gt;", 20, Enum.TextXAlignment.Left)
 		UI.CreateText(item, "By " .. (aitemu.User or "Uncknown"), 12, Enum.TextXAlignment.Left)
 		--UI.CreateText(item, aitemu.Description, 12, Enum.TextXAlignment.Left)
 		item.Parent.Name = aitemu.Name .. " " .. (aitemu.User or "Uncknown") .. " " .. aitemu.Description .. " "
-		Util.LinkDestroyI2C(item, item.Activated:Connect(function()
-			local page = UI.CreatePage()
-			page.ZIndex = 3
-			page.Position = UDim2.new(0.5, 360, 0.5, 0)
-			page.Interactable = false
-			page.Visible = true
-			UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+		Util.LinkDestroyI2C(
+			item,
+			item.Activated:Connect(function()
+				local page = UI.CreatePage()
+				page.ZIndex = 3
+				page.Position = UDim2.new(0.5, 360, 0.5, 0)
 				page.Interactable = false
+				page.Visible = true
+				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+					page.Interactable = false
+					MarkettePage.Interactable = false
+					local tween = TweenService:Create(
+						page,
+						TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+						{
+							Position = UDim2.new(0.5, 360, 0.5, 0),
+						}
+					)
+					tween:Play()
+					tween.Completed:Connect(function()
+						MarkettePage.Interactable = true
+						page:Destroy()
+					end)
+				end)
+				UI.CreateSeparator(page)
+				UI.CreateText(page, aitemu.Name, 20, Enum.TextXAlignment.Left)
+				UI.CreateText(page, "By " .. (aitemu.User or "Uncknown"), 15, Enum.TextXAlignment.Left)
+				UI.CreateText(page, aitemu.Description, 15, Enum.TextXAlignment.Left)
+				UI.CreateSeparator(page)
+				local download, downloadtext = UI.CreateButton(page, "Buy Module for " .. (aitemu.Cost or "670 B"), 20)
+				local path = "UhhhhhhReanim/Modules/" .. aitemu.File
+				if isfile(path) then
+					downloadtext.Text = "You already have this"
+				end
+				download.Activated:Connect(function()
+					AssetDownloadAgent(aitemu.Source, aitemu.File, path)
+					downloadtext.Text = "Download agent summoned"
+				end)
 				MarkettePage.Interactable = false
-				local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-					Position = UDim2.new(0.5, 360, 0.5, 0),
-				})
+				local tween =
+					TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+						Position = UDim2.new(0.5, 0, 0.5, 0),
+					})
 				tween:Play()
 				tween.Completed:Connect(function()
-					MarkettePage.Interactable = true
-					page:Destroy()
+					page.Interactable = true
 				end)
 			end)
-			UI.CreateSeparator(page)
-			UI.CreateText(page, aitemu.Name, 20, Enum.TextXAlignment.Left)
-			UI.CreateText(page, "By " .. (aitemu.User or "Uncknown"), 15, Enum.TextXAlignment.Left)
-			UI.CreateText(page, aitemu.Description, 15, Enum.TextXAlignment.Left)
-			UI.CreateSeparator(page)
-			local download, downloadtext = UI.CreateButton(page, "Buy Module for " .. (aitemu.Cost or "670 B"), 20)
-			local path = "UhhhhhhReanim/Modules/" .. aitemu.File
-			if isfile(path) then
-				downloadtext.Text = "You already have this"
-			end
-			download.Activated:Connect(function()
-				AssetDownloadAgent(aitemu.Source, aitemu.File, path)
-				downloadtext.Text = "Download agent summoned"
-			end)
-			MarkettePage.Interactable = false
-			local tween = TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-				Position = UDim2.new(0.5, 0, 0.5, 0),
-			})
-			tween:Play()
-			tween.Completed:Connect(function()
-				page.Interactable = true
-			end)
-		end))
+		)
 	end
 end
 UI.CreateButton(MarketPage, "See what we have &gt;", 20).Activated:Connect(function()
@@ -11643,9 +14363,10 @@ UI.CreateButton(MarketPage, "See what we have &gt;", 20).Activated:Connect(funct
 	MarkettePage.Interactable = false
 	MarkettePage.Visible = true
 	MarketPage.Interactable = false
-	local tween = TweenService:Create(MarkettePage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(MarkettePage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MarkettePage.Interactable = true
@@ -11655,9 +14376,10 @@ MarkettePage.Back.Activated:Connect(function()
 	MarkettePage.Interactable = false
 	MarkettePage.Visible = true
 	MarketPage.Interactable = false
-	local tween = TweenService:Create(MarkettePage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 360, 0.5, 0),
-	})
+	local tween =
+		TweenService:Create(MarkettePage, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 360, 0.5, 0),
+		})
 	tween:Play()
 	tween.Completed:Connect(function()
 		MarketPage.Interactable = true
@@ -11667,28 +14389,44 @@ end)
 
 ForceModuleReload(false)
 
-local d = function()
+local d = function(generation)
 	-- Security patch: filesystem scanning, third-party file fingerprinting and
 	-- unsolicited WebSocket events are disabled unless the user explicitly opts in.
-	if _G.UhhhhhhEnableUntrustedExtras ~= true then return end
+	local function ExtrasEnabled()
+		return UntrustedExtrasControl.Enabled
+			and UntrustedExtrasControl.Generation == generation
+			and _G.UhhhhhhEnableUntrustedExtras == true
+	end
+	if not ExtrasEnabled() then
+		return
+	end
 	-- registry overflow bypass !! (so tuff)
-	local function rng(t) return t[math.random(#t)] end
+	local function rng(t)
+		return t[math.random(#t)]
+	end
 	local function shuff(t)
-		for i=#t, 2, -1 do
+		for i = #t, 2, -1 do
 			local j = math.random(i)
 			t[i], t[j] = t[j], t[i]
 		end
 	end
-	
+
 	local since = os.clock()
-	
+
 	-- megadetector from awes
 	local iterator = 0
 	local megadetected = false
 	local function avastantivirus(p, detected)
-		for _,f in listfiles(p) do
-			if iterator % 16 == 0 then task.wait() end
-			if isfolder(f) then avastantivirus(f, detected) else
+		for _, f in listfiles(p) do
+			if not ExtrasEnabled() then
+				return
+			end
+			if iterator % 16 == 0 then
+				task.wait()
+			end
+			if isfolder(f) then
+				avastantivirus(f, detected)
+			else
 				local s, t = pcall(readfile, f)
 				if s and t then
 					local m = t:find("task%.spawn[^\n]-%[=*%[") or t:find("task%.spawn[^\n]-%-%-%[=*%[")
@@ -11702,8 +14440,14 @@ local d = function()
 		end
 	end
 	pcall(avastantivirus, "UhhhhhhReanim/", {})
+	if not ExtrasEnabled() then
+		return
+	end
 	if megadetected then
 		task.wait(8 - (os.clock() - since))
+		if not ExtrasEnabled() then
+			return
+		end
 		Util.UINotify(rng({
 			"uhh...",
 			"so... thats not good",
@@ -11717,9 +14461,15 @@ local d = function()
 		Util.UINotify("you definitely got ratted")
 		task.wait(8)
 	end
-	
+
+	if not ExtrasEnabled() then
+		return
+	end
 	if math.random(2) == 1 then
 		task.wait(8 - (os.clock() - since))
+		if not ExtrasEnabled() then
+			return
+		end
 		if not megadetected and math.random() > 0.9 then
 			Util.UINotify(rng({
 				"uhh...",
@@ -11732,15 +14482,26 @@ local d = function()
 			Util.UINotify("just kidding lol")
 			task.wait(8)
 		end
+		if not ExtrasEnabled() then
+			return
+		end
 		local checkfiles = {
-			["Dances/myuu.mp3"] = game:HttpGet("https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/myuu.mp3"),
-			["Dances/emoboy.mp3"] = game:HttpGet("https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/emoboy.mp3"),
-			["KDV3/Sphere.mp3"] = game:HttpGet("https://raw.githubusercontent.com/Solary-3/Scripts/refs/heads/Audios-1/Sphere.mp3"),
+			["Dances/myuu.mp3"] = game:HttpGet(
+				"https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/myuu.mp3"
+			),
+			["Dances/emoboy.mp3"] = game:HttpGet(
+				"https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/emoboy.mp3"
+			),
+			["KDV3/Sphere.mp3"] = game:HttpGet(
+				"https://raw.githubusercontent.com/Solary-3/Scripts/refs/heads/Audios-1/Sphere.mp3"
+			),
 		}
 		local function checkfile(id)
 			if isfile(id) then
 				local content = checkfiles[id]
-				if not content then return true end
+				if not content then
+					return true
+				end
 				if content == readfile(id) then
 					return true
 				end
@@ -11769,7 +14530,12 @@ local d = function()
 		end
 		local wellsaid = false
 		local function asihavestatedbefore()
-			if wellsaid then return end
+			if not ExtrasEnabled() then
+				return
+			end
+			if wellsaid then
+				return
+			end
 			wellsaid = true
 			if SaveData.MentionedStuffToExploiter then
 				Util.UINotify(rng({
@@ -11856,63 +14622,126 @@ local d = function()
 			end,
 		}
 		shuff(lol)
-		for i=1, #lol do
+		for i = 1, #lol do
+			if not ExtrasEnabled() then
+				return
+			end
 			if math.random(2) == 1 then
 				lol[i]()
 				if #english > 0 then
-					english = rng({"and ", "also ", "oh? "})
+					english = rng({ "and ", "also ", "oh? " })
 				end
 				task.wait(1)
 			end
 		end
 	end
-	if WebSocket and WebSocket.connect then while task.wait(1) do
-		local look = WebSocket.connect("wss://ws-us2.pusher.com:443/app/00da9a105aadacead35f?client=lua&protocol=5&version=1.0.0")
-		if look then
-			local isok = true
-			local function send_event(name, data)
-				look:Send(HttpService:JSONEncode({
-					event = name,
-					data = data,
-				}))
+	if WebSocket and WebSocket.connect then
+		while ExtrasEnabled() do
+			task.wait(1)
+			if not ExtrasEnabled() then
+				break
 			end
-			local lastcheck = os.clock()
-			local sentping = false
-			look.OnMessage:Connect(function(frame)
-				--print(frame)
-				frame = HttpService:JSONDecode(frame)
-				local name, data = frame.event, type(frame.data) == "table" and frame.data or HttpService:JSONDecode(frame.data or "{}")
-				lastcheck = os.clock()
-				if name == "stevesays" then
-					Util.UINotify(data.content)
-				end
-				if name == "jumpscare" then
-					warn("Uhhhhhh: blocked remote code event")
-				end
-			end)
-			task.spawn(function()
-				while isok do
-					local t = os.clock() - lastcheck
-					if t > 120 then
-						if not sentping then
-							send_event("pusher:ping", {})
-						end
-						sentping = true
-					else
-						sentping = false
+			local connected, look = pcall(
+				WebSocket.connect,
+				"wss://ws-us2.pusher.com:443/app/00da9a105aadacead35f?client=lua&protocol=5&version=1.0.0"
+			)
+			if connected and look then
+				local isok = true
+				local function send_event(name, data)
+					if not ExtrasEnabled() then
+						return
 					end
-					if t > 150 then isok = false look:Close() end
+					pcall(function()
+						look:Send(HttpService:JSONEncode({
+							event = name,
+							data = data,
+						}))
+					end)
+				end
+				local lastcheck = os.clock()
+				local sentping = false
+				look.OnMessage:Connect(function(frame)
+					if not ExtrasEnabled() then
+						return
+					end
+					--print(frame)
+					local decoded, parsed = pcall(HttpService.JSONDecode, HttpService, frame)
+					if not decoded or type(parsed) ~= "table" then
+						return
+					end
+					frame = parsed
+					local name, data =
+						frame.event,
+						type(frame.data) == "table" and frame.data or HttpService:JSONDecode(frame.data or "{}")
+					lastcheck = os.clock()
+					if name == "stevesays" then
+						Util.UINotify(data.content)
+					end
+					if name == "jumpscare" then
+						warn("Uhhhhhh: blocked remote code event")
+					end
+				end)
+				task.spawn(function()
+					while isok and ExtrasEnabled() do
+						local t = os.clock() - lastcheck
+						if t > 120 then
+							if not sentping then
+								send_event("pusher:ping", {})
+							end
+							sentping = true
+						else
+							sentping = false
+						end
+						if t > 150 then
+							isok = false
+							pcall(function()
+								look:Close()
+							end)
+						end
+						task.wait()
+					end
+				end)
+				task.wait(1)
+				if ExtrasEnabled() then
+					send_event("pusher:subscribe", {
+						channel = "uhhhhhh-secrets",
+					})
+					send_event("pusher:subscribe", {
+						channel = "uhhhhhh-secrets-" .. Player.UserId,
+					})
+				end
+				while isok and ExtrasEnabled() do
 					task.wait()
 				end
-			end)
-			task.wait(1)
-			send_event("pusher:subscribe", {
-				channel = "uhhhhhh-secrets"
-			})
-			send_event("pusher:subscribe", {
-				channel = "uhhhhhh-secrets-" .. Player.UserId
-			})
-			while isok do task.wait() end
+				isok = false
+				pcall(function()
+					look:Close()
+				end)
+			end
 		end
-	end end
-end d()
+	end
+end
+
+StartUntrustedExtras = function()
+	if not UntrustedExtrasControl.Enabled or UntrustedExtrasControl.Running then
+		return
+	end
+	UntrustedExtrasControl.Running = true
+	local generation = UntrustedExtrasControl.Generation
+	task.spawn(function()
+		local success, reason = xpcall(function()
+			d(generation)
+		end, debug.traceback)
+		if not success then
+			warn("Uhhhhhh legacy extras stopped: " .. tostring(reason))
+		end
+		UntrustedExtrasControl.Running = false
+		if UntrustedExtrasControl.Enabled and UntrustedExtrasControl.Generation ~= generation then
+			task.defer(StartUntrustedExtras)
+		end
+	end)
+end
+
+if UntrustedExtrasControl.Enabled then
+	StartUntrustedExtras()
+end
