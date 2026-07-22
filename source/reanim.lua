@@ -470,6 +470,10 @@ do
 				AfterimageFadeSpeed = 1.3,
 				AfterimageScale = 0.86,
 				AfterimageTransparency = 55,
+				AfterimageGlowEnabled = true,
+				AfterimageGlowBrightness = 1.5,
+				AfterimageGlowRange = 7,
+				AfterimageHiddenParts = {},
 				AfterimageEnabled = false,
 				Accent = "2DED43",
 				VisualizerEnabled = true,
@@ -5070,7 +5074,7 @@ SaveData.Reanimator.LimbUseNaNFling = not not SaveData.Reanimator.LimbUseNaNFlin
 SaveData.Reanimator.LimbFlingVelocityMagnitude = math.clamp(
 	math.floor(tonumber(SaveData.Reanimator.LimbFlingVelocityMagnitude) or 10000),
 	1,
-	10000
+	1000000000
 )
 SaveData.Reanimator.LimbFlingVelocityDirection = math.clamp(
 	math.floor(tonumber(SaveData.Reanimator.LimbFlingVelocityDirection) or 1),
@@ -5195,11 +5199,11 @@ function LimbReanimator.Config(parent)
 		"↳ Fling Velocity",
 		LimbReanimator.FlingVelocityMagnitude,
 		1,
-		10000,
+		1000000000,
 		1
 	)
 	flingVelocityMagnitude.Changed:Connect(function(val)
-		val = math.clamp(math.floor(val), 1, 10000)
+		val = math.clamp(math.floor(val), 1, 1000000000)
 		flingVelocityMagnitude.Value = val
 		LimbReanimator.FlingVelocityMagnitude = val
 		SaveData.Reanimator.LimbFlingVelocityMagnitude = val
@@ -8815,12 +8819,31 @@ SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(
 	0,
 	100
 )
+SavedDanceEffectsOptions.AfterimageGlowEnabled = SavedDanceEffectsOptions.AfterimageGlowEnabled ~= false
+SavedDanceEffectsOptions.AfterimageGlowBrightness = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageGlowBrightness) or 1.5,
+	0,
+	10
+)
+SavedDanceEffectsOptions.AfterimageGlowRange = math.clamp(
+	tonumber(SavedDanceEffectsOptions.AfterimageGlowRange) or 7,
+	0,
+	30
+)
+if type(SavedDanceEffectsOptions.AfterimageHiddenParts) ~= "table" then
+	SavedDanceEffectsOptions.AfterimageHiddenParts = {}
+end
+for partName, hidden in SavedDanceEffectsOptions.AfterimageHiddenParts do
+	if type(partName) ~= "string" or hidden ~= true then
+		SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = nil
+	end
+end
 SavedDanceEffectsOptions.AnchorMode = table.find(DanceEffectAnchorModes, SavedDanceEffectsOptions.AnchorMode)
 		and SavedDanceEffectsOptions.AnchorMode
 	or "Center of Mass"
 
 local AnimLib = {
-	Version = "1.7.5",
+	Version = "1.7.7",
 	Settings = {
 		Speed = SavedAnimLibOptions.Speed,
 		FadeIn = SavedAnimLibOptions.FadeIn,
@@ -11756,6 +11779,24 @@ local function IsDanceEffectBodyPart(figure, source)
 	return true
 end
 
+local function IsDanceEffectBodyPartVisible(source)
+	return SavedDanceEffectsOptions.AfterimageHiddenParts[source.Name] ~= true
+end
+
+local function GetDetectedDanceEffectBodyParts(figure)
+	local names = {}
+	if typeof(figure) ~= "Instance" or not figure:IsA("Model") or not figure.Parent then
+		return names
+	end
+	for _, source in figure:GetChildren() do
+		if IsDanceEffectBodyPart(figure, source) then
+			table.insert(names, source.Name)
+		end
+	end
+	table.sort(names)
+	return names
+end
+
 local function GetDanceEffectGhostSource(figure)
 	local realCharacter = Player.Character
 	if realCharacter and realCharacter ~= figure and realCharacter.Parent then
@@ -11837,7 +11878,10 @@ local function SpawnDanceEffectGhost(figure)
 	local partCount = 0
 	local lightParent = nil
 	for _, source in sourceFigure:GetDescendants() do
-		if IsDanceEffectBodyPart(sourceFigure, source) and partCount < 20 then
+		if IsDanceEffectBodyPart(sourceFigure, source)
+			and IsDanceEffectBodyPartVisible(source)
+			and partCount < 20
+		then
 			local part = CloneDanceEffectPart(source, accent, imageScale, baseTransparency)
 			if part then
 				part.Parent = ghost
@@ -11856,14 +11900,15 @@ local function SpawnDanceEffectGhost(figure)
 	lightParent = lightParent or ghost:FindFirstChildWhichIsA("BasePart")
 	if lightParent then
 		local light = Instance.new("PointLight")
-		light.Brightness = 1.5
-		light.Range = 7 * imageScale
+		light.Enabled = SavedDanceEffectsOptions.AfterimageGlowEnabled
+		light.Brightness = SavedDanceEffectsOptions.AfterimageGlowBrightness
+		light.Range = SavedDanceEffectsOptions.AfterimageGlowRange * imageScale
 		light.Color = accent
 		light.Shadows = false
 		light.Parent = lightParent
 	end
 	ghost.Parent = workspace
-	table.insert(DanceEffects.Ghosts, { Model = ghost, Elapsed = 0 })
+	table.insert(DanceEffects.Ghosts, { Model = ghost, Elapsed = 0, ImageScale = imageScale })
 end
 
 local function UpdateDanceEffectGhosts(dt)
@@ -11875,6 +11920,13 @@ local function UpdateDanceEffectGhosts(dt)
 		1
 	)
 	local lightVisibility = math.clamp((1 - baseTransparency) / 0.45, 0, 2.25)
+	local glowEnabled = SavedDanceEffectsOptions.AfterimageGlowEnabled
+	local glowBrightness = math.clamp(
+		tonumber(SavedDanceEffectsOptions.AfterimageGlowBrightness) or 1.5,
+		0,
+		10
+	)
+	local glowRange = math.clamp(tonumber(SavedDanceEffectsOptions.AfterimageGlowRange) or 7, 0, 30)
 	local index = 1
 	while index <= #DanceEffects.Ghosts do
 		local ghost = DanceEffects.Ghosts[index]
@@ -11898,7 +11950,9 @@ local function UpdateDanceEffectGhosts(dt)
 					descendant.Color = accent:Lerp(Color3.new(0, 0, 0), alpha * 0.75)
 				elseif descendant:IsA("PointLight") then
 					descendant.Color = accent
-					descendant.Brightness = 1.5 * lightVisibility * (1 - alpha)
+					descendant.Enabled = glowEnabled and glowBrightness > 0 and glowRange > 0
+					descendant.Brightness = glowBrightness * lightVisibility * (1 - alpha)
+					descendant.Range = glowRange * (ghost.ImageScale or 1)
 				end
 			end
 			index += 1
@@ -12337,9 +12391,124 @@ local DanceEffectsAfterimageTransparency = UI.CreateSlider(
 DanceEffectsAfterimageTransparency.Changed:Connect(function(value)
 	SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(math.floor(value), 0, 100)
 end)
+local DanceEffectsAfterimageGlow =
+	UI.CreateSwitch(DanceEffectsOptionsPage, "↳ Glow", SavedDanceEffectsOptions.AfterimageGlowEnabled)
+DanceEffectsAfterimageGlow.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageGlowEnabled = value
+end)
+local DanceEffectsAfterimageGlowBrightness = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Glow Brightness",
+	SavedDanceEffectsOptions.AfterimageGlowBrightness,
+	0,
+	10,
+	0.1
+)
+DanceEffectsAfterimageGlowBrightness.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageGlowBrightness = math.clamp(value, 0, 10)
+end)
+local DanceEffectsAfterimageGlowRange = UI.CreateSlider(
+	DanceEffectsOptionsPage,
+	"↳ Glow Range",
+	SavedDanceEffectsOptions.AfterimageGlowRange,
+	0,
+	30,
+	0.5
+)
+DanceEffectsAfterimageGlowRange.Changed:Connect(function(value)
+	SavedDanceEffectsOptions.AfterimageGlowRange = math.clamp(value, 0, 30)
+end)
+
+-- CreateDropdown is intentionally reused here so the body-part picker looks
+-- and behaves like the rest of Uhhhhhh. Selecting an entry toggles it and
+-- rebuilds the list with fresh [x]/[ ] markers; the first entry is a summary.
+local DanceEffectsBodyPartDropdownLabel = nil
+local DanceEffectsBodyPartDropdownLayoutOrder = nil
+local DanceEffectsDetectedBodyParts = {}
+local DanceEffectsBodyPartSignature = nil
+local RebuildDanceEffectsBodyPartDropdown
+RebuildDanceEffectsBodyPartDropdown = function(partNames)
+	if type(partNames) == "table" then
+		DanceEffectsDetectedBodyParts = table.clone(partNames)
+	end
+	if DanceEffectsBodyPartDropdownLabel and DanceEffectsBodyPartDropdownLabel.Parent then
+		DanceEffectsBodyPartDropdownLabel.Parent:Destroy()
+	end
+
+	local choices = {}
+	local visibleCount = 0
+	for _, partName in DanceEffectsDetectedBodyParts do
+		if SavedDanceEffectsOptions.AfterimageHiddenParts[partName] ~= true then
+			visibleCount += 1
+		end
+	end
+	choices[1] = visibleCount .. "/" .. #DanceEffectsDetectedBodyParts .. " visible — choose a part"
+	if #DanceEffectsDetectedBodyParts > 0 then
+		choices[2] = visibleCount == #DanceEffectsDetectedBodyParts and "[ ] Hide all" or "[x] Show all"
+		for _, partName in DanceEffectsDetectedBodyParts do
+			local displayName = SavedDanceEffectsOptions.AfterimageHiddenParts[partName] == true
+				and "[ ] " .. partName .. "*"
+				or "[x] " .. partName
+			table.insert(choices, displayName)
+		end
+	end
+
+	local selectValue, label = UI.CreateDropdown(DanceEffectsOptionsPage, "↳ Visible Body Parts", choices, 1)
+	DanceEffectsBodyPartDropdownLabel = label
+	if DanceEffectsBodyPartDropdownLayoutOrder == nil then
+		DanceEffectsBodyPartDropdownLayoutOrder = label.Parent.LayoutOrder
+	else
+		label.Parent.LayoutOrder = DanceEffectsBodyPartDropdownLayoutOrder
+	end
+	selectValue.Changed:Connect(function(index)
+		if index <= 1 or #DanceEffectsDetectedBodyParts == 0 then
+			return
+		end
+		if index == 2 then
+			local hideAll = true
+			for _, partName in DanceEffectsDetectedBodyParts do
+				if SavedDanceEffectsOptions.AfterimageHiddenParts[partName] == true then
+					hideAll = false
+					break
+				end
+			end
+			for _, partName in DanceEffectsDetectedBodyParts do
+				SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = hideAll and true or nil
+			end
+		else
+			local partName = DanceEffectsDetectedBodyParts[index - 2]
+			if partName then
+				local hidden = SavedDanceEffectsOptions.AfterimageHiddenParts[partName] == true
+				SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = hidden and nil or true
+			end
+		end
+		DestroyDanceEffectGhosts()
+		task.defer(RebuildDanceEffectsBodyPartDropdown)
+	end)
+end
+
+local function RefreshDanceEffectsBodyPartDropdown()
+	local sourceFigure = GetDanceEffectGhostSource(Reanimate.Character)
+	local partNames = GetDetectedDanceEffectBodyParts(sourceFigure)
+	local signature = table.concat(partNames, "\0")
+	if signature ~= DanceEffectsBodyPartSignature then
+		DanceEffectsBodyPartSignature = signature
+		RebuildDanceEffectsBodyPartDropdown(partNames)
+	end
+end
+
+RefreshDanceEffectsBodyPartDropdown()
+local DanceEffectsBodyPartRefreshElapsed = 0
+AddToRenderStep(function(_, dt)
+	DanceEffectsBodyPartRefreshElapsed += dt
+	if DanceEffectsBodyPartRefreshElapsed >= 0.5 then
+		DanceEffectsBodyPartRefreshElapsed = 0
+		RefreshDanceEffectsBodyPartDropdown()
+	end
+end, DanceEffectsOptionsPage)
 UI.CreateText(
 	DanceEffectsOptionsPage,
-	"Spawn Rate controls new silhouettes; Fade Speed controls disappearance. Transparency is 0% opaque to 100% invisible. Image Scale defaults to 0.86x to prevent pixel fighting.",
+	"Spawn Rate controls new silhouettes; Fade Speed controls disappearance. Transparency is 0% opaque to 100% invisible. Glow controls a local PointLight; Brightness 0 disables its light output. The visible-parts dropdown refreshes when the active R6/R15 body changes; disabled parts end in *.",
 	10,
 	Enum.TextXAlignment.Center
 )
@@ -12445,6 +12614,12 @@ UI.CreateButton(DanceEffectsOptionsPage, "Reset Afterimage Config", 16).Activate
 	DanceEffectsAfterimageFadeSpeed.Value = 1.3
 	DanceEffectsAfterimageScale.Value = 0.86
 	DanceEffectsAfterimageTransparency.Value = 55
+	DanceEffectsAfterimageGlow.Value = true
+	DanceEffectsAfterimageGlowBrightness.Value = 1.5
+	DanceEffectsAfterimageGlowRange.Value = 7
+	table.clear(SavedDanceEffectsOptions.AfterimageHiddenParts)
+	DestroyDanceEffectGhosts()
+	RebuildDanceEffectsBodyPartDropdown()
 end)
 UI.CreateSeparator(AnimationOptionsPage)
 local AnimationOptionsStatus =
