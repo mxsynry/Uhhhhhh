@@ -90,7 +90,8 @@ local TARGET_USERNAMES = {
   "G4lantamine",
   "Hellosundeeundee",
   "7heo_V2",
-  
+  "mxsynry_alts7",
+  "imCherry511",
 }
 local CHECK_INTERVAL = 2
 
@@ -595,7 +596,22 @@ local Preload=Global.Preload or false
 local RigScale=Global.RigSize or 1
 local ExtraRigSupport=Global.Rigs or {}
 local DisableCustomInventory=Global.DisableCustomInventory or false
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Gelatekussy/GelatekHub/main/src/packages/FunctionPack.lua"))()
+local GELATEK_HUB_AUDITED_REVISION = "673c8c3ce74d83a64c42c49077ef01254d84ae97"
+local FunctionPackSource = game:HttpGet(
+	"https://raw.githubusercontent.com/Gelatekussy/GelatekHub/"
+		.. GELATEK_HUB_AUDITED_REVISION
+		.. "/src/packages/FunctionPack.lua"
+)
+FunctionPackSource = FunctionPackSource:gsub(
+	"https://raw.githubusercontent.com/Gelatekussy/GelatekHub/main/src/lib/LoadLibrary.lua",
+	"https://raw.githubusercontent.com/Gelatekussy/GelatekHub/"
+		.. GELATEK_HUB_AUDITED_REVISION
+		.. "/src/lib/LoadLibrary.lua",
+	1
+)
+local FunctionPackChunk, FunctionPackError = loadstring(FunctionPackSource, "@Gelatek-FunctionPack")
+assert(type(FunctionPackChunk) == "function", "FunctionPack compile failed: " .. tostring(FunctionPackError))
+FunctionPackChunk()
 local UI = {};
 local MainFolder="Theos Dancezzz"
 local MusicFolder=MainFolder.."/Emote Music"
@@ -903,7 +919,7 @@ UI["TextLabel_16"]["FontFace"] = Font.new([[rbxasset://fonts/families/Inconsolat
 UI["TextLabel_16"]["TextColor3"] = Color3.fromRGB(255, 0, 0);
 UI["TextLabel_16"]["BackgroundTransparency"] = 1;
 UI["TextLabel_16"]["Size"] = UDim2.new(1, 0, 1, 0);
-UI["TextLabel_16"]["Text"] = "New UI👍\n yes new UI, you can scroll up or down on the UI now, you can choose 3 of the reanimate below this long\ntextlabel btw\nif you chose empyrean\nget a keyboard script\nbasically since enabling tools\nwill not work on empyrean\n\nUpdate:\nAdded Smooth Camera Toggle on\nsettings and added a tab called tutorial\nif your new to this, click the ' + '\non the top right of the UI,\nand scroll down and find 'Tutorial' ";
+UI["TextLabel_16"]["Text"] = "New UIð\n yes new UI, you can scroll up or down on the UI now, you can choose 3 of the reanimate below this long\ntextlabel btw\nif you chose empyrean\nget a keyboard script\nbasically since enabling tools\nwill not work on empyrean\n\nUpdate:\nAdded Smooth Camera Toggle on\nsettings and added a tab called tutorial\nif your new to this, click the ' + '\non the top right of the UI,\nand scroll down and find 'Tutorial' ";
 UI["TextLabel_16"]["Position"] = UDim2.new(0.06098, 0, 0.00645, 0);
 
 
@@ -9641,12 +9657,13 @@ pcall(function()
   con1:Disconnect()
   fg:Disconnect()
 end)
+
 ]=====],
     ["Theos Dancezzzzz/Bridge/README.md"] = [=====[# Uhhhhhh Reanimate Modded
 
 Run `launch.lua`.
 
-Package label: `1.0.9 BETA`.
+Package label: `1.0.9 BETA / runtime hotfix 6`.
 
 - Available reanimators: Limb, Hats, and Gelatek. Neuron has been removed.
 - Gelatek defaults to its native CFrame follower path and exact-instance
@@ -9655,17 +9672,36 @@ Package label: `1.0.9 BETA`.
   native R6 path; R15 automatically uses Gelatek's R15-to-R6 physical mapping
   because Uhhhhhh movement and ragdoll modules use an R6 controller. The
   conversion is automatic and is not exposed as a duplicate rig switch.
-- Gelatek exposes every upstream config except R15-to-R6 conversion.
-- All requested Gelatek switches remain available. A one-time schema-6
-  migration restores the stable Uhhhhhh integration profile: Gelatek's own
-  animator is disabled, direct-CFrame following is used, dynamic/fast follower
-  variants are off, ownership tweaks stay enabled, and the optional optimizer
-  is off. Users can deliberately change those switches afterward.
-- If Roblox respawns while Gelatek is active, Gelatek deanimates and returns
-  control to the fresh character. Permanent-death reanimation is not restarted.
-- Gelatek uses Uhhhhhh's shared noclip and Infinite Jump settings. Character
-  Scale spreads controller-joint positions and animation translations without
-  resizing parts, meshes, accessories, or the detached physical shell.
+- Gelatek exposes every upstream config except automatic R15-to-R6 conversion.
+  Its classic R6 animator switch is available again and defaults to disabled;
+  when enabled, its chat connection is included in generation cleanup.
+- A one-time schema-7 migration restores the stable Uhhhhhh integration profile:
+  direct-CFrame following is used, dynamic/fast follower variants are off,
+  ownership tweaks stay enabled, and the optional optimizer is off.
+- If Roblox respawns while Gelatek is active, a single serialized generation
+  loop fully deanimates, restores the fresh Roblox character and Animate runtime,
+  lets that normal spawn settle, then starts a new Gelatek generation. It never
+  recursively calls `Start` or overlaps two Gelatek generations.
+- During that hand-off, the incoming physical shell is collision-isolated only
+  while it overlaps the retiring controller, then its original collision flags
+  are restored for the normal-spawn interval. The new controller is built at the
+  Roblox spawn exactly like a manual reanimation and is pivoted back to the
+  persistent static root only after Gelatek reports controller readiness.
+- Gelatek now treats a missing controller `Animate` script, optional Bullet,
+  and already-removed Bullet constraints as recoverable addon states instead of
+  indexing or destroying `nil` during a fresh generation.
+- Gelatek uses Uhhhhhh's shared noclip, Infinite Jump, seat-state, and click-fling
+  settings. Its exact physical HumanoidRootPart follows the controller root and
+  becomes the flinger only for the requested target window.
+- Character Scale uses `Model:ScaleTo` on the controller only and applies the
+  matching incremental R6 `HipHeight` ground-clearance correction. The physical
+  shell is kept outside the controller model and is not resized.
+- Gelatek no longer writes controller collisions. A Uhhhhhh-equivalent state
+  policy leaves running movement root-only and enables body collisions in
+  Physics/Ragdoll/Seated states; module NoCollisionConstraints remain intact.
+- Controller humanoids use `RequiresNeck = false` and
+  `BreakJointsOnDeath = false`, and the runtime scale bridge never writes
+  Motor6D frames, so jointless ragdoll and Immersive VR own their limbs.
 - Gelatek keeps one exact-instance accessory target per real accessory outside
   `Player.Character`; redundant invisible accessory clones are not generated,
   so helper geometry cannot enlarge the character model's bubble-chat bounds.
@@ -9677,9 +9713,59 @@ Package label: `1.0.9 BETA`.
   files. Old unreferenced backend files are left untouched.
 - Limb's optional keep-sit setting is mirrored to the live Roblox humanoid.
 
+## Combined testing734 feature port
+
+- User modules are discovered recursively. Supported non-code assets found
+  beside them are copied into the matching `Content` folder without replacing
+  an existing same-name asset.
+- Eyo-Zen's character scale is initialized before its delayed notification, so
+  a freshly rebuilt controller cannot reach the notification with a nil scale.
+- The main page includes a random-dance button.
+- Physics Glue target duration is configurable from `0.001` to `30` seconds
+  and is persisted in `tree.ehehetilde`.
+- Limb target behavior is a single mutually-exclusive choice: physics fling,
+  tool touch, or the local `AdministrativeModules/DamageMethod/main.lua` hook.
+- Hats have the testing fork's alternate permanent-death state method and an
+  additional Gelatek-timed head-break method, plus an optional local DamageMethod
+  target mode. All remain opt-in and default to the established mx behavior.
+- Gelatek's permanent-death-specific action is a timed head-break; it does not
+  send a place-specific `-pd` command or fire a server remote. Its full
+  reanimator also parents the real shell below the controller, assigns
+  `Player.Character` to that controller, and hands the camera to its Humanoid.
+  Hat Gelatek mode now ports that complete handoff before the timed head-break
+  and retains the real shell explicitly for mapping, tools, cleanup, and respawn.
+- Hat hitbox display follows the bound real character and retained collidable
+  accessory handles, restoring the green ownership outlines across respawns.
+- Animation Options includes a persistent `Hide Body Parts` picker for the live
+  controller. It uses the final joint-animation overlay to move selected parts
+  to `FallenPartsDestroyHeight + 5` (or `-495` for NaN), with a direct-part
+  fallback for disabled/removed joints. It is separate from afterimage visibility.
+- The local DamageMethod callback is compiled once at startup instead of once
+  per target per frame.
+- Ordinary GitHub, marketplace, and module asset network requests remain
+  enabled. The legacy filesystem scan/WebSocket extras are disabled by default
+  and remain separately opt-in.
+- Steve's built-in modules/assets are pinned to audited commit `ee83956`; the
+  optional Gelatek library and ToolDance FunctionPack use audited commit URLs.
+  User/marketplace modules and dance URLs are still executable external code
+  and must be reviewed separately before installation or selection.
+
+## Payload audit note
+
+The testing734 beta's legacy Pusher `jumpscare` handler executes server-supplied
+Lua with `loadstring`; that handler is not present in executable form here.
+mxsynry's blocked-event behavior is retained, and its extras switch defaults to
+off. Static review found no direct credential/webhook exfiltration in the seven
+pinned Steve startup files, but this is not a guarantee about user-installed or
+future remote payloads.
+
 Gelatek is jointless on the detached physical shell.
 
 Static validation cannot replace a fresh-server Roblox/executor physics test.
+
+
+
+
 ]=====],
     ["Theos Dancezzzzz/Bridge/config.default.json"] = [=====[{
   "UhhhhhhSourcePath": "Theos Dancezzzzz/Bridge/vendor/Uhhhhhh.lua",
@@ -9734,7 +9820,7 @@ return compile(patched, "Uhhhhhh")()
     local options = type(SaveData.TheoBridge.Gelatek) == "table" and SaveData.TheoBridge.Gelatek or {}
     SaveData.TheoBridge.Gelatek = options
 
-    local CURRENT_OPTIONS_SCHEMA = 6
+    local CURRENT_OPTIONS_SCHEMA = 7
     local defaults = {
         -- Uhhhhhh owns the controller joints. Gelatek's built-in animator would
         -- compete with movement styles and ragdoll modules on the same frame.
@@ -9775,16 +9861,18 @@ return compile(patched, "Uhhhhhh")()
         options.OptimizeGame = false
         options.SchemaVersion = CURRENT_OPTIONS_SCHEMA
     end
-
     local backend = {
         Name = "Gelatek",
         DetectedRig = nil,
         ControllerRig = nil,
         Rig = nil,
         RealCharacter = nil,
+        ActiveRealCharacter = nil,
+        StaticRoot = nil,
+        RigGeneration = 0,
         Running = false,
         LastError = nil,
-        IgnoreSharedFling = true,
+        IgnoreSharedFling = false,
     }
 
     local originalCharacter
@@ -9792,16 +9880,75 @@ return compile(patched, "Uhhhhhh")()
     local originalFace
     local cameraBridgeConnection
     local scaleBridgeConnection
-    local scaleJointConnection
-    local scaleJointBases = {}
-    local scaleJointTemplates = {}
+    local controllerCollisionConnection
+    local flingBridgeConnection
     local lastAppliedScale
     local lastJump = false
+    local activeFling = nil
+    local recentFlingTargets = {}
     local destroyHeightCaptured = false
     local originalDestroyHeight
+    local staticRootPart
+    local staticRootCFrame
+    local poseMirrorRig
+    local poseMirrorConnection
+    local placeholderModel
+    local placeholderParts = {}
+    local placeholderActive = false
+    local resetBindable
+    local resetBindableConnection
+    local resetInFlight = false
+    local rebindInProgress = false
+    local pendingPhysicalCharacter
+    local isolatedPartStates = setmetatable({}, { __mode = "k" })
 
     local function environment()
         return (getgenv and getgenv()) or shared or _G
+    end
+
+    local function isolatePhysicalCharacter(character)
+        if typeof(character) ~= "Instance" or not character:IsA("Model") or not character.Parent then
+            return
+        end
+        for _, instance in ipairs(character:GetDescendants()) do
+            if instance:IsA("BasePart") then
+                if not isolatedPartStates[instance] then
+                    isolatedPartStates[instance] = {
+                        CanCollide = instance.CanCollide,
+                        CanTouch = instance.CanTouch,
+                        CanQuery = instance.CanQuery,
+                    }
+                end
+                -- A CharacterAdded shell can overlap the persistent controller
+                -- for several simulation steps before Gelatek maps its parts.
+                -- Remove every contact/query path and any inherited spawn
+                -- impulse for that short hand-off window.
+                instance.CanCollide = false
+                instance.CanTouch = false
+                instance.CanQuery = false
+                instance.AssemblyLinearVelocity = Vector3.zero
+                instance.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+    end
+
+    local function restoreIsolatedPhysicalCharacter(character)
+        if typeof(character) ~= "Instance" or not character:IsA("Model") or not character.Parent then
+            return
+        end
+        for _, instance in ipairs(character:GetDescendants()) do
+            if instance:IsA("BasePart") then
+                local state = isolatedPartStates[instance]
+                if state then
+                    pcall(function()
+                        instance.CanCollide = state.CanCollide
+                        instance.CanTouch = state.CanTouch
+                        instance.CanQuery = state.CanQuery
+                    end)
+                    isolatedPartStates[instance] = nil
+                end
+            end
+        end
     end
 
     local function addDescription(parent, text)
@@ -9814,7 +9961,7 @@ return compile(patched, "Uhhhhhh")()
             options[key] = value == true
         end)
         if description then
-            addDescription(parent, "↳ " .. description)
+            addDescription(parent, "â³ " .. description)
         end
         return control
     end
@@ -9851,10 +9998,15 @@ return compile(patched, "Uhhhhhh")()
             9,
             Enum.TextXAlignment.Center
         )
-        UI.CreateText(parent, "A Roblox respawn deanimates instead of restarting permadeath.", 9, Enum.TextXAlignment.Center)
         UI.CreateText(
             parent,
-            "Character Scale changes joint spacing only; it does not resize parts or meshes.",
+            "A Roblox respawn settles normally, starts a fresh Gelatek generation, then returns it to the static root.",
+            9,
+            Enum.TextXAlignment.Center
+        )
+        UI.CreateText(
+            parent,
+            "Character Scale resizes the controller and preserves its ground clearance.",
             9,
             Enum.TextXAlignment.Center
         )
@@ -9864,7 +10016,7 @@ return compile(patched, "Uhhhhhh")()
             parent,
             "Disable Gelatek's Own Animator",
             "AnimationsDisabled",
-            "Keep on when Uhhhhhh movement styles or ragdoll modules own the controller joints."
+            "Enabled by default. Turn it off only if you specifically want Gelatek's classic R6 animator."
         )
         addSwitch(parent, "Don't Break Hair Welds", "DontBreakHairWelds")
         addSwitch(parent, "Permanent Death", "PermanentDeath")
@@ -9923,6 +10075,9 @@ return compile(patched, "Uhhhhhh")()
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         local root = model:FindFirstChild("HumanoidRootPart")
         if not humanoid or not root then
+            return false
+        end
+        if humanoid.Health <= 0 or humanoid:GetState() == Enum.HumanoidStateType.Dead then
             return false
         end
         if model.Name == "GelatekReanimate" or model.Name == "ReanimatedRig" then
@@ -9986,6 +10141,220 @@ return compile(patched, "Uhhhhhh")()
 
     local function ensureVisibleHead(_rig)
         -- Fake controller remains invisible.
+    end
+
+    local function hideControllerBody(rig)
+        if not rig then
+            return
+        end
+        pcall(function()
+            rig:SetAttribute("UhhhhhhGelatekRespawnPlaceholder", nil)
+        end)
+        for _, part in ipairs(rig:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.Transparency = 1
+            end
+        end
+    end
+
+    local function destroyRespawnPlaceholder()
+        table.clear(placeholderParts)
+        if placeholderModel then
+            pcall(function()
+                placeholderModel:Destroy()
+            end)
+            placeholderModel = nil
+        end
+    end
+
+    local function createPlaceholderPart(sourcePart)
+        local ok, proxy = pcall(function()
+            return sourcePart:Clone()
+        end)
+        if not ok or not proxy or not proxy:IsA("BasePart") then
+            proxy = Instance.new("Part")
+            proxy.Name = sourcePart.Name
+            proxy.Size = sourcePart.Size
+            pcall(function()
+                proxy.Shape = sourcePart.Shape
+            end)
+        end
+        for _, child in ipairs(proxy:GetChildren()) do
+            if not child:IsA("DataModelMesh") then
+                child:Destroy()
+            else
+                pcall(function()
+                    child.TextureId = ""
+                end)
+            end
+        end
+        proxy.Name = sourcePart.Name
+        proxy.Anchored = true
+        proxy.CanCollide = false
+        proxy.CanQuery = false
+        proxy.CanTouch = false
+        proxy.CastShadow = false
+        proxy.Massless = true
+        proxy.Color = Color3.fromRGB(255, 45, 45)
+        proxy.Material = Enum.Material.SmoothPlastic
+        proxy.Transparency = 1
+        pcall(function()
+            proxy.TextureID = ""
+        end)
+        pcall(function()
+            proxy.LocalTransparencyModifier = 0
+        end)
+        return proxy
+    end
+
+    local function ensureRespawnPlaceholder(rig)
+        if placeholderModel and placeholderModel.Parent then
+            return placeholderModel
+        end
+        destroyRespawnPlaceholder()
+        local model = Instance.new("Model")
+        model.Name = "_UhhhhhhGelatekResetPlaceholder"
+        model.Archivable = false
+        model.Parent = workspace
+        placeholderModel = model
+        for _, sourcePart in ipairs(rig:GetChildren()) do
+            if sourcePart:IsA("BasePart") and sourcePart.Name ~= "HumanoidRootPart" then
+                local proxy = createPlaceholderPart(sourcePart)
+                proxy.Parent = model
+                placeholderParts[sourcePart] = proxy
+            end
+        end
+        return model
+    end
+
+    local function ensureStaticRoot(controllerRoot)
+        if not staticRootPart or not staticRootPart.Parent then
+            local part = Instance.new("Part")
+            part.Name = "_UhhhhhhGelatekStaticRoot"
+            part.Archivable = false
+            part.Anchored = true
+            part.CanCollide = false
+            part.CanQuery = false
+            part.CanTouch = false
+            part.CastShadow = false
+            part.Massless = true
+            part.Transparency = 1
+            part.Size = controllerRoot and controllerRoot.Size or Vector3.new(2, 2, 1)
+            if staticRootCFrame then
+                part.CFrame = staticRootCFrame
+            elseif controllerRoot then
+                part.CFrame = controllerRoot.CFrame
+            end
+            part.Parent = workspace
+            staticRootPart = part
+        end
+        backend.StaticRoot = staticRootPart
+        return staticRootPart
+    end
+
+    local function updatePoseMirror(rig)
+        local controllerRoot = rig and rig:FindFirstChild("HumanoidRootPart")
+        if controllerRoot and controllerRoot:IsA("BasePart") and controllerRoot.Parent then
+            staticRootCFrame = controllerRoot.CFrame
+            local tracker = ensureStaticRoot(controllerRoot)
+            tracker.CFrame = controllerRoot.CFrame
+            tracker.Size = controllerRoot.Size
+            environment().UhhhhhhTBZGelatekStaticRootCFrame = staticRootCFrame
+        end
+
+        if not placeholderActive then
+            if placeholderModel then
+                for _, proxy in pairs(placeholderParts) do
+                    if proxy and proxy.Parent then
+                        proxy.Transparency = 1
+                    end
+                end
+            end
+            return
+        end
+
+        if not placeholderModel or not placeholderModel.Parent then
+            ensureRespawnPlaceholder(rig)
+        end
+        local transparency = 1
+        if Reanimate.ShowResetPlaceholder == true then
+            transparency = math.min(tonumber(Reanimate.PlaceholderTransparency) or 0.5, 0.5)
+        end
+        for sourcePart, proxy in pairs(placeholderParts) do
+            if proxy and proxy.Parent and sourcePart and sourcePart.Parent then
+                proxy.CFrame = sourcePart.CFrame
+                proxy.Size = sourcePart.Size
+                local sourceMesh = sourcePart:FindFirstChildWhichIsA("DataModelMesh")
+                local proxyMesh = proxy:FindFirstChildWhichIsA("DataModelMesh")
+                if sourceMesh and proxyMesh then
+                    pcall(function()
+                        proxyMesh.Scale = sourceMesh.Scale
+                        proxyMesh.Offset = sourceMesh.Offset
+                    end)
+                end
+                proxy.Color = Color3.fromRGB(255, 45, 45)
+                proxy.Material = Enum.Material.SmoothPlastic
+                proxy.Transparency = transparency
+            elseif proxy and proxy.Parent then
+                -- If Roblox destroyed the controller during a default reset, keep
+                -- the final mirrored pose frozen until its replacement is ready.
+                proxy.Transparency = transparency
+            end
+        end
+    end
+
+    local function detachPoseMirror(destroyInfrastructure)
+        if poseMirrorConnection then
+            pcall(function()
+                poseMirrorConnection:Disconnect()
+            end)
+            poseMirrorConnection = nil
+        end
+        poseMirrorRig = nil
+        if destroyInfrastructure then
+            placeholderActive = false
+            destroyRespawnPlaceholder()
+            if staticRootPart then
+                pcall(function()
+                    staticRootPart:Destroy()
+                end)
+                staticRootPart = nil
+            end
+            backend.StaticRoot = nil
+            staticRootCFrame = nil
+        end
+    end
+
+    local function attachPoseMirror(rig)
+        if poseMirrorRig == rig and poseMirrorConnection then
+            updatePoseMirror(rig)
+            return
+        end
+        detachPoseMirror(false)
+        poseMirrorRig = rig
+        if placeholderModel then
+            destroyRespawnPlaceholder()
+        end
+        hideControllerBody(rig)
+        updatePoseMirror(rig)
+        poseMirrorConnection = RunService.PreRender:Connect(function()
+            if rig and rig.Parent then
+                hideControllerBody(rig)
+            end
+            -- Keep applying placeholder visibility even after Roblox destroys a
+            -- default-reset controller; its proxy pose intentionally stays frozen.
+            updatePoseMirror(rig)
+        end)
+    end
+
+    local function setRespawnPlaceholderActive(active, rig)
+        placeholderActive = active == true
+        if placeholderActive and rig and rig.Parent then
+            ensureRespawnPlaceholder(rig)
+            updatePoseMirror(rig)
+        elseif not placeholderActive then
+            destroyRespawnPlaceholder()
+        end
     end
 
     local function detachCameraBridge()
@@ -10092,87 +10461,7 @@ return compile(patched, "Uhhhhhh")()
         return math.clamp(tonumber(Reanimate.CharacterScale) or 1, 0.5, 5)
     end
 
-    local SCALE_BASE_C0_ATTRIBUTE = "UhhhhhhCharacterSpacingBaseC0"
-    local SCALE_BASE_C1_ATTRIBUTE = "UhhhhhhCharacterSpacingBaseC1"
-    local SCALE_BASE_POSITION_ATTRIBUTE = "UhhhhhhCharacterSpacingBasePosition"
     local SCALE_ATTRIBUTE = "UhhhhhhCharacterSpacingScale"
-
-    local function scaleJointFrame(frame, scale)
-        return frame.Rotation + frame.Position * scale
-    end
-
-    local function controllerJointKey(joint)
-        local part0 = joint.Part0
-        local part1 = joint.Part1
-        if not part0 or not part1 then
-            return nil
-        end
-        return part0.Name .. "\0" .. joint.Name .. "\0" .. part1.Name
-    end
-
-    local function isControllerJoint(rig, joint)
-        return joint:IsA("Motor6D")
-            and joint:IsDescendantOf(rig)
-            and (not originalCharacter or not joint:IsDescendantOf(originalCharacter))
-            and joint.Part0 ~= nil
-            and joint.Part1 ~= nil
-    end
-
-    local function captureScaleJoint(rig, joint)
-        if not isControllerJoint(rig, joint) then
-            return nil
-        end
-        local existing = scaleJointBases[joint]
-        if existing then
-            return existing
-        end
-
-        local key = controllerJointKey(joint)
-        local baseline = key and scaleJointTemplates[key] or nil
-        if not baseline then
-            local baseC0 = joint:GetAttribute(SCALE_BASE_C0_ATTRIBUTE)
-            local baseC1 = joint:GetAttribute(SCALE_BASE_C1_ATTRIBUTE)
-            if typeof(baseC0) ~= "CFrame" or typeof(baseC1) ~= "CFrame" then
-                baseC0 = joint.C0
-                baseC1 = joint.C1
-            end
-            baseline = {
-                C0 = baseC0,
-                C1 = baseC1,
-            }
-            if key then
-                scaleJointTemplates[key] = baseline
-            end
-        end
-
-        scaleJointBases[joint] = baseline
-        pcall(function()
-            joint:SetAttribute(SCALE_BASE_C0_ATTRIBUTE, baseline.C0)
-            joint:SetAttribute(SCALE_BASE_C1_ATTRIBUTE, baseline.C1)
-        end)
-        return baseline
-    end
-
-    local function applyScaleJoint(joint, baseline, scale)
-        if not joint.Parent or not joint.Part0 or not joint.Part1 then
-            scaleJointBases[joint] = nil
-            return false
-        end
-        return pcall(function()
-            joint.C0 = scaleJointFrame(baseline.C0, scale)
-            joint.C1 = scaleJointFrame(baseline.C1, scale)
-        end)
-    end
-
-    local function applyScaleAttachment(attachment, scale)
-        local basePosition = attachment:GetAttribute(SCALE_BASE_POSITION_ATTRIBUTE)
-        if typeof(basePosition) ~= "Vector3" then
-            return false
-        end
-        return pcall(function()
-            attachment.Position = basePosition * scale
-        end)
-    end
 
     local function applyCharacterScale(rig, force)
         if not rig or not rig.Parent then
@@ -10180,26 +10469,29 @@ return compile(patched, "Uhhhhhh")()
         end
         local scale = characterScale()
         environment().UhhhhhhTBZGelatekCharacterSpacingScale = scale
-        local scaleChanged = force or scale ~= lastAppliedScale
-        for _, instance in ipairs(rig:GetDescendants()) do
-            if instance:IsA("Motor6D") and not scaleJointBases[instance] then
-                local baseline = captureScaleJoint(rig, instance)
-                if baseline and not scaleChanged then
-                    applyScaleJoint(instance, baseline, scale)
-                end
-            elseif scaleChanged and instance:IsA("Attachment") then
-                applyScaleAttachment(instance, scale)
-            end
+        local previousScale = lastAppliedScale
+        if type(previousScale) ~= "number" then
+            local ok, value = pcall(rig.GetScale, rig)
+            previousScale = ok and type(value) == "number" and value or 1
         end
-        if not scaleChanged then
+        if not force and scale == previousScale then
             return true
         end
-        for joint, baseline in pairs(scaleJointBases) do
-            applyScaleJoint(joint, baseline, scale)
-        end
-        pcall(function()
+        local scaled = pcall(function()
+            -- Model:ScaleTo owns body sizes, meshes, attachments, and joint spacing.
+            -- Never rewrite Motor6D frames here: VR and jointless modules own them.
+            rig:ScaleTo(scale)
+            local humanoid = rig:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                -- R6 ground clearance is two studs per scale unit. Apply only the
+                -- delta so VR crouch offsets and custom HipHeight values survive.
+                humanoid.HipHeight += 2 * (scale - previousScale)
+            end
             rig:SetAttribute(SCALE_ATTRIBUTE, scale)
         end)
+        if not scaled then
+            return false
+        end
         lastAppliedScale = scale
         return true
     end
@@ -10241,14 +10533,21 @@ return compile(patched, "Uhhhhhh")()
             end)
             scaleBridgeConnection = nil
         end
-        if scaleJointConnection then
+        if controllerCollisionConnection then
             pcall(function()
-                scaleJointConnection:Disconnect()
+                controllerCollisionConnection:Disconnect()
             end)
-            scaleJointConnection = nil
+            controllerCollisionConnection = nil
         end
-        table.clear(scaleJointBases)
-        table.clear(scaleJointTemplates)
+        if flingBridgeConnection then
+            pcall(function()
+                flingBridgeConnection:Disconnect()
+            end)
+            flingBridgeConnection = nil
+        end
+        activeFling = nil
+        local global = environment()
+        global.UhhhhhhTBZGelatekFlingActive = nil
         lastAppliedScale = nil
         lastJump = false
     end
@@ -10256,31 +10555,92 @@ return compile(patched, "Uhhhhhh")()
     local function attachScaleBridge(rig)
         detachScaleBridge()
         applyCharacterScale(rig, true)
-        scaleJointConnection = rig.DescendantAdded:Connect(function(instance)
-            if not instance:IsA("Motor6D") and not instance:IsA("Attachment") then
-                return
-            end
-            task.defer(function()
-                if not backend.Running or not rig.Parent or not instance.Parent then
-                    return
-                end
-                local scale = characterScale()
-                if instance:IsA("Motor6D") then
-                    local baseline = captureScaleJoint(rig, instance)
-                    if baseline then
-                        applyScaleJoint(instance, baseline, scale)
-                    end
-                else
-                    applyScaleAttachment(instance, scale)
-                end
-            end)
-        end)
         scaleBridgeConnection = RunService.Heartbeat:Connect(function()
             if not backend.Running or not rig.Parent then
                 return
             end
             applyCharacterScale(rig)
             updateInfiniteJump(rig)
+        end)
+
+        -- Match Uhhhhhh's native controller collision policy. Running states use
+        -- the root only; Physics/Ragdoll/Seated let every body part hit the map.
+        -- NoCollisionConstraints created by VR/ragdoll remain authoritative for
+        -- intentional body-pair exclusions.
+        local noclipStates = { "Running", "Jumping", "Freefall", "Landed", "Climbing", "Swimming" }
+        controllerCollisionConnection = RunService.PreSimulation:Connect(function()
+            if not backend.Running or not rig.Parent then
+                return
+            end
+            if rebindInProgress then
+                for _, instance in ipairs(rig:GetDescendants()) do
+                    if instance:IsA("BasePart") then
+                        instance.CanCollide = false
+                        instance.CanTouch = false
+                        instance.CanQuery = false
+                        instance.AssemblyLinearVelocity = Vector3.zero
+                        instance.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+                isolatePhysicalCharacter(pendingPhysicalCharacter)
+                return
+            end
+            local humanoid = rig:FindFirstChildOfClass("Humanoid")
+            local root = rig:FindFirstChild("HumanoidRootPart")
+            if not humanoid or not root then
+                return
+            end
+            local stateName = humanoid:GetState().Name
+            local clip = not table.find(noclipStates, stateName)
+            rig:SetAttribute(
+                "_Uhhhhhh_SeatWeldActive",
+                stateName == "Seated" and (humanoid.Sit or humanoid.SeatPart ~= nil)
+            )
+            for _, part in ipairs(rig:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = clip or (not Reanimate.Noclip and part == root)
+                end
+            end
+        end)
+
+        -- Gelatek's exact physical root is the network-owned flinger. Its normal
+        -- follower pauses while this late PostSimulation writer is targeting.
+        flingBridgeConnection = RunService.PostSimulation:Connect(function()
+            local global = environment()
+            local physicalRoot = global.UhhhhhhTBZGelatekPhysicalRoot
+            local fling = activeFling
+            if not backend.Running
+                or not rig.Parent
+                or not fling
+                or typeof(physicalRoot) ~= "Instance"
+                or not physicalRoot.Parent
+            then
+                global.UhhhhhhTBZGelatekFlingActive = nil
+                return
+            end
+            if os.clock() >= fling.Deadline then
+                activeFling = nil
+                global.UhhhhhhTBZGelatekFlingActive = nil
+                pcall(sethiddenproperty, physicalRoot, "PhysicsRepRootPart", nil)
+                return
+            end
+            local targetCFrame, invalid = Util.PredictionFling(fling.Target)
+            if invalid then
+                activeFling = nil
+                global.UhhhhhhTBZGelatekFlingActive = nil
+                pcall(sethiddenproperty, physicalRoot, "PhysicsRepRootPart", nil)
+                return
+            end
+            global.UhhhhhhTBZGelatekFlingActive = true
+            physicalRoot.CFrame = targetCFrame + Vector3.new(0, 0, math.random(0, 1) * 0.005)
+            physicalRoot.AssemblyLinearVelocity = Vector3.new(0, -16384, 0)
+            physicalRoot.AssemblyAngularVelocity = Vector3.one * 16384
+            pcall(
+                sethiddenproperty,
+                physicalRoot,
+                "PhysicsRepRootPart",
+                Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(fling.Target) or nil
+            )
         end)
     end
 
@@ -10289,6 +10649,25 @@ return compile(patched, "Uhhhhhh")()
         assert(first, "Gelatek compatibility patch failed: missing " .. label)
         assert(not string.find(source, needle, last + 1, true), "Gelatek compatibility patch failed: duplicate " .. label)
         return string.sub(source, 1, first - 1) .. replacement .. string.sub(source, last + 1)
+    end
+
+    local function replaceCount(source, needle, replacement, expected, label)
+        local cursor = 1
+        local count = 0
+        while true do
+            local first, last = string.find(source, needle, cursor, true)
+            if not first then
+                break
+            end
+            source = string.sub(source, 1, first - 1) .. replacement .. string.sub(source, last + 1)
+            cursor = first + #replacement
+            count += 1
+        end
+        assert(
+            count == expected,
+            "Gelatek compatibility patch failed: " .. label .. " count " .. tostring(count) .. "/" .. tostring(expected)
+        )
+        return source
     end
 
     local function patchGelatekSource(source)
@@ -10307,6 +10686,18 @@ return compile(patched, "Uhhhhhh")()
 	assert(type(OptimizerChunk) == "function", "Gelatek optimizer compile failed: " .. tostring(OptimizerError))
 	OptimizerChunk()]==],
             "executor-safe optimizer"
+        )
+        source = replaceOnce(
+            source,
+            'game:GetService("Players").LocalPlayer.Chatted:connect(function(aa)',
+            'table.insert(Events, game:GetService("Players").LocalPlayer.Chatted:Connect(function(aa)',
+            "classic animator chat cleanup start"
+        )
+        source = replaceOnce(
+            source,
+            'end end)playAnimation("idle",0.1,h)i="Standing"table.insert(Events',
+            'end end))playAnimation("idle",0.1,h)i="Standing"table.insert(Events',
+            "classic animator chat cleanup end"
         )
         source = replaceOnce(
             source,
@@ -10331,6 +10722,49 @@ return compile(patched, "Uhhhhhh")()
 		Attachment1:SetAttribute("UhhhhhhCharacterSpacingBasePosition", BasePosition)
 		Attachment1.Position = BasePosition * (tonumber(Global.UhhhhhhTBZGelatekCharacterSpacingScale) or 1)]==],
             "constraint joint-spacing offset"
+        )
+        source = replaceOnce(
+            source,
+            [==[local FakeRig; do -- [[ Rig Maker ]] --
+	if RigType == "R6" or (RigType == "R15" and R15ToR6 == true) then]==],
+            [==[local FakeRig; do -- [[ Rig Maker ]] --
+	local PreservedController = Global.UhhhhhhTBZGelatekPreservedController
+	Global.UhhhhhhTBZGelatekPreservedController = nil
+	local PreservedHumanoid = typeof(PreservedController) == "Instance"
+		and PreservedController:IsA("Model")
+		and PreservedController:FindFirstChildOfClass("Humanoid")
+	local ReusedController = PreservedHumanoid
+		and PreservedHumanoid.Health > 0
+		and PreservedController.Parent ~= nil
+		and PreservedController:FindFirstChild("HumanoidRootPart") ~= nil
+	if not ReusedController and typeof(PreservedController) == "Instance" and PreservedController.Parent then
+		PreservedController:Destroy()
+	end
+	if ReusedController then
+		FakeRig = PreservedController
+		FakeRig.Name = "GelatekReanimate"
+		FakeRig.Parent = workspace
+	elseif RigType == "R6" or (RigType == "R15" and R15ToR6 == true) then]==],
+            "preserved controller selection"
+        )
+        source = replaceOnce(
+            source,
+            [==[	FakeRig.HumanoidRootPart.CFrame = RootPart.CFrame
+end]==],
+            [==[	if not ReusedController then
+		-- Build exactly like a manual reanimation at the fresh Roblox spawn.
+		-- The bridge returns the finished controller to its persistent tracker
+		-- only after Gelatek signals that assignment is complete.
+		FakeRig.HumanoidRootPart.CFrame = RootPart.CFrame
+	end
+end]==],
+            "manual-position controller spawn"
+        )
+        source = replaceOnce(
+            source,
+            "Character.Parent = FakeRig",
+            "Character.Parent = workspace -- keep the physical shell outside the scalable controller",
+            "separate physical shell"
         )
         source = replaceOnce(
             source,
@@ -10383,11 +10817,6 @@ return compile(patched, "Uhhhhhh")()
 	end
 end))]==],
             [==[table.insert(Events, RunService.PreSimulation:Connect(function()
-	local SharedNoclip = true
-	if type(Global.UhhhhhhTBZShouldNoclip) == "function" then
-		local ok, value = pcall(Global.UhhhhhhTBZShouldNoclip)
-		SharedNoclip = not ok or value == true
-	end
 	for _, v in pairs(CharacterDescendants) do -- [[ Detached physical shell ]] --
 		if v:IsA("BasePart") and v.Parent then
 			v.CanCollide = false
@@ -10395,13 +10824,39 @@ end))]==],
 			v.CanTouch = false
 		end
 	end
-	for _, v in pairs(FakeRigDescendants) do
-		if v:IsA("BasePart") and v.Parent then
-			v.CanCollide = (v == FakeRig.HumanoidRootPart) and not SharedNoclip
-		end
-	end
 end))]==],
-            "shared noclip"
+            "physical-shell collision isolation"
+        )
+
+        source = replaceOnce(
+            source,
+            "local FakeRigDescendants = FakeRig:GetDescendants()",
+            [==[local FakeRigDescendants = FakeRig:GetDescendants()
+Global.UhhhhhhTBZGelatekPhysicalRoot = RootPart
+Global.UhhhhhhTBZGelatekControllerRoot = FakeRig:FindFirstChild("HumanoidRootPart")
+local function FollowPhysicalRoot(Position)
+	if Global.UhhhhhhTBZGelatekFlingActive then
+		return
+	end
+	local ControllerRoot = Global.UhhhhhhTBZGelatekControllerRoot
+	if RootPart and RootPart.Parent and ControllerRoot and ControllerRoot.Parent then
+		CFrameAlign(RootPart, ControllerRoot, Position)
+	end
+end]==],
+            "exact physical-root bridge"
+        )
+        source = replaceCount(
+            source,
+            'CFrameAlign(RootPart, Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso"), CFrame.new(0,Root_Offset,0))',
+            "FollowPhysicalRoot(CFrame.new(0,Root_Offset,0))",
+            2,
+            "controller-root followers"
+        )
+        source = replaceOnce(
+            source,
+            'CFrameAlign(RootPart, Character:FindFirstChild("UpperTorso"))',
+            "FollowPhysicalRoot()",
+            "aligned controller-root follower"
         )
 
         source = replaceOnce(
@@ -10429,6 +10884,65 @@ if AreAnimationsDisabled == false then]==],
         )
         source = replaceOnce(
             source,
+            [==[	elseif RigType == "R15" and R15ToR6 == false then
+		local Anim = Character:FindFirstChild("Animate"):Clone()
+		FakeRig.Animate:Destroy()
+		Anim.Parent = FakeRig
+		Anim.Disabled = false
+	end]==],
+            [==[	elseif RigType == "R15" and R15ToR6 == false then
+		local SourceAnimate = Character:FindFirstChild("Animate")
+		local TargetAnimate = FakeRig:FindFirstChild("Animate")
+		if SourceAnimate and SourceAnimate:IsA("LocalScript") then
+			local Anim = SourceAnimate:Clone()
+			if TargetAnimate then
+				TargetAnimate:Destroy()
+			end
+			Anim.Parent = FakeRig
+			Anim.Disabled = false
+		elseif TargetAnimate and TargetAnimate:IsA("LocalScript") then
+			TargetAnimate.Disabled = false
+		else
+			warn("Gelatek controller has no usable Animate LocalScript")
+		end
+	end]==],
+            "safe controller animation handoff"
+        )
+        source = replaceOnce(
+            source,
+            [==[		local Bullet = Character:FindFirstChild("Bullet")
+		local Highlight = FakeRig:FindFirstChild("FlingerHighlighter")
+		pcall(function() Bullet:FindFirstChild("AntiRotation"):Destroy() 
+		end)
+		if AlignReanimate == true then
+		Bullet:FindFirstChild("GelatekAP2"):Destroy() 
+		Bullet:FindFirstChild("AlignPosition_1"):Destroy() 
+		Bullet:FindFirstChild("AlignOrientation"):Destroy() 
+		end
+		Bullet.Transparency = 1]==],
+            [==[		local Bullet = Character:FindFirstChild("Bullet")
+		local Highlight = FakeRig:FindFirstChild("FlingerHighlighter")
+		if not Bullet or not Bullet:IsA("BasePart") then
+			warn("Gelatek bullet addon skipped: mapped Bullet part is missing")
+			return
+		end
+		local function DestroyBulletObject(Name)
+			local Object = Bullet:FindFirstChild(Name)
+			if Object then
+				Object:Destroy()
+			end
+		end
+		DestroyBulletObject("AntiRotation")
+		if AlignReanimate == true then
+			DestroyBulletObject("GelatekAP2")
+			DestroyBulletObject("AlignPosition_1")
+			DestroyBulletObject("AlignOrientation")
+		end
+		Bullet.Transparency = 1]==],
+            "safe bullet-addon cleanup"
+        )
+        source = replaceOnce(
+            source,
             'table.insert(Events, Player.Chatted:Connect(function(Text)\n\tif Text == "gelatek skid" then\n\t\tlocal TelService = game:GetService("TeleportService")\n\t\tTelService:Teleport(10613034992)\n\tend\nend))\n\ndo -- Bug Reporting\n\tlocal Bindable = Instance.new("BindableFunction")\n\tlocal function Copy(e)\n\t\tsetclipboard("https://discord.gg/3Qr97C4BDn")\n\t\tBindable:Destroy()\n\tend\n\tBindable.OnInvoke = Copy\n\tgame.StarterGui:SetCore("SendNotification",{\n\t\tTitle = "Found A Bug?";\n\t\tText = "Click copy to get discord invite where you can report a bug! otherwise ignore.";\n\t\tDuration = 10;\n\t\tCallback = Bindable,\n\t\tButton1 = "Copy";\n\t})\nend',
             '-- legacy promo hooks removed',
             "legacy promo hooks"
@@ -10450,16 +10964,59 @@ end))]==],
         )
         source = replaceOnce(
             source,
+            "table.insert(Events,FakeHum.Died:Connect(function() \n    Death()\nend))",
+            [==[table.insert(Events,FakeHum.Died:Connect(function()
+	local ControllerDied = Global.UhhhhhhTBZGelatekControllerDied
+	if type(ControllerDied) == "function" then
+		pcall(ControllerDied, FakeRig)
+	end
+	Death()
+end))]==],
+            "controller death bridge"
+        )
+        source = replaceOnce(
+            source,
             "local function Death()\n\tGlobal.Stopped = true",
-            "local function Death()\n\tGlobal.Stopped = true\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil",
+            "local function Death()\n\tGlobal.Stopped = true\n\tGlobal.UhhhhhhTBZGelatekPreservedController = Global.UhhhhhhTBZGelatekPreserveController == true and FakeRig or nil\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekPhysicalRoot = nil\n\tGlobal.UhhhhhhTBZGelatekControllerRoot = nil\n\tGlobal.UhhhhhhTBZGelatekFlingActive = nil",
             "accessory target cleanup"
+        )
+        source = replaceCount(
+            source,
+            "\tif FakeRig then FakeRig:Destroy() end",
+            "\tif FakeRig and Global.UhhhhhhTBZGelatekPreserveController ~= true then FakeRig:Destroy() end",
+            2,
+            "preserved controller cleanup"
         )
         return source
     end
 
-    local function requestInternalStop()
+    local function requestInternalStop(preserveController)
         local rig = backend.Rig
         local global = environment()
+        local preserve = preserveController == true and rig and rig.Parent ~= nil
+        if not preserve and placeholderActive and rig and rig.Parent then
+            updatePoseMirror(rig)
+            detachCameraBridge()
+            local camera = workspace.CurrentCamera
+            local tracker = staticRootPart or ensureStaticRoot(rig:FindFirstChild("HumanoidRootPart"))
+            if camera and tracker then
+                pcall(function()
+                    camera.CameraType = Enum.CameraType.Custom
+                    camera.CameraSubject = tracker
+                end)
+            end
+        end
+        if preserve then
+            local root = rig:FindFirstChild("HumanoidRootPart")
+            if root and root:IsA("BasePart") then
+                staticRootCFrame = root.CFrame
+                global.UhhhhhhTBZGelatekStaticRootCFrame = staticRootCFrame
+            end
+            global.UhhhhhhTBZGelatekPreservedController = rig
+        else
+            global.UhhhhhhTBZGelatekPreservedController = nil
+        end
+        global.UhhhhhhTBZGelatekPreserveController = preserve
         local directStop = global.UhhhhhhTBZGelatekStop
         if type(directStop) == "function" then
             local finished = false
@@ -10475,6 +11032,13 @@ end))]==],
                 pcall(task.cancel, stopThread)
             end
         end
+        global.UhhhhhhTBZGelatekPreserveController = nil
+        local preserved = preserve and rig and rig.Parent ~= nil
+        if preserved then
+            global.UhhhhhhTBZGelatekPreservedController = rig
+            return true
+        end
+        global.UhhhhhhTBZGelatekPreservedController = nil
         if rig and rig.Parent then
             local humanoid = rig:FindFirstChildOfClass("Humanoid")
             if humanoid then
@@ -10487,6 +11051,7 @@ end))]==],
                 task.wait(0.05)
             until not rig.Parent or os.clock() >= deadline
         end
+        return false
     end
 
     local function getPlayableCandidate(character, excluded)
@@ -10509,6 +11074,7 @@ end))]==],
         if not character or not humanoid then
             return false
         end
+        restoreIsolatedPhysicalCharacter(character)
         pcall(function() Player.Character = character end)
         for _, instance in ipairs(character:GetDescendants()) do
             if instance:IsA("LocalScript") then
@@ -10593,6 +11159,21 @@ end))]==],
         until Player.Character ~= character or os.clock() >= deadline
     end
 
+    local function findRespawnSignal()
+        if type(replicatesignal) ~= "function" then
+            return nil
+        end
+        for _, signalName in ipairs({ "ConnectDiedSignalBackend", "Kill" }) do
+            local ok, signal = pcall(function()
+                return Player[signalName]
+            end)
+            if ok and typeof(signal) == "RBXScriptSignal" then
+                return signal
+            end
+        end
+        return nil
+    end
+
     local function requestSingleRespawn(excluded)
         local current = Player.Character
         if current and current ~= excluded then
@@ -10604,16 +11185,79 @@ end))]==],
                 return true
             end
         end
-        if type(replicatesignal) == "function" then
-            local ok, killSignal = pcall(function() return Player.Kill end)
-            if ok and typeof(killSignal) == "RBXScriptSignal" then
-                return pcall(replicatesignal, killSignal)
-            end
+        local respawnSignal = findRespawnSignal()
+        if respawnSignal then
+            return pcall(replicatesignal, respawnSignal)
         end
         return false
     end
 
-    local function recoverAfterStop(excluded, preferred, awaitAppearance)
+    local function uninstallResetBridge()
+        if resetBindableConnection then
+            pcall(function()
+                resetBindableConnection:Disconnect()
+            end)
+            resetBindableConnection = nil
+        end
+        if resetBindable then
+            pcall(function()
+                resetBindable:Destroy()
+            end)
+            resetBindable = nil
+        end
+        resetInFlight = false
+        rebindInProgress = false
+        pendingPhysicalCharacter = nil
+        pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", true)
+    end
+
+    local function installResetBridge()
+        if not findRespawnSignal() then
+            -- Executors without a callable respawn signal keep Roblox's default
+            -- reset path; controller-death recovery below still preserves place.
+            return false
+        end
+        if not resetBindable then
+            resetBindable = Instance.new("BindableEvent")
+            resetBindable.Name = "_UhhhhhhGelatekReset"
+            resetBindableConnection = resetBindable.Event:Connect(function()
+                local rig = backend.Rig
+                if resetInFlight
+                    or not backend.Running
+                    or Reanimate.Stopping
+                    or not rig
+                    or not rig.Parent
+                then
+                    return
+                end
+                resetInFlight = true
+                rebindInProgress = true
+                pendingPhysicalCharacter = backend.RealCharacter
+                isolatePhysicalCharacter(pendingPhysicalCharacter)
+                updatePoseMirror(rig)
+                setRespawnPlaceholderActive(true, rig)
+                if not requestSingleRespawn(rig) then
+                    task.defer(function()
+                        uninstallResetBridge()
+                        Util.Notify("Gelatek reset bridge unavailable; press Reset again")
+                    end)
+                else
+                    task.delay(math.max(game:GetService("Players").RespawnTime + 8, 12), function()
+                        if resetInFlight and backend.Rig == rig and rig.Parent then
+                            resetInFlight = false
+                            rebindInProgress = false
+                            pendingPhysicalCharacter = nil
+                            setRespawnPlaceholderActive(false)
+                            Util.Notify("Gelatek reset timed out; controller was kept")
+                        end
+                    end)
+                end
+            end)
+        end
+        return pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", resetBindable)
+    end
+
+    local function recoverAfterStop(excluded, preferred, awaitAppearance, continueRespawn)
         local character, humanoid = waitForPlayableCharacter(
             excluded,
             math.max(game:GetService("Players").RespawnTime + 4, 8),
@@ -10629,9 +11273,31 @@ end))]==],
         if not character then
             return false, "Roblox did not provide a fresh playable character after Gelatek stopped"
         end
-        restoreCharacterRuntime(character, humanoid)
-        if awaitAppearance then
-            waitForAppearance(character, 3)
+        if continueRespawn then
+            rebindInProgress = true
+            pendingPhysicalCharacter = character
+            -- Complete the same normal-character recovery that a manual
+            -- deanimate performs. Gelatek is not started again from inside the
+            -- CharacterAdded/reset stack; the outer serialized loop waits for
+            -- this fresh character to animate and settle first.
+            restoreCharacterRuntime(character, humanoid)
+            if awaitAppearance then
+                waitForAppearance(character, 3)
+            end
+            local settleDeadline = os.clock() + 0.35
+            repeat
+                RunService.Heartbeat:Wait()
+            until Player.Character ~= character
+                or humanoid.Health <= 0
+                or os.clock() >= settleDeadline
+            if Player.Character ~= character or humanoid.Health <= 0 then
+                return false, "fresh Roblox character disappeared before Gelatek could restart"
+            end
+        else
+            restoreCharacterRuntime(character, humanoid)
+            if awaitAppearance then
+                waitForAppearance(character, 3)
+            end
         end
         return true, nil, character
     end
@@ -10649,10 +11315,7 @@ end))]==],
         end)
     end
 
-    local function fallbackCleanup(preserveCharacter)
-        detachCameraBridge()
-        detachScaleBridge()
-        restoreVoidDestruction()
+    local function fallbackCleanup(preserveCharacter, continueRespawn, preserveController)
         local global = environment()
         local accessoryTargetFolder = global.UhhhhhhTBZGelatekAccessoryTargetFolder
         if typeof(accessoryTargetFolder) == "Instance" and accessoryTargetFolder.Parent then
@@ -10677,6 +11340,52 @@ end))]==],
                 preserveCharacter.Parent = workspace
             end)
         end
+
+        if continueRespawn then
+            if not preserveController then
+                detachCameraBridge()
+                detachScaleBridge()
+                if backend.Rig and backend.Rig.Parent then
+                    pcall(function()
+                        backend.Rig:Destroy()
+                    end)
+                end
+                backend.Rig = nil
+                Reanimate.Character = nil
+                Bridge.Character = nil
+                backend.Running = false
+            else
+                backend.Running = true
+                Reanimate.Character = backend.Rig
+                Bridge.Character = backend.Rig
+                global.UhhhhhhTBZGelatekPreservedController = backend.Rig
+            end
+            backend.RealCharacter = nil
+            backend.ActiveRealCharacter = nil
+            Bridge.RealCharacter = nil
+            global.RealChar = nil
+            global.Stopped = false
+            global.UhhhhhhTBZGelatekStop = nil
+            global.UhhhhhhTBZGelatekPermaReady = nil
+            global.UhhhhhhTBZGelatekControllerReady = nil
+            global.UhhhhhhTBZGelatekAccessoryTargetFolder = nil
+            global.UhhhhhhTBZGelatekPhysicalRoot = nil
+            global.UhhhhhhTBZGelatekControllerRoot = nil
+            global.UhhhhhhTBZGelatekFlingActive = nil
+            global.UhhhhhhTBZGelatekPreserveController = nil
+            global.UhhhhhhTBZGelatekStaticRootCFrame = staticRootCFrame
+            global.UhhhhhhTBZGelatekControllerDied = nil
+            global.TableOfEvents = nil
+            return
+        end
+
+        detachCameraBridge()
+        detachScaleBridge()
+        detachPoseMirror(true)
+        uninstallResetBridge()
+        rebindInProgress = false
+        pendingPhysicalCharacter = nil
+        restoreVoidDestruction()
         if backend.Rig and backend.Rig.Parent then
             pcall(function()
                 backend.Rig:Destroy()
@@ -10684,6 +11393,7 @@ end))]==],
         end
         backend.Rig = nil
         backend.RealCharacter = nil
+        backend.ActiveRealCharacter = nil
         backend.Running = false
         Reanimate.Character = nil
         Bridge.Character = nil
@@ -10701,6 +11411,13 @@ end))]==],
         global.UhhhhhhTBZGelatekHiddenPartsY = nil
         global.UhhhhhhTBZGelatekCharacterSpacingScale = nil
         global.UhhhhhhTBZGelatekAccessoryTargetFolder = nil
+        global.UhhhhhhTBZGelatekPhysicalRoot = nil
+        global.UhhhhhhTBZGelatekControllerRoot = nil
+        global.UhhhhhhTBZGelatekFlingActive = nil
+        global.UhhhhhhTBZGelatekPreserveController = nil
+        global.UhhhhhhTBZGelatekPreservedController = nil
+        global.UhhhhhhTBZGelatekStaticRootCFrame = nil
+        global.UhhhhhhTBZGelatekControllerDied = nil
         global.TableOfEvents = nil
     end
 
@@ -10710,8 +11427,21 @@ end))]==],
         Reanimate.Starting = true
         Reanimate.Stopping = false
 
+        local restartRequested = true
+        local pendingReturnCFrame = nil
+        while restartRequested and not Reanimate.Stopping do
+        restartRequested = false
+        local returnToStaticRoot = pendingReturnCFrame
+        pendingReturnCFrame = nil
+        if not (backend.Rig and backend.Rig.Parent) then
+            backend.Running = false
+        end
         local queuedRespawnCharacter = nil
         local respawnObserved = false
+        local controllerDiedObserved = false
+        local controllerPreserved = false
+        local preservedControllerAtStart = backend.Rig and backend.Rig.Parent and backend.Rig or nil
+        rebindInProgress = preservedControllerAtStart ~= nil
         local respawnConnections = {}
         local function disconnectRespawnObservers()
             for _, connection in ipairs(respawnConnections) do
@@ -10728,9 +11458,13 @@ end))]==],
 
             originalCharacter = Player.Character
             assert(originalCharacter and originalCharacter.Parent, "real character is not ready")
+            rebindInProgress = preservedControllerAtStart ~= nil
+            pendingPhysicalCharacter = originalCharacter
+            isolatePhysicalCharacter(originalCharacter)
             local originalHumanoid = originalCharacter:FindFirstChildOfClass("Humanoid")
             assert(originalHumanoid, "real character Humanoid is not ready")
             backend.RealCharacter = originalCharacter
+            backend.ActiveRealCharacter = originalCharacter
             Bridge.RealCharacter = originalCharacter
             captureOriginalFace(originalCharacter)
             originalCameraSubject = workspace.CurrentCamera and workspace.CurrentCamera.CameraSubject
@@ -10744,6 +11478,28 @@ end))]==],
             global.UhhhhhhTBZGelatekPermaReady = false
             global.UhhhhhhTBZGelatekControllerReady = false
             global.UhhhhhhTBZGelatekCharacterSpacingScale = characterScale()
+            global.UhhhhhhTBZGelatekPreserveController = nil
+            global.UhhhhhhTBZGelatekPreservedController = preservedControllerAtStart
+            -- Do not inject the tracker into Gelatek's rig maker. A respawn
+            -- generation starts where Roblox spawned it, just like a manual
+            -- reanimate, and is moved back only after ControllerReady below.
+            global.UhhhhhhTBZGelatekStaticRootCFrame = nil
+            global.UhhhhhhTBZGelatekControllerDied = function(diedRig)
+                if Reanimate.Stopping
+                    or controllerDiedObserved
+                    or (diedRig and backend.Rig and diedRig ~= backend.Rig)
+                then
+                    return
+                end
+                controllerDiedObserved = true
+                rebindInProgress = true
+                pendingPhysicalCharacter = Player.Character ~= diedRig and Player.Character or backend.RealCharacter
+                isolatePhysicalCharacter(pendingPhysicalCharacter)
+                if diedRig and diedRig.Parent then
+                    updatePoseMirror(diedRig)
+                    setRespawnPlaceholderActive(true, diedRig)
+                end
+            end
             global.UhhhhhhTBZShouldNoclip = function()
                 return Reanimate.Noclip == true
             end
@@ -10789,8 +11545,13 @@ end))]==],
 
             assert(rig and rig.Parent, "Gelatek did not create a detectable controller rig")
             backend.Rig = rig
+            local reusedController = preservedControllerAtStart ~= nil and rig == preservedControllerAtStart
             local controllerHumanoid = rig:FindFirstChildOfClass("Humanoid")
             assert(controllerHumanoid, "Gelatek controller is missing its Humanoid")
+            -- Jointless ragdoll and Immersive VR intentionally disable the neck
+            -- Motor6D. The controller must not die merely because that joint is off.
+            pcall(function() controllerHumanoid.RequiresNeck = false end)
+            pcall(function() controllerHumanoid.BreakJointsOnDeath = false end)
             backend.ControllerRig = controllerHumanoid.RigType.Name
             assert(
                 backend.ControllerRig == "R6",
@@ -10808,6 +11569,7 @@ end))]==],
             until (
                 options.PermanentDeath
                     and global.UhhhhhhTBZGelatekPermaReady == true
+                    and global.UhhhhhhTBZGelatekControllerReady == true
                 or not options.PermanentDeath
                     and global.UhhhhhhTBZGelatekControllerReady == true
             )
@@ -10815,7 +11577,8 @@ end))]==],
                 or os.clock() >= readyDeadline
             if options.PermanentDeath then
                 assert(
-                    global.UhhhhhhTBZGelatekPermaReady == true,
+                    global.UhhhhhhTBZGelatekPermaReady == true
+                        and global.UhhhhhhTBZGelatekControllerReady == true,
                     "Gelatek controller appeared, but permanent-death assignment did not finish"
                 )
             else
@@ -10825,36 +11588,69 @@ end))]==],
                 )
             end
 
-            -- Finish the initial assignment to the controller. A later fresh
-            -- Player.Character ends this backend and is restored normally.
+            -- Finish this generation's assignment. A later fresh Roblox
+            -- character is queued for the next serialized generation.
             pcall(function()
                 Player.Character = rig
             end)
-            for _, attribute in ipairs({
-                "MovementInit",
-                "MovesetInternalName",
-                "IsDancing",
-                "DanceInternalName",
-            }) do
-                pcall(function()
-                    rig:SetAttribute(attribute, nil)
-                end)
+            if not reusedController then
+                for _, attribute in ipairs({
+                    "MovementInit",
+                    "MovesetInternalName",
+                    "IsDancing",
+                    "DanceInternalName",
+                }) do
+                    pcall(function()
+                        rig:SetAttribute(attribute, nil)
+                    end)
+                end
             end
             Reanimate.Character = rig
             Bridge.Character = rig
+            backend.RigGeneration += 1
             backend.Running = true
             attachScaleBridge(rig)
+            if typeof(returnToStaticRoot) == "CFrame" then
+                local returned = pcall(function()
+                    rig:PivotTo(returnToStaticRoot)
+                    local root = rig:FindFirstChild("HumanoidRootPart")
+                    if root and root:IsA("BasePart") then
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        root.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end)
+                assert(returned, "fresh Gelatek controller could not return to the static root")
+            end
             attachCameraBridge(rig)
+            attachPoseMirror(rig)
+            if reusedController and type(Lifecycle.RefreshController) == "function" then
+                Lifecycle.RefreshController(rig)
+            end
+            rebindInProgress = false
+            pendingPhysicalCharacter = nil
+            setRespawnPlaceholderActive(false)
+            resetInFlight = false
+            installResetBridge()
 
             local function observeRespawn(character)
+                if respawnObserved then
+                    return
+                end
                 if backend.Running
                     and not Reanimate.Stopping
+                    and character
+                    and character.Parent
                     and character ~= rig
+                    and character ~= originalCharacter
                 then
                     respawnObserved = true
-                    if character and character.Parent then
-                        queuedRespawnCharacter = character
-                    end
+                    queuedRespawnCharacter = character
+                    resetInFlight = false
+                    rebindInProgress = true
+                    pendingPhysicalCharacter = character
+                    isolatePhysicalCharacter(character)
+                    updatePoseMirror(rig)
+                    setRespawnPlaceholderActive(true, rig)
                 end
             end
             table.insert(respawnConnections, Player.CharacterAdded:Connect(observeRespawn))
@@ -10865,7 +11661,7 @@ end))]==],
                 end)
             )
             Reanimate.Starting = false
-            while not Reanimate.Stopping and rig.Parent and not respawnObserved do
+            while not Reanimate.Stopping and rig.Parent and not respawnObserved and not controllerDiedObserved do
                 if Reanimate.Character ~= rig then
                     Reanimate.Character = rig
                     Bridge.Character = rig
@@ -10875,8 +11671,22 @@ end))]==],
             end
 
             disconnectRespawnObservers()
-            if (Reanimate.Stopping or respawnObserved) and rig.Parent then
-                requestInternalStop()
+            local continueRespawn = not Reanimate.Stopping and (respawnObserved or controllerDiedObserved)
+            if controllerDiedObserved then
+                -- FakeHum.Died is already inside Gelatek's serialized Death path.
+                -- Let that call finish instead of invoking Death a second time.
+                local deathDeadline = os.clock() + 2
+                repeat
+                    task.wait()
+                until not rig.Parent or os.clock() >= deathDeadline
+                controllerPreserved = false
+            elseif (Reanimate.Stopping or continueRespawn) and rig.Parent then
+                -- Reusing the same controller Instance leaves animation module,
+                -- Humanoid, and track state alive across an instant respawn.
+                -- A manual deanimate/reanimate fixes that exact condition, so
+                -- automate the same clean controller rebuild here. The static
+                -- root and mirrored placeholder remain alive and preserve place.
+                controllerPreserved = requestInternalStop(false)
             end
         end, debug.traceback)
 
@@ -10887,23 +11697,30 @@ end))]==],
             warn("Gelatek: " .. backend.LastError)
             Util.Notify("Gelatek failed")
             if backend.Rig and backend.Rig.Parent then
-                requestInternalStop()
+                requestInternalStop(false)
             end
+            controllerPreserved = false
         end
 
         Reanimate.Starting = false
+        local restartCause = respawnObserved or controllerDiedObserved
+        local continueRespawn = ok and restartCause and not Reanimate.Stopping
         local excludedRig = backend.Rig
         local retiredPhysicalCharacter = originalCharacter
-        fallbackCleanup(queuedRespawnCharacter)
-        local recovered, recoveryError = recoverAfterStop(
+        fallbackCleanup(queuedRespawnCharacter, continueRespawn, controllerPreserved)
+        local recovered, recoveryError, recoveredCharacter = recoverAfterStop(
             excludedRig,
             queuedRespawnCharacter,
-            respawnObserved
+            continueRespawn,
+            continueRespawn
         )
         if not recovered then
             backend.LastError = backend.LastError and (backend.LastError .. " | recovery: " .. recoveryError) or recoveryError
             warn("Gelatek recovery: " .. tostring(recoveryError))
             Util.Notify("Respawn failed")
+            if continueRespawn then
+                fallbackCleanup(nil, false, false)
+            end
         else
             destroyRetiredPhysicalCharacter(
                 retiredPhysicalCharacter,
@@ -10912,6 +11729,16 @@ end))]==],
             )
         end
         originalCharacter = nil
+        if continueRespawn and recovered and recoveredCharacter and not Reanimate.Stopping then
+            -- This is a loop continuation, never a recursive Start/task.spawn.
+            -- The old generation has fully stopped; only the static tracker is
+            -- retained for the clean controller that the next iteration builds.
+            pendingReturnCFrame = staticRootCFrame
+            restartRequested = true
+            backend.LastError = nil
+            task.wait()
+        end
+        end
         if type(Lifecycle.Complete) == "function" then
             Lifecycle.Complete(backend)
         else
@@ -10919,13 +11746,48 @@ end))]==],
         end
     end
 
-    function backend.Fling()
-        return false
+    function backend.Fling(target, duration)
+        if not backend.Running or not target or target == backend.Rig or target == backend.RealCharacter then
+            return false
+        end
+        local now = os.clock()
+        if typeof(target) == "Instance" then
+            local last = recentFlingTargets[target]
+            if last and now - last < 1 then
+                return false
+            end
+            recentFlingTargets[target] = now
+            task.delay(1, function()
+                if recentFlingTargets[target] == now then
+                    recentFlingTargets[target] = nil
+                end
+            end)
+        end
+        activeFling = {
+            Target = target,
+            Deadline = now
+                + math.max(
+                    tonumber(duration)
+                        or (Reanimate.UsePhysicsRepRootPart and Reanimate.PhysicsRepRootPartFling)
+                        or 2,
+                    0.05
+                ),
+        }
+        environment().UhhhhhhTBZGelatekFlingActive = true
+        return true
     end
 
-    function backend.ShowHitboxes() end
+    function backend.ShowHitboxes()
+        local rig = backend.Rig
+        if rig and rig.Parent then
+            updatePoseMirror(rig)
+        elseif staticRootPart and staticRootPart.Parent then
+            backend.StaticRoot = staticRootPart
+        end
+    end
     return backend
 end
+
 ]=====],
     ["Theos Dancezzzzz/Bridge/runtime/source_patcher.lua"] = [=====[local Patcher = {}
 
@@ -10958,6 +11820,13 @@ local function __TheoFactory(path)
 end
 local __TheoLifecycle = {}
 local __TheoManualRefreshSerial = 0
+__TheoLifecycle.RefreshController = function()
+    -- A retained external controller is the same Instance after Roblox gives us
+    -- a new physical character. Force the movement owner to destroy its old
+    -- module state and initialise the selected moveset/dance against that rig
+    -- again, without replacing the controller model.
+    __TheoManualRefreshSerial += 1
+end
 local __TheoContext = {
     UI = UI,
     SaveData = SaveData,
@@ -10978,20 +11847,26 @@ local function __TheoIsExternal()
     return Reanimate.Current == GelatekReanimator
 end
 
--- The controller humanoid can remain seated while Limb's live Roblox humanoid
--- is forced back to a non-seated state by the replication loop. Mirror only
--- the explicit "Keep Humanoid Sit State" case so seat-driven game UI does not
--- close while the controller is still sitting.
+-- The controller humanoid can remain seated while the live Roblox humanoid is
+-- forced back to a non-seated state by a physical follower. Mirror only an
+-- active controller seat and the explicit "Keep Humanoid Sit State" option.
 local __TheoMirroredSeatHumanoid = nil
 RunService.PostSimulation:Connect(function()
     local controller = Reanimate.Character
     local controllerHumanoid = controller and controller:FindFirstChildOfClass("Humanoid")
-    local realCharacter = LimbReanimator.ActiveRealCharacter
+    local isLimb = Reanimate.Current == LimbReanimator
+    local isGelatek = Reanimate.Current == GelatekReanimator
+    local realCharacter = isLimb and LimbReanimator.ActiveRealCharacter
+        or isGelatek and GelatekReanimator.RealCharacter
+        or nil
     local realHumanoid = realCharacter and realCharacter:FindFirstChildOfClass("Humanoid")
-    local shouldMirror = Reanimate.Current == LimbReanimator
+    local activeControllerSeat = controller
+        and controller:GetAttribute("_Uhhhhhh_SeatWeldActive") == true
+    local shouldMirror = (isLimb or isGelatek)
         and Reanimate.SeatSit
         and Reanimate.KeepSeatSitState
         and controllerHumanoid
+        and activeControllerSeat
         and controllerHumanoid.Sit
         and realHumanoid
         and realHumanoid.Health > 0
@@ -11290,7 +12165,7 @@ end)]==]
     source = replaceOnce(
         source,
         creditMarker,
-        creditMarker .. '\n\tUI.CreateText(CreditsPage, "Gelatek — Gelatek", 11, Enum.TextXAlignment.Right)',
+        creditMarker .. '\n\tUI.CreateText(CreditsPage, "Gelatek â Gelatek", 11, Enum.TextXAlignment.Right)',
         "credits"
     )
 
@@ -11317,6 +12192,7 @@ end)]==]
 end
 
 return Patcher
+
 ]=====],
     ["Theos Dancezzzzz/Bridge/runtime/sunc_compat.lua"] = [=====[-- Small compatibility and capability layer for Uhhhhhh Reanimate Modded.
 -- It detects capabilities; it deliberately does not fake hidden-property functions.
@@ -11374,7 +12250,7 @@ function M.report()
     }
     print("===== Uhhhhhh Reanimate Modded 1.0.9 BETA capability report =====")
     for _, row in ipairs(rows) do
-        print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " — " .. row[3])
+        print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " â " .. row[3])
     end
     print("Hidden-property functions are never emulated with setscriptable by this bridge.")
     return rows
@@ -12270,7 +13146,7 @@ if AreAnimationsDisabled == false then
 	end
 end
 if IsLoadLibraryEnabled == true and (not RunService:IsStudio()) then
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/Gelatekussy/GelatekReanimate/main/Addons/LoadLibrary.lua"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/Gelatekussy/GelatekReanimate/e776bcda907bcabade98d0ef671fce0c72e237e7/Addons/LoadLibrary.lua"))()
 end
 table.insert(Events,FakeHum.Died:Connect(function() 
     Death()
@@ -12526,6 +13402,7 @@ end
 
 end)
 warn("Reanimated in " .. string.sub(tostring(tick()-Speed),1,string.find(tostring(tick()-Speed),".")+5))
+
 ]=====],
     ["Theos Dancezzzzz/Bridge/vendor/Uhhhhhh.lua"] = [=====[--[[
  ...    :::::        ::        ::        ::        ::        ::        
@@ -12548,12 +13425,18 @@ $$      $$$$$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$
 Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
+-- Combined lineage build (2026-08-09): mxsynry bridge/vendor core plus
+-- conflict-resolved testing734 beta features. See Uhhhhhh-Merge-Report.md.
+
 if _G.UhhhhhhLoaded then
 	return
 end
 _G.UhhhhhhLoaded = true
 
 local UhhhhhhVersion = "1.0.9 BETA"
+-- Keep normal external downloads enabled, but make the default upstream payloads
+-- reproducible. Update this only after reviewing the replacement revision.
+local STEVE_AUDITED_REVISION = "ee83956c666a1ff71d6562cbcf3eb17853b85c7b"
 
 local Debris = cloneref(game:GetService("Debris"))
 local CoreGui = cloneref(game:GetService("CoreGui"))
@@ -13002,7 +13885,10 @@ do
 			ClickFlingEnabled = false,
 			ToolGrabEnabled = true,
 			KeybindsEnabled = true,
-			EnableUntrustedExtras = true,
+			-- Normal GitHub/module HTTP requests remain available. The unrelated
+			-- legacy filesystem scanner/WebSocket is opt-in.
+			EnableUntrustedExtras = false,
+			PhysicsRepRootPartFling = 1 / 20,
 			CharacterScale = 1,
 			NoSmoothCam = false,
 			UITheme = 15,
@@ -13025,7 +13911,9 @@ do
 				LimbInitMode = 2,
 				LimbFlingVelocityMagnitude = 10000,
 				LimbFlingVelocityDirection = 1,
+				LimbTargetMethod = 1,
 				HatsCollideMethod = 7,
+				HatsPermadeathMethod = 1,
 				IWantAllHats = true,
 				NoToolHolding = false,
 				HatsPatchmahub = false,
@@ -13112,6 +14000,8 @@ do
 	end)
 	pcall(makefolder, "UhhhhhhReanim/Assets")
 	pcall(makefolder, "UhhhhhhReanim/Modules")
+	pcall(makefolder, "UhhhhhhReanim/AdministrativeModules")
+	pcall(makefolder, "UhhhhhhReanim/AdministrativeModules/DamageMethod")
 	pcall(makefolder, "UhhhhhhReanim/Muzik")
 	pcall(makefolder, "UhhhhhhReanim/BuiltinModules")
 	pcall(makefolder, "UhhhhhhReanim/Content")
@@ -13120,6 +14010,104 @@ do
 	pcall(makefolder, "UhhhhhhReanim/Content/Images")
 	pcall(makefolder, "UhhhhhhReanim/Content/Models")
 	pcall(makefolder, "UhhhhhhReanim/Content/Unknown")
+end
+
+-- testing734's beta compiled this file for every target on every frame. Cache
+-- the callback instead and reload it only when this script starts.
+local DamageMethodPath = "UhhhhhhReanim/AdministrativeModules/DamageMethod/main.lua"
+local DefaultDamageMethodSource = [==[
+-- Optional local target handler. Replace this file to customize behavior.
+-- Arguments: reanimCharacter, rootPart, rootCFrame, rootVelocity,
+-- targetRecord, targetCFrame, method ("LIMB" or "HAT").
+return function(reanimCharacter, rootPart, rootCFrame, rootVelocity, targetRecord, targetCFrame, method)
+	if method ~= "LIMB" then
+		return
+	end
+	local tool = rootPart and rootPart.Parent and rootPart.Parent:FindFirstChildOfClass("Tool")
+	if not tool or type(firetouchinterest) ~= "function" then
+		return
+	end
+	local target = targetRecord and targetRecord.Target
+	local targetPart = nil
+	if typeof(target) == "Instance" then
+		if target:IsA("Player") then
+			target = target.Character
+		end
+		if target and target:IsA("Model") then
+			targetPart = target:FindFirstChild("HumanoidRootPart")
+				or target:FindFirstChild("Torso")
+				or target:FindFirstChildWhichIsA("BasePart")
+		elseif target and target:IsA("BasePart") then
+			targetPart = target
+		end
+	end
+	local handle = tool:FindFirstChild("Handle")
+	if targetPart and handle then
+		tool:Activate()
+		firetouchinterest(targetPart, handle, 1)
+		firetouchinterest(targetPart, handle, 0)
+		firetouchinterest(handle, targetPart, 1)
+		firetouchinterest(handle, targetPart, 0)
+	end
+end
+]==]
+if not isfile(DamageMethodPath) then
+	pcall(writefile, DamageMethodPath, DefaultDamageMethodSource)
+end
+local DamageMethod = nil
+do
+	local ok, source = pcall(readfile, DamageMethodPath)
+	if ok and type(source) == "string" then
+		local chunk, compileError = loadstring(source, "Uhhhhhh :: DamageMethod")
+		if chunk then
+			local ran, result = pcall(chunk)
+			if ran and type(result) == "function" then
+				DamageMethod = result
+			else
+				warn("Uhhhhhh DamageMethod must return a function")
+			end
+		else
+			warn("Uhhhhhh DamageMethod compile failed: " .. tostring(compileError))
+		end
+	end
+end
+local function RunDamageMethod(...)
+	if not DamageMethod then
+		return false
+	end
+	local ok, reason = pcall(DamageMethod, ...)
+	if not ok then
+		warn("Uhhhhhh DamageMethod failed: " .. tostring(reason))
+	end
+	return ok
+end
+local function ResolveDamageTarget(target)
+	if typeof(target) ~= "Instance" then
+		return nil
+	end
+	if target:IsA("Player") then
+		target = target.Character
+	end
+	if target and target:IsA("Model") then
+		return target:FindFirstChild("HumanoidRootPart")
+			or target:FindFirstChild("Torso")
+			or target:FindFirstChildWhichIsA("BasePart")
+	end
+	return target and target:IsA("BasePart") and target or nil
+end
+local function ToolTouchTarget(rootPart, targetRecord)
+	local tool = rootPart and rootPart.Parent and rootPart.Parent:FindFirstChildOfClass("Tool")
+	local targetPart = ResolveDamageTarget(targetRecord and targetRecord.Target)
+	local handle = tool and tool:FindFirstChild("Handle")
+	if not targetPart or not handle or type(firetouchinterest) ~= "function" then
+		return false
+	end
+	tool:Activate()
+	firetouchinterest(targetPart, handle, 1)
+	firetouchinterest(targetPart, handle, 0)
+	firetouchinterest(handle, targetPart, 1)
+	firetouchinterest(handle, targetPart, 0)
+	return true
 end
 
 do
@@ -13200,8 +14188,12 @@ do
 			Size = UDim2.new(1, 0, 0, 32),
 		}):Play()
 		task.wait(0.5)
-		local s, assetsof =
-			pcall(game.HttpGet, game, "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/uiassets/")
+		local s, assetsof = pcall(
+			game.HttpGet,
+			game,
+			"https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/uiassets/?ref="
+				.. STEVE_AUDITED_REVISION
+		)
 		if s and assetsof then
 			s, assetsof = pcall(HttpService.JSONDecode, HttpService, assetsof)
 			if s and assetsof then
@@ -13485,22 +14477,18 @@ else
 		"greetings to qpmbsjbvt for getting me into reanimation            ",
 		"those who know the place called ajman, dubai, uae                 ",
 		":3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 >:3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3 :3",
-		--"quick intro and quick scrolltext                                                                   hi i like dih",
 		"quick intro        with quick scrolltext         and you will miss the punchline              punchline                did you get the punchline?  ",
 		"meeeooowwwwwwwwww >:3                                          maw",
 		"wwwwwwwwwwwwwwwwwww                         grass                 ",
 		"erika's the towers                            sfoth iv update when",
 		"i will leak all ur script i will leak all ur script i will leak al",
-		--"kasil loves gooning to everybody                  must've been the",
 		"fflags are dead lol                                               ",
 		"imagine being called a dummy                                      ",
-		-- DEAD MEME "nothing beats a jet 2 holiday. and right now, im beating myself to",
 		"hi                          ...                oxide more like sui",
 		"even if I mope, nothing good will happen! if i worked hard today, today will be perfecto!",
 		"hi                          ...                                   ",
 		"who the fuck even reads this??                     hi guys        ",
 		"          trust me the ui looks good             here it comes    ",
-		-- its not a btp release "is this even a btp legends release?? i myself dk if it should be  ",
 		"dying is scary, but living is difficult                               dying: gifted scary; living: pure difficult",
 		"but i halter my forethought, i keep on running like a chicken with his dih",
 		"kaiya sounds like a perfect name for a genshin impact character   ",
@@ -13510,7 +14498,6 @@ else
 		"all UI music credits to dubmood, zabutom, ogge, 4mat and hoster   ",
 		"heres the triforce                and heres my name                              ",
 		"skids are now taking credit of this entire script, meaning its so good           ",
-		-- nonono i cant advertise that anymore "whenever i see hat reanimation nowadays i check to see if they are collidable    ",
 		"skids, be alert, go to weao.xyz for your roblox hacks!            ",
 		"                                             ok.                         ",
 		"hey steve why is this better than genesis fe?                     ",
@@ -16263,6 +17250,7 @@ SaveData.P2PCollision = not not SaveData.P2PCollision
 SaveData.ShiftlockDisabled = not not SaveData.ShiftlockDisabled
 SaveData.NoLoadAnimationHook = not not SaveData.NoLoadAnimationHook
 SaveData.NoPhysicsRepRootPart = not not SaveData.NoPhysicsRepRootPart
+SaveData.PhysicsRepRootPartFling = math.clamp(tonumber(SaveData.PhysicsRepRootPartFling) or 1 / 20, 0.001, 30)
 SaveData.NetlessVelocity = SaveData.NetlessVelocity or 25.01
 SaveData.UsePatchmaLikeNetless = not not SaveData.UsePatchmaLikeNetless
 SaveData.UseAngularVelocity = not not SaveData.UseAngularVelocity
@@ -16312,7 +17300,7 @@ local Reanimate = {
 	Stopping = false,
 	UseLoadAnimationHook = not SaveData.NoLoadAnimationHook,
 	UsePhysicsRepRootPart = not SaveData.NoPhysicsRepRootPart,
-	PhysicsRepRootPartFling = 1 / 10,
+	PhysicsRepRootPartFling = SaveData.PhysicsRepRootPartFling,
 	NetlessVelocity = SaveData.NetlessVelocity,
 	UsePatchmaLikeNetless = SaveData.UsePatchmaLikeNetless,
 	UseAngularVelocity = SaveData.UseAngularVelocity,
@@ -17096,8 +18084,14 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	for _, v in RC:GetDescendants() do
 		task.spawn(OnDescendant, v)
 	end
-	RC:ScaleTo(Reanimate.CharacterScale)
+	local InitialCharacterScale = Reanimate.CharacterScale
+	local PreviousCharacterScale = RC:GetScale()
+	RC:ScaleTo(InitialCharacterScale)
 	local RCHumanoid, RCRootPart = RC.Humanoid, RC.HumanoidRootPart
+	-- Model:ScaleTo changes the R6 geometry but Humanoid.HipHeight needs the
+	-- matching ground-clearance delta. Do not assign an absolute value: VR uses
+	-- HipHeight for crouching and must keep its own offset.
+	RCHumanoid.HipHeight += 2 * (InitialCharacterScale - PreviousCharacterScale)
 	local RCHead, RCTorso, RCRootJoint, RCNeck = RC.Head, RC.Torso, RCRootPart.RootJoint, RC.Torso.Neck
 	--[[local Anchor = Instance.new("Part", RCRootPart)
 	Anchor.Name = "i can take explosions >:3"
@@ -17118,6 +18112,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	local SafeY = cf.Y
 	local IsFloat = false
 	local SeatWeld = nil
+	RC:SetAttribute("_Uhhhhhh_SeatWeldActive", false)
 	local LastJumpOffSeat = 0
 	local function HasActiveSeatWeld()
 		return SeatWeld ~= nil
@@ -17130,6 +18125,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			SeatWeld:Destroy()
 			SeatWeld = nil
 		end
+		RC:SetAttribute("_Uhhhhhh_SeatWeldActive", false)
 	end
 	local function PreserveSeatSitState()
 		if not Reanimate.SeatSit or not Reanimate.KeepSeatSitState or not HasActiveSeatWeld() or RCHumanoid.Jump then
@@ -17154,6 +18150,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			SeatWeld.Part1 = RCRootPart
 			SeatWeld.C0 = CFrame.new(0, part.Size.Y / 2, 0)
 			SeatWeld.C1 = CFrame.new(0, -1.5 * RC:GetScale(), 0)
+			RC:SetAttribute("_Uhhhhhh_SeatWeldActive", true)
 			Util.LinkDestroyI2C(
 				SeatWeld,
 				RCHumanoid:GetPropertyChangedSignal("Jump"):Connect(function()
@@ -17218,8 +18215,10 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			local MoveCF = CFrame.Angles(0, x, 0)
 			pcall(sethiddenproperty, RCRootPart, "PhysicsRepRootPart", nil)
 			local scale = Reanimate.CharacterScale
-			if scale ~= RC:GetScale() then
+			local previousScale = RC:GetScale()
+			if scale ~= previousScale then
 				RC:ScaleTo(scale)
+				RCHumanoid.HipHeight += 2 * (scale - previousScale)
 			end
 			local force = Vector3.zero
 			local RCHumanoidState = RCHumanoid:GetState().Name
@@ -17686,6 +18685,20 @@ SaveData.Reanimator.LimbReplicateFPS10 = not not SaveData.Reanimator.LimbReplica
 SaveData.Reanimator.LimbLegacyMotorReplication = nil
 SaveData.Reanimator.LimbRoleplay = not not SaveData.Reanimator.LimbRoleplay
 SaveData.Reanimator.LimbUseNaNFling = not not SaveData.Reanimator.LimbUseNaNFling
+if SaveData.Reanimator.LimbTargetMethod == nil then
+	if SaveData.Reanimator.LimbUseCustomKill == true or SaveData.Reanimator.LimbUseCustomKill == 1 then
+		SaveData.Reanimator.LimbTargetMethod = 3
+	elseif SaveData.Reanimator.LimbUseToolKill == true or SaveData.Reanimator.LimbUseToolKill == 1 then
+		SaveData.Reanimator.LimbTargetMethod = 2
+	else
+		SaveData.Reanimator.LimbTargetMethod = 1
+	end
+end
+SaveData.Reanimator.LimbTargetMethod = math.clamp(
+	math.floor(tonumber(SaveData.Reanimator.LimbTargetMethod) or 1),
+	1,
+	3
+)
 SaveData.Reanimator.LimbFlingVelocityMagnitude = math.clamp(
 	math.floor(tonumber(SaveData.Reanimator.LimbFlingVelocityMagnitude) or 10000),
 	1,
@@ -17713,6 +18726,7 @@ LimbReanimator.InitMode = SaveData.Reanimator.LimbInitMode
 LimbReanimator.ReplicateFPS10 = SaveData.Reanimator.LimbReplicateFPS10
 LimbReanimator.FlingEnabled = not SaveData.Reanimator.LimbRoleplay
 LimbReanimator.UseNaNFling = SaveData.Reanimator.LimbUseNaNFling
+LimbReanimator.TargetMethod = SaveData.Reanimator.LimbTargetMethod
 LimbReanimator.FlingVelocityMagnitude = SaveData.Reanimator.LimbFlingVelocityMagnitude
 LimbReanimator.FlingVelocityDirection = SaveData.Reanimator.LimbFlingVelocityDirection
 LimbReanimator.FlingTargets = {}
@@ -17820,7 +18834,7 @@ function LimbReanimator.Config(parent)
 	end)
 	local flingVelocityMagnitude = UI.CreateSlider(
 		parent,
-		"↳ Fling Velocity",
+		"â³ Fling Velocity",
 		LimbReanimator.FlingVelocityMagnitude,
 		1,
 		1000000000,
@@ -17834,7 +18848,7 @@ function LimbReanimator.Config(parent)
 	end)
 	local flingVelocityDirection = UI.CreateDropdown(
 		parent,
-		"↳ Fling Direction",
+		"â³ Fling Direction",
 		{ "Up", "Down", "Forward", "Backward" },
 		LimbReanimator.FlingVelocityDirection
 	)
@@ -17875,9 +18889,17 @@ function LimbReanimator.Config(parent)
 		LimbReanimator.UseNaNFling = val
 		SaveData.Reanimator.LimbUseNaNFling = val
 	end)
+	UI.CreateDropdown(parent, "Target Method", {
+		"Physics Fling",
+		"Tool Touch",
+		"Custom Local DamageMethod",
+	}, LimbReanimator.TargetMethod).Changed:Connect(function(val)
+		LimbReanimator.TargetMethod = val
+		SaveData.Reanimator.LimbTargetMethod = val
+	end)
 	UI.CreateText(
 		parent,
-		"^^^ can override default Roblox states, including sitting ^^^",
+		"^^^ NaN can override Roblox states; custom mode executes the reviewed local DamageMethod file ^^^",
 		10,
 		Enum.TextXAlignment.Center
 	)
@@ -18241,20 +19263,28 @@ function LimbReanimator.Start()
 	local function UpdateTransforms(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf)
 		if not RootPart:IsGrounded() then
 			if flingtarget then
-				if LimbReanimator.UseNaNFling then
-					RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005))
-						* CFrame.Angles(0, os.clock() * 15, 0)
-					RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
+				if LimbReanimator.TargetMethod == 3 then
+					RunDamageMethod(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf, "LIMB")
+					pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
+				elseif LimbReanimator.TargetMethod == 2 then
+					ToolTouchTarget(RootPart, flingtarget)
+					pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
 				else
-					RootPart.CFrame = flingcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
-					RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
+					if LimbReanimator.UseNaNFling then
+						RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005))
+							* CFrame.Angles(0, os.clock() * 15, 0)
+						RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
+					else
+						RootPart.CFrame = flingcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
+						RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
+					end
+					pcall(
+						sethiddenproperty,
+						RootPart,
+						"PhysicsRepRootPart",
+						Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+					)
 				end
-				pcall(
-					sethiddenproperty,
-					RootPart,
-					"PhysicsRepRootPart",
-					Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
-				)
 			else
 				RootPart.CFrame = rootcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
 				RootPart.Velocity, RootPart.RotVelocity = rootvel, Vector3.zero
@@ -18581,6 +19611,11 @@ SaveData.Reanimator.RespawnPosition = SaveData.Reanimator.RespawnPosition or 0
 SaveData.Reanimator.HatsFling = not not SaveData.Reanimator.HatsFling
 SaveData.Reanimator.HatsSpin = not not SaveData.Reanimator.HatsSpin
 SaveData.Reanimator.HatsFlingMethod = SaveData.Reanimator.HatsFlingMethod or 1
+SaveData.Reanimator.HatsPermadeathMethod = math.clamp(
+	math.floor(tonumber(SaveData.Reanimator.HatsPermadeathMethod) or 1),
+	1,
+	3
+)
 SaveData.Reanimator.NoToolHolding = not not SaveData.Reanimator.NoToolHolding
 SaveData.Reanimator.HatsToolAnim = SaveData.Reanimator.HatsToolAnim or 0
 HatReanimator.HatCollide = SaveData.Reanimator.HatsCollide
@@ -18596,6 +19631,7 @@ HatReanimator.HatCollideMethod = SaveData.Reanimator.HatsCollideMethod
 HatReanimator.IWantAllHats = SaveData.Reanimator.IWantAllHats
 HatReanimator.IWantHatCollide = SaveData.Reanimator.IWantHatCollide
 HatReanimator.Permadeath = false --not SaveData.Reanimator.HatsPatchmahub
+HatReanimator.PermadeathMethod = SaveData.Reanimator.HatsPermadeathMethod
 HatReanimator.RespawnPosition = SaveData.Reanimator.RespawnPosition
 -- 0 - hide body
 -- 1 - behind character
@@ -18617,6 +19653,10 @@ HatReanimator.UseNaNFling = true
 HatReanimator.HasPermadeath = false
 HatReanimator.HasHatCollide = false
 HatReanimator.RebuildRequired = true
+HatReanimator.StaticRoot = nil
+HatReanimator.ActiveRealCharacter = nil
+HatReanimator.RigGeneration = 0
+HatReanimator.CollidableHandles = setmetatable({}, { __mode = "k" })
 HatReanimator.HatMapSummary = "(no hat map yet, please * Reanimate * to build)"
 HatReanimator.HatCFrameOverride = {}
 HatReanimator.Status = {
@@ -18625,15 +19665,27 @@ HatReanimator.Status = {
 	RespawnFling = "(no status)",
 }
 function HatReanimator.ShowHitboxes()
-	if Player.Character then
-		for _, v in Player.Character:GetChildren() do
+	local seen = {}
+	local function showHandle(handle)
+		if
+			handle
+			and handle:IsA("BasePart")
+			and handle:IsDescendantOf(workspace)
+			and handle:GetAttribute("_Uhhhhhh_HasCollide")
+			and not seen[handle]
+		then
+			seen[handle] = true
+			Util.ShowPartHitbox(handle, Color3.fromRGB(80, 255, 110), 0)
+		end
+	end
+	for handle in HatReanimator.CollidableHandles do
+		showHandle(handle)
+	end
+	local character = HatReanimator.ActiveRealCharacter
+	if character and character.Parent then
+		for _, v in character:GetChildren() do
 			if v:IsA("Accessory") then
-				local handle = v:FindFirstChild("Handle")
-				if handle and handle:IsA("BasePart") then
-					if handle:GetAttribute("_Uhhhhhh_HasCollide") then
-						Util.ShowPartHitbox(handle, Color3.fromRGB(80, 255, 110), 0)
-					end
-				end
+				showHandle(v:FindFirstChild("Handle"))
 			end
 		end
 	end
@@ -18656,6 +19708,9 @@ function HatReanimator.Fling(target, duration)
 		return false
 	end
 	if target == Player.Character then
+		return false
+	end
+	if target == HatReanimator.ActiveRealCharacter then
 		return false
 	end
 	if typeof(target) == "Instance" then
@@ -18691,10 +19746,23 @@ function HatReanimator.Fling(target, duration)
 end
 HatReanimator.DontFireCharAddOnThisChar = nil
 function HatReanimator.Config(parent)
-	UI.CreateText(parent, "permadeath is patched, enable this switch if you want to", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		parent,
+		"All three are legacy client techniques. Gelatek mode uses its controller handoff plus timed head-break; it does not send a place-specific -pd command.",
+		10,
+		Enum.TextXAlignment.Center
+	)
 	UI.CreateSwitch(parent, "Permadeath", HatReanimator.Permadeath).Changed:Connect(function(val)
 		HatReanimator.Permadeath = val
 		SaveData.Reanimator.HatsPatchmahub = not val
+	end)
+	UI.CreateDropdown(parent, "Permadeath Method", {
+		"Default (patched)",
+		"dolteddown state method",
+		"Gelatek handoff + timed head-break",
+	}, HatReanimator.PermadeathMethod).Changed:Connect(function(val)
+		HatReanimator.PermadeathMethod = val
+		SaveData.Reanimator.HatsPermadeathMethod = val
 	end)
 	UI.CreateDropdown(parent, "respawntp", {
 		"The Void",
@@ -18758,16 +19826,18 @@ function HatReanimator.Config(parent)
 	end)
 	UI.CreateText(parent, "^^^ ...unless you want to look glitchy ^^^", 10, Enum.TextXAlignment.Center)
 	UI.CreateText(parent, "vvv dont use tool fling with physics glue btw vvv", 10, Enum.TextXAlignment.Center)
+	local HatTargetMethods = { -1, 0, 1, 2, 3, 10 }
 	UI.CreateDropdown(parent, "Target Fling Method", {
 		"Disabled (RP)",
 		"Classic Respawn",
 		"Biggest Hat",
 		"All Hats",
 		"Use Tool Handle",
-	}, HatReanimator.FlingMethod + 2).Changed
+		"Custom Local DamageMethod",
+	}, table.find(HatTargetMethods, HatReanimator.FlingMethod) or 1).Changed
 		:Connect(function(val)
-			HatReanimator.FlingMethod = val - 2
-			SaveData.Reanimator.HatsFlingMethod = val - 2
+			HatReanimator.FlingMethod = HatTargetMethods[val] or -1
+			SaveData.Reanimator.HatsFlingMethod = HatReanimator.FlingMethod
 		end)
 	UI.CreateSwitch(parent, "Tool Holding", HatReanimator.ToolHolding).Changed:Connect(function(val)
 		HatReanimator.ToolHolding = val
@@ -18842,6 +19912,9 @@ function HatReanimator.Start()
 	local function GetTools()
 		local tools = {}
 		local character, backpack = Player.Character, Player:FindFirstChildOfClass("Backpack")
+		if character == Reanimate.Character then
+			character = HatReanimator.ActiveRealCharacter
+		end
 		if character then
 			for _, v in character:GetChildren() do
 				if v:IsA("Tool") then
@@ -19635,7 +20708,7 @@ function HatReanimator.Start()
 			task.defer(function()
 				v:Destroy()
 			end)
-		elseif v:IsA("LocalScript") and v.Parent == Player.Character then
+		elseif v:IsA("LocalScript") and v.Parent == HatReanimator.ActiveRealCharacter then
 			v.Enabled = false
 			v:GetPropertyChangedSignal("Enabled"):Connect(function()
 				if v.Enabled then
@@ -19647,14 +20720,14 @@ function HatReanimator.Start()
 					v.Disabled = true
 				end
 			end)
-		elseif v:IsA("Accessory") and v.Parent == Player.Character then
+		elseif v:IsA("Accessory") and v.Parent == HatReanimator.ActiveRealCharacter then
 			local handle = v:WaitForChild("Handle", 10)
 			if handle then
 				if not table.find(CharHats, v) then
 					table.insert(CharHats, v)
 					local conn = nil
 					conn = v.AncestryChanged:Connect(function()
-						if v.Parent ~= Player.Character then
+						if v.Parent ~= HatReanimator.ActiveRealCharacter then
 							local i = table.find(CharHats, v)
 							if i then
 								table.remove(CharHats, i)
@@ -19663,12 +20736,12 @@ function HatReanimator.Start()
 					end)
 				end
 			end
-		elseif v:IsA("Tool") and v.Parent == Player.Character then
+		elseif v:IsA("Tool") and v.Parent == HatReanimator.ActiveRealCharacter then
 			if not table.find(CharTools, v) then
 				table.insert(CharTools, v)
 				local conn = nil
 				conn = v.AncestryChanged:Connect(function()
-					if v.Parent ~= Player.Character then
+					if v.Parent ~= HatReanimator.ActiveRealCharacter then
 						local i = table.find(CharTools, v)
 						if i then
 							table.remove(CharTools, i)
@@ -19689,6 +20762,7 @@ function HatReanimator.Start()
 				if handle.CanCollide then
 					collidable += 1
 					handle:SetAttribute("_Uhhhhhh_HasCollide", true)
+					HatReanimator.CollidableHandles[handle] = true
 				end
 				handle.CanCollide = false
 			end
@@ -20084,9 +21158,92 @@ function HatReanimator.Start()
 		end,
 	}
 	local NumHats = 0
+	local function HandoffHatPermadeathCharacter(character, humanoid)
+		local controller = Reanimate.Character
+		local controllerHumanoid = controller and controller:FindFirstChildOfClass("Humanoid")
+		if not controller or not controller.Parent or not controllerHumanoid then
+			return false, "controller is not ready"
+		end
+		if not character or not character.Parent or not humanoid then
+			return false, "real character is not ready"
+		end
+
+		-- Gelatek's full ending process is more than its delayed head break:
+		-- the physical shell lives below the controller, Player.Character points
+		-- at the controller, and the camera follows the controller Humanoid.
+		pcall(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+		end)
+		pcall(function()
+			controllerHumanoid.BreakJointsOnDeath = false
+			controllerHumanoid.RequiresNeck = false
+		end)
+		-- Gelatek leaves the Neck intact until its delayed head break but removes
+		-- the remaining body motors and accessory welds before assignment.
+		for _, joint in character:GetDescendants() do
+			if joint:IsA("Motor6D") and joint.Name ~= "Neck" then
+				pcall(function()
+					joint:Destroy()
+				end)
+			elseif joint.Name == "AccessoryWeld" then
+				pcall(function()
+					joint:Destroy()
+				end)
+			end
+		end
+		local cameraCFrame = Camera and Camera.CFrame
+		local cameraFocus = Camera and Camera.Focus
+		local parented = pcall(function()
+			character.Parent = controller
+		end)
+		if not parented then
+			return false, "real character could not be parented under the controller"
+		end
+
+		HatReanimator.DontFireCharAddOnThisChar = controller
+		local global = (getgenv and getgenv()) or shared or _G
+		global.RealChar = character
+		local assigned = pcall(function()
+			Player.Character = controller
+		end)
+		if not assigned then
+			pcall(function()
+				character.Parent = workspace
+			end)
+			HatReanimator.DontFireCharAddOnThisChar = nil
+			if global.RealChar == character then
+				global.RealChar = nil
+			end
+			return false, "Player.Character rejected the controller"
+		end
+		if Camera then
+			pcall(function()
+				Camera.CameraType = Enum.CameraType.Custom
+				Camera.CameraSubject = controllerHumanoid
+				if typeof(cameraCFrame) == "CFrame" then
+					Camera.CFrame = cameraCFrame
+				end
+				if typeof(cameraFocus) == "CFrame" then
+					Camera.Focus = cameraFocus
+				end
+			end)
+		end
+		return true
+	end
+
 	local function OnCharacter(character)
 		if HatReanimator.DontFireCharAddOnThisChar == character then
 			return
+		end
+		table.clear(HatReanimator.CollidableHandles)
+		HatReanimator.ActiveRealCharacter = character
+		HatReanimator.RigGeneration += 1
+		-- CharacterAdded makes Roblox's camera module prefer the fresh physical
+		-- shell. Pin it back before the shell is sent through the void/hat claim
+		-- sequence so respawning never yanks the player's view away.
+		local controllerHumanoid = Reanimate.Character and Reanimate.Character:FindFirstChildOfClass("Humanoid")
+		if Camera and controllerHumanoid then
+			Camera.CameraSubject = controllerHumanoid
 		end
 		currentping = Player:GetNetworkPing()
 		local toolnames = {}
@@ -20109,7 +21266,7 @@ function HatReanimator.Start()
 		local perma = HatReanimator.Permadeath
 		HatReanimator.HasPermadeath, HatReanimator.HasHatCollide = perma, hatcols
 		local hatcolmeth = HatReanimator.HatCollideMethod
-		if not replicatesignal then
+		if not replicatesignal and HatReanimator.PermadeathMethod ~= 3 then
 			perma = false
 		end
 		if not hatcols then
@@ -20370,12 +21527,54 @@ function HatReanimator.Start()
 			return
 		end
 		AvatarEditorService:BustAvatarFetchCache()
-		pcall(replicatesignal, Humanoid.ServerBreakJoints)
-		Humanoid.EvaluateStateMachine = true
-		Humanoid.BreakJointsOnDeath = true
-		Humanoid.Health = 0
-		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-		Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+			if not (perma and HatReanimator.PermadeathMethod == 3) then
+				pcall(replicatesignal, Humanoid.ServerBreakJoints)
+			end
+			Humanoid.EvaluateStateMachine = true
+			Humanoid.BreakJointsOnDeath = true
+			if perma and HatReanimator.PermadeathMethod == 2 then
+			pcall(function()
+				character:BreakJoints()
+			end)
+			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+				Humanoid:ChangeState(Enum.HumanoidStateType.Climbing)
+				HatReanimator.Status.Permadeath = "Executed alternate state method."
+			elseif perma and HatReanimator.PermadeathMethod == 3 then
+				Humanoid.BreakJointsOnDeath = false
+				pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", false)
+				local handedOff, handoffReason = HandoffHatPermadeathCharacter(character, Humanoid)
+				if not handedOff then
+					pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", true)
+					HatReanimator.Status.Permadeath =
+						"Gelatek handoff unavailable; using timed head-break only: " .. tostring(handoffReason)
+					warn(HatReanimator.Status.Permadeath)
+				end
+				local networkDelay = 0
+				pcall(function()
+					networkDelay = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 750
+				end)
+				local gelatekDeadline = cdsbtime + Players.RespawnTime + networkDelay
+				repeat
+					task.wait()
+				until os.clock() >= gelatekDeadline or not character:IsDescendantOf(workspace)
+				local head = character:FindFirstChild("Head")
+				if head and head.Parent then
+					head:BreakJoints()
+				else
+					character:BreakJoints()
+				end
+				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+				Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+				pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", true)
+				HatReanimator.Status.Permadeath = handedOff
+					and "Executed Gelatek controller handoff + timed head-break."
+					or "Executed timed head-break; controller handoff was unavailable."
+			else
+			Humanoid.Health = 0
+			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+			Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+		end
 		readystate = 3
 		HatReanimator.Status.ReanimState = "Reanimate State: 3"
 		IsRespawning = false
@@ -20462,6 +21661,8 @@ function HatReanimator.Start()
 	if Player.Character then
 		local h = Player.Character:FindFirstChildOfClass("Humanoid")
 		if h and h.RootPart then
+			HatReanimator.ActiveRealCharacter = Player.Character
+			HatReanimator.RigGeneration += 1
 			InitCFrame = h.RootPart.CFrame
 			pcall(function()
 				Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
@@ -20480,6 +21681,7 @@ function HatReanimator.Start()
 	end
 
 	Reanimate.CreateCharacter(InitCFrame)
+	HatReanimator.StaticRoot = Reanimate.Character and Reanimate.Character:FindFirstChild("HumanoidRootPart")
 
 	Reanimate.Starting = false
 	local letitgo = 0
@@ -20491,6 +21693,9 @@ function HatReanimator.Start()
 		local ReanimOkay = false
 		local Character = Player.Character
 		local ReanimCharacter = Reanimate.Character
+		if Character == ReanimCharacter then
+			Character = HatReanimator.ActiveRealCharacter
+		end
 		if Character and Character:IsDescendantOf(workspace) then
 			if CurrentCharacter == Character then
 				if #CharHats > 0 then
@@ -20536,17 +21741,16 @@ function HatReanimator.Start()
 					Humanoid.JumpPower = 50
 				end
 				if Camera then
-					if (ReanimOkay and ReanimCharacter) or not HatReanimator.Permadeath then
-						Camera.CameraSubject = ReanimCharacter:FindFirstChildOfClass("Humanoid")
-					else
-						Camera.CameraSubject = Humanoid
-					end
+					local controllerHumanoid = ReanimCharacter
+						and ReanimCharacter:FindFirstChildOfClass("Humanoid")
+					Camera.CameraSubject = controllerHumanoid or HatReanimator.StaticRoot or Humanoid
 				end
 			end
 		end
 		debug.profileend()
 		debug.profilebegin("Uhhhhhh > BaseParts")
 		local RCRootPart = ReanimCharacter and ReanimCharacter:FindFirstChild("HumanoidRootPart")
+		HatReanimator.StaticRoot = RCRootPart
 		local ltm = Reanimate.LocalTransparencyModifier
 		for _, v in BaseParts do
 			v.CanCollide = false
@@ -20802,6 +22006,17 @@ function HatReanimator.Start()
 							)
 						end
 					end
+					if HatReanimator.FlingMethod == 10 then
+						RunDamageMethod(
+							ReanimCharacter,
+							RootPart,
+							RootPart.CFrame,
+							RootPart.AssemblyLinearVelocity,
+							flingtarget,
+							flingcf,
+							"HAT"
+						)
+					end
 				end
 				debug.profileend()
 				debug.profilebegin("Uhhhhhh > Alignments")
@@ -20942,6 +22157,36 @@ function HatReanimator.Start()
 		end
 	end
 	CharConn:Disconnect()
+	local activeRealCharacter = HatReanimator.ActiveRealCharacter
+	local controllerCharacter = Reanimate.Character
+	if activeRealCharacter and activeRealCharacter.Parent then
+		if controllerCharacter and activeRealCharacter:IsDescendantOf(controllerCharacter) then
+			pcall(function()
+				activeRealCharacter.Parent = workspace
+			end)
+		end
+		if Player.Character == controllerCharacter then
+			pcall(function()
+				Player.Character = activeRealCharacter
+			end)
+			local activeHumanoid = activeRealCharacter:FindFirstChildOfClass("Humanoid")
+			if Camera and activeHumanoid then
+				pcall(function()
+					Camera.CameraType = Enum.CameraType.Custom
+					Camera.CameraSubject = activeHumanoid
+				end)
+			end
+		end
+	end
+	HatReanimator.DontFireCharAddOnThisChar = nil
+	local global = (getgenv and getgenv()) or shared or _G
+	if global.RealChar == activeRealCharacter then
+		global.RealChar = nil
+	end
+	HatReanimator.StaticRoot = nil
+	HatReanimator.ActiveRealCharacter = nil
+	HatReanimator.RigGeneration += 1
+	table.clear(HatReanimator.CollidableHandles)
 	--replicatesignal(Player.ConnectDiedSignalBackend)
 	Reanimate.Stopping = false
 	Reanimate.DestroyCharacter()
@@ -20991,8 +22236,8 @@ Reanimate.ResolveHitboxTargets = function()
 	local reanimator = Reanimate.Current
 	local preferTorso = reanimator == LimbReanimator
 	local originalCharacter = Player.Character
-	if preferTorso then
-		local boundCharacter = LimbReanimator.ActiveRealCharacter
+	if reanimator then
+		local boundCharacter = reanimator.ActiveRealCharacter or reanimator.RealCharacter
 		if boundCharacter and boundCharacter:IsA("Model") and boundCharacter.Parent then
 			originalCharacter = boundCharacter
 		end
@@ -21000,10 +22245,18 @@ Reanimate.ResolveHitboxTargets = function()
 	if originalCharacter == Reanimate.Character then
 		originalCharacter = nil
 	end
+	local staticRoot = reanimator and reanimator.StaticRoot
+	local reanimatedPart = staticRoot
+	if typeof(reanimatedPart) ~= "Instance"
+		or not reanimatedPart:IsA("BasePart")
+		or not reanimatedPart:IsDescendantOf(workspace)
+	then
+		reanimatedPart = Util.ResolveCharacterHitboxPart(Reanimate.Character, false)
+	end
 	return Util.ResolveCharacterHitboxPart(originalCharacter, preferTorso),
-		-- Cyan remains the controller HumanoidRootPart. Only the red bound-real
-		-- target uses torso resolution in Limb mode.
-		Util.ResolveCharacterHitboxPart(Reanimate.Character, false)
+		-- External backends may retain an anchored static tracker while Roblox is
+		-- replacing the physical shell. Cyan follows that tracker across the gap.
+		reanimatedPart
 end
 local function ClearReanimateHitboxes()
 	for _, child in SCREENGUI:GetChildren() do
@@ -21031,7 +22284,7 @@ local function ReanimateShowHitboxes()
 	Reanimate._HitboxOriginalPart = originalPart
 	Reanimate._HitboxReanimatedPart = reanimatedPart
 	Reanimate._HitboxReanimator = Reanimator
-	Reanimate._HitboxRigGeneration = Reanimator == LimbReanimator and LimbReanimator.RigGeneration or 0
+	Reanimate._HitboxRigGeneration = tonumber(Reanimator and Reanimator.RigGeneration) or 0
 	if originalPart then
 		Util.ShowPartHitbox(originalPart, Color3.fromRGB(255, 70, 70), 0)
 	end
@@ -21045,7 +22298,7 @@ RunService.Heartbeat:Connect(function()
 	if Reanimate.ShowHitboxes then
 		local now = os.clock()
 		local originalPart, reanimatedPart = Reanimate.ResolveHitboxTargets()
-		local rigGeneration = Reanimate.Current == LimbReanimator and LimbReanimator.RigGeneration or 0
+		local rigGeneration = tonumber(Reanimate.Current and Reanimate.Current.RigGeneration) or 0
 		if
 			originalPart ~= Reanimate._HitboxOriginalPart
 			or reanimatedPart ~= Reanimate._HitboxReanimatedPart
@@ -21200,7 +22453,7 @@ do
 		end
 	end)
 	local KeepSeatSitStateSwitch, KeepSeatSitStateText =
-		UI.CreateSwitch(MainPage, "↳ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
+		UI.CreateSwitch(MainPage, "â³ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
 	KeepSeatSitStateSwitch.Changed:Connect(function(val)
 		Reanimate.KeepSeatSitState = val
 		SaveData.KeepSeatSitState = val
@@ -21447,6 +22700,20 @@ do
 		Reanimate.UsePhysicsRepRootPart = val
 		SaveData.NoPhysicsRepRootPart = not val
 	end)
+	local PhysicsGlueDuration = UI.CreateSlider(
+		MainPage,
+		"Physics Glue Target Duration",
+		Reanimate.PhysicsRepRootPartFling,
+		0.001,
+		30,
+		0.001
+	)
+	PhysicsGlueDuration.Changed:Connect(function(val)
+		val = math.clamp(tonumber(val) or 1 / 20, 0.001, 30)
+		PhysicsGlueDuration.Value = val
+		Reanimate.PhysicsRepRootPartFling = val
+		SaveData.PhysicsRepRootPartFling = val
+	end)
 	UI.CreateText(
 		MainPage,
 		"internals for physics based reanimation\n(like hat reanimator)",
@@ -21497,6 +22764,14 @@ SavedAnimLibOptions.KrystalHeadTracking = SavedAnimLibOptions.KrystalHeadTrackin
 SavedAnimLibOptions.KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride ~= false
 SavedAnimLibOptions.KrystalHeadStrength = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadStrength) or 1, 0, 1.5)
 SavedAnimLibOptions.KrystalHeadSmoothing = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadSmoothing) or 10, 1, 30)
+if type(SavedAnimLibOptions.HiddenBodyParts) ~= "table" then
+	SavedAnimLibOptions.HiddenBodyParts = {}
+end
+for partName, hidden in SavedAnimLibOptions.HiddenBodyParts do
+	if type(partName) ~= "string" or hidden ~= true then
+		SavedAnimLibOptions.HiddenBodyParts[partName] = nil
+	end
+end
 
 local function ParseDanceEffectColor(value)
 	if type(value) ~= "string" then
@@ -21606,6 +22881,7 @@ local AnimLib = {
 		KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride,
 		KrystalHeadStrength = SavedAnimLibOptions.KrystalHeadStrength,
 		KrystalHeadSmoothing = SavedAnimLibOptions.KrystalHeadSmoothing,
+		HiddenBodyParts = SavedAnimLibOptions.HiddenBodyParts,
 		DanceEffects = SavedDanceEffectsOptions,
 		DanceSoundProvider = function()
 			return UISound.DanceMusic
@@ -23951,14 +25227,20 @@ local function AssetDownloadAgent(source, filename, path)
 	return false
 end
 local function AssetDownload(filename)
-	local source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/content/" .. filename
+	local source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+		.. STEVE_AUDITED_REVISION
+		.. "/content/"
+		.. filename
 	local split = string.split(filename, "@")
 	if #split > 1 then
 		filename = table.remove(split, 1)
 		source = table.concat(split, "@")
 	end
 	if source:sub(1, 7) == "MARKET/" then
-		source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/community/" .. source:sub(8)
+		source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+			.. STEVE_AUDITED_REVISION
+			.. "/community/"
+			.. source:sub(8)
 	end
 	local path = AssetGetPathFromFilename(filename)
 	return AssetDownloadAgent(source, filename, path)
@@ -24173,10 +25455,6 @@ local function ApplyKrystalHeadOverlay(dt, figure)
 	neck.Transform = appliedTransform
 	KrystalHeadOverlay.LastAppliedTransform = appliedTransform
 end
-
-AddToRenderStep(function(_, dt)
-	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
-end)
 
 -- Adapted from the visualizer and character-afterimage effects in Valtta's
 -- bundled Eyes Closed community dance. These are global, saved dance effects
@@ -24548,6 +25826,158 @@ local function GetDetectedDanceEffectBodyParts(figure)
 	return names
 end
 
+-- This uses the same final animation-overlay stage as the Krystal head port.
+-- Moving the controller joints, instead of relying on LocalTransparencyModifier,
+-- also moves every reanimator's mapped physical limb. The original animation
+-- transform is restored at the beginning of the next final-render callback so
+-- the offset cannot accumulate or poison Krystal's own neck overlay.
+local BodyHideOverlay = {
+	Character = nil,
+	UnderlyingMotorTransforms = setmetatable({}, { __mode = "k" }),
+	LastMotorTransforms = setmetatable({}, { __mode = "k" }),
+	UnderlyingPartCFrames = setmetatable({}, { __mode = "k" }),
+	LastPartCFrames = setmetatable({}, { __mode = "k" }),
+}
+
+local function BodyHideCFrameAlmostEqual(a, b)
+	if typeof(a) ~= "CFrame" or typeof(b) ~= "CFrame" then
+		return false
+	end
+	local delta = a:ToObjectSpace(b)
+	local _, angle = delta:ToAxisAngle()
+	return delta.Position.Magnitude < 0.0001 and math.abs(angle) < 0.0001
+end
+
+local function RestoreBodyHideOverlay()
+	for motor, applied in pairs(BodyHideOverlay.LastMotorTransforms) do
+		if motor and motor.Parent and BodyHideCFrameAlmostEqual(motor.Transform, applied) then
+			local underlying = BodyHideOverlay.UnderlyingMotorTransforms[motor]
+			if typeof(underlying) == "CFrame" then
+				pcall(function()
+					motor.Transform = underlying
+				end)
+			end
+		end
+	end
+	for part, applied in pairs(BodyHideOverlay.LastPartCFrames) do
+		if part and part.Parent and BodyHideCFrameAlmostEqual(part.CFrame, applied) then
+			local underlying = BodyHideOverlay.UnderlyingPartCFrames[part]
+			if typeof(underlying) == "CFrame" then
+				pcall(function()
+					part.CFrame = underlying
+				end)
+			end
+		end
+	end
+	table.clear(BodyHideOverlay.UnderlyingMotorTransforms)
+	table.clear(BodyHideOverlay.LastMotorTransforms)
+	table.clear(BodyHideOverlay.UnderlyingPartCFrames)
+	table.clear(BodyHideOverlay.LastPartCFrames)
+end
+
+local function GetBodyHideY()
+	local destroyHeight = workspace.FallenPartsDestroyHeight
+	if
+		type(destroyHeight) ~= "number"
+		or destroyHeight ~= destroyHeight
+		or destroyHeight <= -math.huge
+		or destroyHeight >= math.huge
+	then
+		destroyHeight = -500
+	end
+	return destroyHeight + 5
+end
+
+local function IsEnabledBodyHideMotor(motor)
+	local success, enabled = pcall(function()
+		return motor.Enabled
+	end)
+	return not success or enabled ~= false
+end
+
+local function ApplyBodyHideOverlay(figure)
+	if typeof(figure) ~= "Instance" or not figure:IsA("Model") or not figure.Parent then
+		BodyHideOverlay.Character = nil
+		return
+	end
+	BodyHideOverlay.Character = figure
+
+	local bodyParts = {}
+	local desiredCFrames = {}
+	local hiddenParts = {}
+	local hiddenY = GetBodyHideY()
+	local hasHiddenPart = false
+	for _, part in figure:GetChildren() do
+		if IsDanceEffectBodyPart(figure, part) then
+			-- Clear values left by the old transparency-based implementation and
+			-- leave first-person visibility under Uhhhhhh's normal camera writer.
+			part.LocalTransparencyModifier = Reanimate.LocalTransparencyModifier
+			bodyParts[part] = true
+			desiredCFrames[part] = part.CFrame
+			if SavedAnimLibOptions.HiddenBodyParts[part.Name] == true then
+				hiddenParts[part] = true
+				hasHiddenPart = true
+				desiredCFrames[part] = CFrame.new(part.Position.X, hiddenY, part.Position.Z) * part.CFrame.Rotation
+			end
+		end
+	end
+	if not hasHiddenPart then
+		return
+	end
+
+	local motorDrivenParts = {}
+	local affectedMotors = {}
+	for _, descendant in figure:GetDescendants() do
+		if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
+			local part0, part1 = descendant.Part0, descendant.Part1
+			local enabled = IsEnabledBodyHideMotor(descendant)
+			if enabled and bodyParts[part1] then
+				motorDrivenParts[part1] = true
+			end
+			if enabled and (hiddenParts[part0] or hiddenParts[part1]) then
+				table.insert(affectedMotors, descendant)
+			end
+		end
+	end
+
+	-- Disabled/removed Motor6Ds are the defining case for jointless ragdoll and
+	-- VR. Those independent parts receive the same late CFrame overlay directly.
+	for part in pairs(hiddenParts) do
+		if not motorDrivenParts[part] then
+			local underlying = part.CFrame
+			local applied = desiredCFrames[part]
+			BodyHideOverlay.UnderlyingPartCFrames[part] = underlying
+			part.CFrame = applied
+			BodyHideOverlay.LastPartCFrames[part] = applied
+		end
+	end
+
+	-- Solve each affected Motor6D from desired world-space poses. This lets a
+	-- hidden torso move to the safe void height while visible child limbs stay in
+	-- their animated world positions, rather than dragging the whole assembly.
+	for _, motor in affectedMotors do
+		local part0, part1 = motor.Part0, motor.Part1
+		if part0 and part1 then
+			local desiredPart0 = desiredCFrames[part0] or part0.CFrame
+			local desiredPart1 = desiredCFrames[part1] or part1.CFrame
+			local underlying = motor.Transform
+			local applied = motor.C0:Inverse() * desiredPart0:Inverse() * desiredPart1 * motor.C1
+			BodyHideOverlay.UnderlyingMotorTransforms[motor] = underlying
+			motor.Transform = applied
+			BodyHideOverlay.LastMotorTransforms[motor] = applied
+		end
+	end
+end
+
+-- Restore BodyHide first, then let Krystal derive from the untouched animation,
+-- and finally layer BodyHide over both. Keeping them in one callback prevents
+-- either overlay from mistaking the other's previous-frame transform for input.
+AddToRenderStep(function(_, dt)
+	RestoreBodyHideOverlay()
+	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
+	ApplyBodyHideOverlay(Reanimate.Character)
+end)
+
 local function GetDanceEffectGhostSource(figure)
 	local realCharacter = Player.Character
 	if realCharacter and realCharacter ~= figure and realCharacter.Parent then
@@ -24722,26 +26152,26 @@ local function UpdateDanceEffectVisualizer(dt, figure)
 		-- selection explicit even when DyPos would normally prefer Player.Character.
 		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 		if position then
-			DanceEffects.AnchorSource = "Cyan reanimated root — Blue Root Part"
+			DanceEffects.AnchorSource = "Cyan reanimated root â Blue Root Part"
 		end
 	elseif SavedDanceEffectsOptions.DynamicPosition then
 		local realCharacter = Player.Character
 		if realCharacter and realCharacter ~= figure then
 			position, root, scale, anchorCFrame = GetDanceEffectAnchor(realCharacter, anchorMode)
 			if position then
-				DanceEffects.AnchorSource = "Real character — " .. anchorMode
+				DanceEffects.AnchorSource = "Real character â " .. anchorMode
 			end
 		end
 		if not position then
 			position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 			if position then
-				DanceEffects.AnchorSource = "Red character — " .. anchorMode .. " (fallback)"
+				DanceEffects.AnchorSource = "Red character â " .. anchorMode .. " (fallback)"
 			end
 		end
 	else
 		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 		if position then
-			DanceEffects.AnchorSource = "Red character — " .. anchorMode
+			DanceEffects.AnchorSource = "Red character â " .. anchorMode
 		end
 	end
 	if
@@ -24945,6 +26375,99 @@ UI.CreateDropdown(AnimationOptionsPage, "Animated Joints", JointPresetNames, Joi
 	:Connect(function(value)
 		SetAnimLibOption("JointPreset", JointPresetNames[value] or "Full Body")
 	end)
+
+-- This picker controls the actual animated body. Dance Effects has its own
+-- independent picker for afterimage silhouettes.
+local HiddenBodyPartDropdownLabel = nil
+local HiddenBodyPartDropdownLayoutOrder = nil
+local HiddenBodyPartNames = {}
+local HiddenBodyPartSignature = nil
+local RebuildHiddenBodyPartDropdown
+RebuildHiddenBodyPartDropdown = function(partNames)
+	if type(partNames) == "table" then
+		HiddenBodyPartNames = table.clone(partNames)
+	end
+	if HiddenBodyPartDropdownLabel and HiddenBodyPartDropdownLabel.Parent then
+		HiddenBodyPartDropdownLabel.Parent:Destroy()
+	end
+
+	local choices = {}
+	local hiddenCount = 0
+	for _, partName in HiddenBodyPartNames do
+		if SavedAnimLibOptions.HiddenBodyParts[partName] == true then
+			hiddenCount += 1
+		end
+	end
+	choices[1] = hiddenCount .. "/" .. #HiddenBodyPartNames .. " hidden â choose a part"
+	if #HiddenBodyPartNames > 0 then
+		choices[2] = hiddenCount == 0 and "[ ] Hide all" or "[x] Show all"
+		for _, partName in HiddenBodyPartNames do
+			table.insert(
+				choices,
+				SavedAnimLibOptions.HiddenBodyParts[partName] == true
+					and "[x] " .. partName
+					or "[ ] " .. partName
+			)
+		end
+	end
+
+	local selectValue, label = UI.CreateDropdown(AnimationOptionsPage, "Hide Body Parts", choices, 1)
+	HiddenBodyPartDropdownLabel = label
+	if HiddenBodyPartDropdownLayoutOrder == nil then
+		HiddenBodyPartDropdownLayoutOrder = label.Parent.LayoutOrder
+	else
+		label.Parent.LayoutOrder = HiddenBodyPartDropdownLayoutOrder
+	end
+	selectValue.Changed:Connect(function(index)
+		if index <= 1 or #HiddenBodyPartNames == 0 then
+			return
+		end
+		if index == 2 then
+			local hideAll = true
+			for _, partName in HiddenBodyPartNames do
+				if SavedAnimLibOptions.HiddenBodyParts[partName] == true then
+					hideAll = false
+					break
+				end
+			end
+			for _, partName in HiddenBodyPartNames do
+				SavedAnimLibOptions.HiddenBodyParts[partName] = hideAll and true or nil
+			end
+		else
+			local partName = HiddenBodyPartNames[index - 2]
+			if partName then
+				SavedAnimLibOptions.HiddenBodyParts[partName] =
+					SavedAnimLibOptions.HiddenBodyParts[partName] == true and nil or true
+			end
+		end
+		task.defer(RebuildHiddenBodyPartDropdown)
+	end)
+end
+
+local function RefreshHiddenBodyPartDropdown()
+	local partNames = GetDetectedDanceEffectBodyParts(Reanimate.Character)
+	local signature = table.concat(partNames, "\0")
+	if signature ~= HiddenBodyPartSignature then
+		HiddenBodyPartSignature = signature
+		RebuildHiddenBodyPartDropdown(partNames)
+	end
+end
+
+RefreshHiddenBodyPartDropdown()
+local HiddenBodyPartRefreshElapsed = 0
+AddToRenderStep(function(_, dt)
+	HiddenBodyPartRefreshElapsed += dt
+	if HiddenBodyPartRefreshElapsed >= 0.5 then
+		HiddenBodyPartRefreshElapsed = 0
+		RefreshHiddenBodyPartDropdown()
+	end
+end, AnimationOptionsPage)
+UI.CreateText(
+	AnimationOptionsPage,
+	"Moves selected controller limbs to FallenPartsDestroyHeight + 5 at the final animation stage (uses -495 when the height is NaN). Separate from Dance Effects afterimages.",
+	10,
+	Enum.TextXAlignment.Center
+)
 local KrystalHeadOptionsPage = UI.CreatePage()
 KrystalHeadOptionsPage.ZIndex = 2
 KrystalHeadOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
@@ -24994,7 +26517,7 @@ UI.CreateSwitch(KrystalHeadOptionsPage, "Krystal Head Tracking", AnimLib.Setting
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadTracking", value)
 	end)
-UI.CreateSwitch(KrystalHeadOptionsPage, "↳ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed
+UI.CreateSwitch(KrystalHeadOptionsPage, "â³ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadOverride", value)
 	end)
@@ -25004,11 +26527,11 @@ UI.CreateText(
 	10,
 	Enum.TextXAlignment.Center
 )
-UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed
+UI.CreateSlider(KrystalHeadOptionsPage, "â³ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadStrength", math.clamp(value, 0, 1.5))
 	end)
-UI.CreateSlider(KrystalHeadOptionsPage, "↳ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed
+UI.CreateSlider(KrystalHeadOptionsPage, "â³ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadSmoothing", math.clamp(value, 1, 30))
 	end)
@@ -25069,13 +26592,13 @@ UI.CreateSwitch(
 ).Changed:Connect(function(value)
 	SavedDanceEffectsOptions.DynamicPosition = value
 end)
-UI.CreateSwitch(DanceEffectsOptionsPage, "↳ Stay Vertical", SavedDanceEffectsOptions.StayVertical).Changed
+UI.CreateSwitch(DanceEffectsOptionsPage, "â³ Stay Vertical", SavedDanceEffectsOptions.StayVertical).Changed
 	:Connect(function(value)
 		SavedDanceEffectsOptions.StayVertical = value
 	end)
 UI.CreateDropdown(
 	DanceEffectsOptionsPage,
-	"↳ Anchor Point",
+	"â³ Anchor Point",
 	DanceEffectAnchorModes,
 	table.find(DanceEffectAnchorModes, SavedDanceEffectsOptions.AnchorMode) or 1
 ).Changed:Connect(function(value)
@@ -25100,7 +26623,7 @@ UI.CreateSwitch(DanceEffectsOptionsPage, "Character Afterimage", SavedDanceEffec
 	end)
 local DanceEffectsAfterimageSpawnRate = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Spawn Rate",
+	"â³ Spawn Rate",
 	SavedDanceEffectsOptions.AfterimageSpawnRate,
 	0.25,
 	4,
@@ -25111,7 +26634,7 @@ DanceEffectsAfterimageSpawnRate.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageFadeSpeed = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Fade Speed",
+	"â³ Fade Speed",
 	SavedDanceEffectsOptions.AfterimageFadeSpeed,
 	0.25,
 	4,
@@ -25122,7 +26645,7 @@ DanceEffectsAfterimageFadeSpeed.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageScale = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Image Scale",
+	"â³ Image Scale",
 	SavedDanceEffectsOptions.AfterimageScale,
 	0.25,
 	1.5,
@@ -25133,7 +26656,7 @@ DanceEffectsAfterimageScale.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageTransparency = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Transparency %",
+	"â³ Transparency %",
 	SavedDanceEffectsOptions.AfterimageTransparency,
 	0,
 	100,
@@ -25143,13 +26666,13 @@ DanceEffectsAfterimageTransparency.Changed:Connect(function(value)
 	SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(math.floor(value), 0, 100)
 end)
 local DanceEffectsAfterimageGlow =
-	UI.CreateSwitch(DanceEffectsOptionsPage, "↳ Glow", SavedDanceEffectsOptions.AfterimageGlowEnabled)
+	UI.CreateSwitch(DanceEffectsOptionsPage, "â³ Glow", SavedDanceEffectsOptions.AfterimageGlowEnabled)
 DanceEffectsAfterimageGlow.Changed:Connect(function(value)
 	SavedDanceEffectsOptions.AfterimageGlowEnabled = value
 end)
 local DanceEffectsAfterimageGlowBrightness = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Glow Brightness",
+	"â³ Glow Brightness",
 	SavedDanceEffectsOptions.AfterimageGlowBrightness,
 	0,
 	10,
@@ -25160,7 +26683,7 @@ DanceEffectsAfterimageGlowBrightness.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageGlowRange = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"↳ Glow Range",
+	"â³ Glow Range",
 	SavedDanceEffectsOptions.AfterimageGlowRange,
 	0,
 	30,
@@ -25193,7 +26716,7 @@ RebuildDanceEffectsBodyPartDropdown = function(partNames)
 			visibleCount += 1
 		end
 	end
-	choices[1] = visibleCount .. "/" .. #DanceEffectsDetectedBodyParts .. " visible — choose a part"
+	choices[1] = visibleCount .. "/" .. #DanceEffectsDetectedBodyParts .. " visible â choose a part"
 	if #DanceEffectsDetectedBodyParts > 0 then
 		choices[2] = visibleCount == #DanceEffectsDetectedBodyParts and "[ ] Hide all" or "[x] Show all"
 		for _, partName in DanceEffectsDetectedBodyParts do
@@ -25265,7 +26788,7 @@ UI.CreateText(
 )
 UI.CreateText(
 	DanceEffectsOptionsPage,
-	"Accent color — use #RRGGBB, RRGGBB, R,G,B, or rgb(R,G,B)",
+	"Accent color â use #RRGGBB, RRGGBB, R,G,B, or rgb(R,G,B)",
 	11,
 	Enum.TextXAlignment.Center
 )
@@ -25275,7 +26798,7 @@ local DanceEffectsAccentStatus = UI.CreateText(
 	DanceEffectsOptionsPage,
 	'<font color="#'
 		.. SavedDanceEffectsOptions.Accent
-		.. '">■</font> Saved accent: #'
+		.. '">â </font> Saved accent: #'
 		.. SavedDanceEffectsOptions.Accent,
 	11,
 	Enum.TextXAlignment.Center
@@ -25289,7 +26812,7 @@ DanceEffectsAccentInput.FocusLost:Connect(function()
 	end
 	SavedDanceEffectsOptions.Accent = hex
 	DanceEffectsAccentInput.Text = "#" .. hex
-	DanceEffectsAccentStatus.Text = '<font color="#' .. hex .. '">■</font> Saved accent: #' .. hex
+	DanceEffectsAccentStatus.Text = '<font color="#' .. hex .. '">â </font> Saved accent: #' .. hex
 end)
 UI.CreateSeparator(DanceEffectsOptionsPage)
 UI.CreateText(
@@ -25442,6 +26965,11 @@ UI.CreateButton(MainPage, "Dances &gt;", 20).Activated:Connect(function()
 	tween.Completed:Connect(function()
 		DancesPage.Interactable = true
 	end)
+end)
+UI.CreateButton(MainPage, "Play a Random Dance", 20).Activated:Connect(function()
+	if #DanceableDances > 0 then
+		CurrentDance = DanceableDances[math.random(1, #DanceableDances)]
+	end
 end)
 DancesPage.Back.Activated:Connect(function()
 	DancesPage.Interactable = false
@@ -26392,14 +27920,6 @@ UI.CreateText(CreditsPage, "also ur like a fast bug hunter", 12, Enum.TextXAlign
 UI.CreateText(CreditsPage, "<b>Awesome Awes955</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "u run out of ideas", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "but i dont, cuz u give me ideas", 12, Enum.TextXAlignment.Center)
-UI.CreateText(
-	CreditsPage,
-	"<b>" .. (math.random() < 0.67 and "Tatsuki" or "Kaylie") .. "</b>",
-	14,
-	Enum.TextXAlignment.Center
-)
-UI.CreateText(CreditsPage, "u needed help, u paid it back well", 12, Enum.TextXAlignment.Center)
-UI.CreateText(CreditsPage, "somehow u got me in touch with MyWorld", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "<b>MyWorld</b>", 14, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "so thats how netless really works", 12, Enum.TextXAlignment.Center)
 UI.CreateText(CreditsPage, "math.max is THE solution here!!", 12, Enum.TextXAlignment.Center)
@@ -26519,7 +28039,6 @@ do
 		'while i was in mwtp, someone said "leak the hatdrop script"',
 		'i was in fencing, then someone said "its the genesis killer"',
 		"STEVE, THE DANCING IMMORTALITY LORD!",
-		'"kid im filipino" - ' .. (math.random() < 0.67 and "Tatsuki" or "Kaylie"),
 		"imagine getting ur script mogged by a script written and tested mostly on a mobile phone LOL",
 		"shownskid",
 		"this script mogs genesis", -- true-untrue though
@@ -26632,7 +28151,11 @@ task.spawn(function()
 	UI.CreateText(ChangelogsPage, "Changelogs", 30, Enum.TextXAlignment.Center)
 	local content = UI.CreateText(ChangelogsPage, "Loading...", 12, Enum.TextXAlignment.Left)
 	xpcall(function()
-		local logs = game:HttpGet("https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/CHANGELOGS")
+		local logs = game:HttpGet(
+			"https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+				.. STEVE_AUDITED_REVISION
+				.. "/CHANGELOGS"
+		)
 		content.Text = "Rendering error."
 		for _, v in string.split(logs, "\n") do
 			if v:sub(1, 2) == "# " then
@@ -26683,7 +28206,10 @@ local function _contentgetgithubraw(path)
 	InitLogsText.Text ..= "\n[LOG] [GitGET] GET api./" .. path
 	local s, resp = pcall(request, {
 		Method = "GET",
-		Url = "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/content/" .. path,
+		Url = "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/content/"
+			.. path
+			.. "?ref="
+			.. STEVE_AUDITED_REVISION,
 		Headers = {
 			Accept = "application/vnd.github.VERSION.raw",
 		},
@@ -26701,7 +28227,10 @@ local function _contentgetgithubraw(path)
 	InitLogsText.Text ..= "\n[LOG] [GitGET] GET raw./" .. path
 	s, resp = pcall(request, {
 		Method = "GET",
-		Url = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/content/" .. path,
+		Url = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+			.. STEVE_AUDITED_REVISION
+			.. "/content/"
+			.. path,
 	})
 	if s and resp and resp.StatusCode == 200 then
 		return resp.Body
@@ -26715,7 +28244,98 @@ local function _contentgetgithubraw(path)
 	end
 	return nil
 end
+local function ReplaceBuiltinPlainOnce(source, needle, replacement)
+	local first, last = string.find(source, needle, 1, true)
+	if not first then
+		return source, false
+	end
+	return source:sub(1, first - 1) .. replacement .. source:sub(last + 1), true
+end
+local function PatchBuiltinModuleSource(filename, source)
+	if filename ~= "v_moveset2.lua" or type(source) ~= "string" then
+		return source, false
+	end
+	local moduleMarker = 'm.InternalName = "IPLAYTERRARIEYE"'
+	local moduleStart = string.find(source, moduleMarker, 1, true)
+	if not moduleStart then
+		return source, false
+	end
+	local nextModule = string.find(source, "\nAddModule(function()", moduleStart + #moduleMarker, true)
+		or (#source + 1)
+	local prefix = source:sub(1, moduleStart - 1)
+	local moduleSource = source:sub(moduleStart, nextModule - 1)
+	local suffix = source:sub(nextModule)
+	local patchedLocals, didPatchLocals = ReplaceBuiltinPlainOnce(
+		moduleSource,
+		"\tlocal hum, root, torso\n\tlocal isdancing = false",
+		"\tlocal hum, root, torso\n\tlocal scale = 1\n\tlocal isdancing = false"
+	)
+	local patchedInit, didPatchInit = ReplaceBuiltinPlainOnce(
+		patchedLocals,
+		"\tm.Init = function(figure)\n\t\tstart = os.clock()",
+		"\tm.Init = function(figure)\n\t\tscale = figure:GetScale()\n\t\tstart = os.clock()"
+	)
+	if not didPatchLocals or not didPatchInit then
+		return source, false
+	end
+	return prefix .. patchedInit .. suffix, true
+end
 local UserModulesListor = {}
+local USER_MODULE_ROOT = "UhhhhhhReanim/Modules/"
+local USER_ASSET_FOLDERS = {
+	[".anim"] = "Anims",
+	[".mp3"] = "Sounds",
+	[".ogg"] = "Sounds",
+	[".wav"] = "Sounds",
+	[".png"] = "Images",
+	[".jpg"] = "Images",
+	[".jpeg"] = "Images",
+	[".bmp"] = "Images",
+	[".webp"] = "Images",
+	[".obj"] = "Models",
+	[".fbx"] = "Models",
+	[".glb"] = "Models",
+	[".gltf"] = "Models",
+	[".rbxm"] = "Models",
+}
+local function NormalizeUserPath(path)
+	return tostring(path):gsub("\\", "/")
+end
+local function UserModuleRelativePath(path)
+	path = NormalizeUserPath(path)
+	local start = path:find(USER_MODULE_ROOT, 1, true)
+	return start and path:sub(start + #USER_MODULE_ROOT) or path:match("([^/]+)$") or path
+end
+local function CollectUserModuleFiles(folder, output, visited, depth)
+	if depth > 32 then
+		InitLogsText.Text ..= "\n[WARN] User module folder depth limit reached at " .. tostring(folder)
+		return
+	end
+	local normalized = NormalizeUserPath(folder)
+	if visited[normalized] then
+		return
+	end
+	visited[normalized] = true
+	local listed, entries = pcall(listfiles, folder)
+	if not listed or type(entries) ~= "table" then
+		InitLogsText.Text ..= "\n[WARN] Could not list user module folder " .. tostring(folder)
+		return
+	end
+	table.sort(entries, function(a, b)
+		return NormalizeUserPath(a) < NormalizeUserPath(b)
+	end)
+	for _, entry in entries do
+		local folderOk, folderValue = pcall(isfolder, entry)
+		if folderOk and folderValue then
+			CollectUserModuleFiles(entry, output, visited, depth + 1)
+		else
+			local fileOk, fileValue = pcall(isfile, entry)
+			if fileOk and fileValue then
+				table.insert(output, entry)
+			end
+		end
+	end
+end
 local function ForceModuleReload(force)
 	IsUhhhhhhFullyLoaded = false
 	InitLogsText.Text = "Init Logs -- This is where you check what happened."
@@ -26739,7 +28359,8 @@ local function ForceModuleReload(force)
 		xpcall(function()
 			local s, resp = pcall(request, {
 				Method = "GET",
-				Url = "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/content/",
+				Url = "https://api.github.com/repos/STEVE-916-create/Uhhhhhh/contents/content/?ref="
+					.. STEVE_AUDITED_REVISION,
 			})
 			if s and resp and resp.StatusCode == 200 then
 				s, resp = pcall(HttpService.JSONDecode, HttpService, resp.Body)
@@ -26835,6 +28456,13 @@ local function ForceModuleReload(force)
 				SaveData.ContentHash[x] = nil
 			end
 		end
+		local patchedBuiltin
+		data, patchedBuiltin = PatchBuiltinModuleSource(x, data)
+		if patchedBuiltin then
+			InitLogsText.Text ..= "\n[LOG] Applied respawn-safe builtin patch to " .. x .. "."
+		elseif x == "v_moveset2.lua" then
+			InitLogsText.Text ..= "\n[WARN] Eyo-Zen scale patch did not match " .. x .. "."
+		end
 		task.wait()
 		InitLogsText.Text ..= "\n[LOG] Loadstringing VANILLA " .. x .. "..."
 		xpcall(function()
@@ -26855,9 +28483,16 @@ local function ForceModuleReload(force)
 	end
 	Util.UINotify("Loading modules...", 0.8)
 	InitLogsText.Text ..= "\n[LOG] Loading user modules..."
-	for _, path in listfiles("UhhhhhhReanim/Modules/") do
-		if isfile(path) then
-			local x = path:sub(23)
+	local userFiles = {}
+	CollectUserModuleFiles(USER_MODULE_ROOT, userFiles, {}, 0)
+	for _, path in userFiles do
+		local x = UserModuleRelativePath(path)
+		local lower = string.lower(NormalizeUserPath(path))
+		local isScript = lower:sub(-4) == ".lua"
+			or lower:sub(-5) == ".luau"
+			or lower:sub(-8) == ".lua.txt"
+			or lower:sub(-9) == ".luau.txt"
+		if isScript then
 			xpcall(function()
 				InitLogsText.Text ..= "\n[LOG] Reading local USER " .. x .. "..."
 				local data = readfile(path)
@@ -26877,6 +28512,23 @@ local function ForceModuleReload(force)
 					"\n[ERROR] "
 				)
 			end)
+		else
+			local extension = lower:match("(%.[^./]+)$")
+			local folder = USER_ASSET_FOLDERS[extension] or "Unknown"
+			local name = NormalizeUserPath(path):match("([^/]+)$")
+			local destination = name and ("UhhhhhhReanim/Content/" .. folder .. "/" .. name) or nil
+			if destination and not isfile(destination) then
+				local copied, reason = pcall(function()
+					writefile(destination, readfile(path))
+				end)
+				if copied then
+					InitLogsText.Text ..= "\n[LOG] Copied user asset " .. x .. " to Content/" .. folder
+				else
+					InitLogsText.Text ..= "\n[WARN] Failed to copy user asset " .. x .. ": " .. tostring(reason)
+				end
+			elseif destination then
+				InitLogsText.Text ..= "\n[WARN] Kept existing asset for " .. x .. " (same-name destination already exists)"
+			end
 		end
 	end
 	InitLogsText.Text ..= "\n[LOG] Refreshing Dance keybinds..."
@@ -27007,8 +28659,11 @@ local function GetMarketList()
 	local aitemus, file2name, file2aitemu =
 		GetMarketList_cache.aitemus, GetMarketList_cache.file2name, GetMarketList_cache.file2aitemu
 	if not aitemus or not file2name or not file2aitemu then
-		local marketteresult =
-			game:HttpGet("https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/community/list.txt")
+		local marketteresult = game:HttpGet(
+			"https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+				.. STEVE_AUDITED_REVISION
+				.. "/community/list.txt"
+		)
 		marketteresult = string.split(marketteresult, "\n")
 		aitemus = {}
 		local aitemu = {}
@@ -27033,7 +28688,10 @@ local function GetMarketList()
 					continue
 				end
 				if k == "file" then
-					aitemu.Source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/main/community/" .. v
+					aitemu.Source = "https://raw.githubusercontent.com/STEVE-916-create/Uhhhhhh/"
+						.. STEVE_AUDITED_REVISION
+						.. "/community/"
+						.. v
 					aitemu.File = string.gsub(v, "/", ".")
 					continue
 				end
@@ -27671,6 +29329,10 @@ end
 if UntrustedExtrasControl.Enabled then
 	StartUntrustedExtras()
 end
+
+
+
+
 ]=====],
     ["Theos Dancezzzzz/theo.lua"] = [=====[assert(not _G.UhhhhhhLoaded, "Rejoin before starting Theo")
 local path = "Theos Dancezzzzz/ToolDance.lua"
