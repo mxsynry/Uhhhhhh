@@ -90,8 +90,7 @@ local TARGET_USERNAMES = {
   "G4lantamine",
   "Hellosundeeundee",
   "7heo_V2",
-  "mxsynry_alts7",
-  "imCherry511",
+  
 }
 local CHECK_INTERVAL = 2
 
