@@ -90,7 +90,7 @@ local TARGET_USERNAMES = {
   "G4lantamine",
   "Hellosundeeundee",
   "7heo_V2",
-  
+  "mxsynry_alts7", "imCherry511",
 }
 local CHECK_INTERVAL = 2
 
@@ -9662,7 +9662,7 @@ end)
 
 Run `launch.lua`.
 
-Package label: `1.0.9 BETA / runtime hotfix 6`.
+Package label: `1.0.9 BETA / runtime hotfix 11`.
 
 - Available reanimators: Limb, Hats, and Gelatek. Neuron has been removed.
 - Gelatek defaults to its native CFrame follower path and exact-instance
@@ -9686,9 +9686,17 @@ Package label: `1.0.9 BETA / runtime hotfix 6`.
   are restored for the normal-spawn interval. The new controller is built at the
   Roblox spawn exactly like a manual reanimation and is pivoted back to the
   persistent static root only after Gelatek reports controller readiness.
+- Respawn now waits for the fresh avatar's accessories to finish arriving and
+  stabilize before Gelatek takes its one-time descendant snapshot. If Roblox
+  still omits an item at the deadline, a clean client clone from the previous
+  generation is reattached before reanimation starts.
+- Every replacement controller forces a complete movement/dance runtime refresh,
+  matching the module reset performed by a manual deanimate/reanimate cycle.
 - Gelatek now treats a missing controller `Animate` script, optional Bullet,
   and already-removed Bullet constraints as recoverable addon states instead of
   indexing or destroying `nil` during a fresh generation.
+- Gelatek's empty controller-template `Animate` LocalScript is disabled before
+  cloning, so it can no longer produce a path-only developer-console error.
 - Gelatek uses Uhhhhhh's shared noclip, Infinite Jump, seat-state, and click-fling
   settings. Its exact physical HumanoidRootPart follows the controller root and
   becomes the flinger only for the requested target window.
@@ -9736,9 +9744,18 @@ Package label: `1.0.9 BETA / runtime hotfix 6`.
 - Hat hitbox display follows the bound real character and retained collidable
   accessory handles, restoring the green ownership outlines across respawns.
 - Animation Options includes a persistent `Hide Body Parts` picker for the live
-  controller. It uses the final joint-animation overlay to move selected parts
-  to `FallenPartsDestroyHeight + 5` (or `-495` for NaN), with a direct-part
-  fallback for disabled/removed joints. It is separate from afterimage visibility.
+  physical shell. Limb and Hat use the shared invisible target controller at
+  `FallenPartsDestroyHeight + 5`: Limb solves physical joint offsets against a
+  mixed normal/void pose, while Hat redirects only mapped physical handles.
+  Gelatek is intentionally backend-specific: it creates its own proxy target
+  for each detached physical part and feeds that proxy into Gelatek's native
+  `CFrameAlign` or `AlignPosition`/`AlignOrientation` path. The generic target
+  resolver is not used by Gelatek, and no animated controller is sent to void.
+- `Keep Accessories When Hiding` defaults on and is displayed above the dynamic
+  body picker. Hat and Gelatek keep their detached decorative handles aimed at
+  the normal controller. Limb detaches an accessory only when its physical
+  anchor is hidden, then drives that owned handle independently; disabling the
+  switch redirects the matching handle to the void target too.
 - The local DamageMethod callback is compiled once at startup instead of once
   per target per frame.
 - Ordinary GitHub, marketplace, and module asset network requests remain
@@ -9900,6 +9917,8 @@ return compile(patched, "Uhhhhhh")()
     local rebindInProgress = false
     local pendingPhysicalCharacter
     local isolatedPartStates = setmetatable({}, { __mode = "k" })
+    local accessoryTemplates = {}
+    local accessorySnapshotCaptured = false
 
     local function environment()
         return (getgenv and getgenv()) or shared or _G
@@ -9948,6 +9967,96 @@ return compile(patched, "Uhhhhhh")()
                 end
             end
         end
+    end
+
+    local function collectReadyAccessories(character)
+        local accessories = {}
+        if typeof(character) ~= "Instance" or not character:IsA("Model") then
+            return accessories, false
+        end
+        local allReady = true
+        for _, child in ipairs(character:GetChildren()) do
+            if child:IsA("Accessory") then
+                if child:FindFirstChild("Handle") then
+                    table.insert(accessories, child)
+                else
+                    allReady = false
+                end
+            end
+        end
+        return accessories, allReady
+    end
+
+    local function clearAccessoryTemplates()
+        for _, template in ipairs(accessoryTemplates) do
+            pcall(function()
+                template:Destroy()
+            end)
+        end
+        table.clear(accessoryTemplates)
+        accessorySnapshotCaptured = false
+    end
+
+    local function snapshotAccessoryAppearance(character)
+        local accessories = collectReadyAccessories(character)
+        local replacements = {}
+        for _, accessory in ipairs(accessories) do
+            local ok, clone = pcall(function()
+                return accessory:Clone()
+            end)
+            if ok and clone and clone:IsA("Accessory") and clone:FindFirstChild("Handle") then
+                clone.Parent = nil
+                table.insert(replacements, clone)
+            end
+        end
+        clearAccessoryTemplates()
+        for _, replacement in ipairs(replacements) do
+            table.insert(accessoryTemplates, replacement)
+        end
+        accessorySnapshotCaptured = true
+        return #accessoryTemplates
+    end
+
+    local function restoreMissingAccessories(character, humanoid)
+        if not accessorySnapshotCaptured or #accessoryTemplates == 0 then
+            return 0
+        end
+        local existing = {}
+        for _, accessory in ipairs(collectReadyAccessories(character)) do
+            existing[accessory.Name] = (existing[accessory.Name] or 0) + 1
+        end
+        local visited = {}
+        local restored = 0
+        for _, template in ipairs(accessoryTemplates) do
+            local name = template.Name
+            visited[name] = (visited[name] or 0) + 1
+            if visited[name] > (existing[name] or 0) then
+                local ok, clone = pcall(function()
+                    return template:Clone()
+                end)
+                if ok and clone and clone:IsA("Accessory") then
+                    local handle = clone:FindFirstChild("Handle")
+                    if handle then
+                        for _, child in ipairs(handle:GetChildren()) do
+                            if child:IsA("Weld") and child.Name == "AccessoryWeld" then
+                                child:Destroy()
+                            end
+                        end
+                        clone:SetAttribute("_UhhhhhhGelatekRestoredAccessory", true)
+                        local added = pcall(function()
+                            humanoid:AddAccessory(clone)
+                        end)
+                        if not added or not clone.Parent then
+                            clone.Parent = character
+                        end
+                        restored += 1
+                    else
+                        clone:Destroy()
+                    end
+                end
+            end
+        end
+        return restored
     end
 
     local function addDescription(parent, text)
@@ -10688,6 +10797,15 @@ return compile(patched, "Uhhhhhh")()
         )
         source = replaceOnce(
             source,
+            [==[				Animate.Name = "Animate" -- Later
+				Animate.Parent = FakeRig]==],
+            [==[				Animate.Name = "Animate" -- Template placeholder only
+				Animate.Disabled = true
+				Animate.Parent = FakeRig]==],
+            "disabled dummy controller Animate"
+        )
+        source = replaceOnce(
+            source,
             'game:GetService("Players").LocalPlayer.Chatted:connect(function(aa)',
             'table.insert(Events, game:GetService("Players").LocalPlayer.Chatted:Connect(function(aa)',
             "classic animator chat cleanup start"
@@ -10697,6 +10815,83 @@ return compile(patched, "Uhhhhhh")()
             'end end)playAnimation("idle",0.1,h)i="Standing"table.insert(Events',
             'end end))playAnimation("idle",0.1,h)i="Standing"table.insert(Events',
             "classic animator chat cleanup end"
+        )
+        source = replaceOnce(
+            source,
+            [==[local CFrameAlign = function(Part0, Part1, Position, Angle)
+	local CFrame_Position = Position or CFrame.new()]==],
+            [==[local UhhhhhhTBZGelatekBodyHideTargets = setmetatable({}, {__mode = "k"})
+local UhhhhhhTBZGelatekBodyHideTargetFolder = Instance.new("Folder")
+UhhhhhhTBZGelatekBodyHideTargetFolder.Name = "GelatekBodyHideTargets"
+UhhhhhhTBZGelatekBodyHideTargetFolder.Parent = workspace
+Global.UhhhhhhTBZGelatekBodyHideTargetFolder = UhhhhhhTBZGelatekBodyHideTargetFolder
+local function UhhhhhhGetGelatekBodyHideTarget(Part1, PartName)
+	local Target = UhhhhhhTBZGelatekBodyHideTargets[Part1]
+	if not Target or not Target.Parent then
+		Target = Instance.new("Part")
+		Target.Name = tostring(PartName or Part1.Name) .. " Gelatek Hide Target"
+		Target.Transparency = 1
+		Target.Anchored = true
+		Target.CanCollide = false
+		Target.CanQuery = false
+		Target.CanTouch = false
+		Target.CastShadow = false
+		Target.Archivable = false
+		Target.Parent = UhhhhhhTBZGelatekBodyHideTargetFolder
+		UhhhhhhTBZGelatekBodyHideTargets[Part1] = Target
+	end
+	Target.Size = Part1.Size
+	local HiddenY = tonumber(Global.UhhhhhhTBZGelatekHiddenPartsY) or -495
+	local Position = Part1.Position
+	local X = Position.X == Position.X and Position.X or 0
+	local Z = Position.Z == Position.Z and Position.Z or 0
+	Target.CFrame = CFrame.new(X, HiddenY, Z) * Part1.CFrame.Rotation
+	return Target
+end
+local function UhhhhhhResolveBodyHideTarget(Part0, Part1)
+	local Resolver = Global.UhhhhhhTBZGetBodyHideTargetInfo
+	if type(Resolver) == "function" then
+		local Success, ShouldHide, PartName = pcall(Resolver, Part0, Part1)
+		if Success and ShouldHide == true then
+			return UhhhhhhGetGelatekBodyHideTarget(Part1, PartName)
+		end
+	end
+	return Part1
+end
+local CFrameAlign = function(Part0, Part1, Position, Angle)
+	Part1 = UhhhhhhResolveBodyHideTarget(Part0, Part1)
+	local CFrame_Position = Position or CFrame.new()]==],
+            "dynamic physical body target resolver"
+        )
+        source = replaceOnce(
+            source,
+            [==[local Align = function(Part0, Part1, Position, Orientation)
+	local AlignPosition = Instance.new("AlignPosition"); do]==],
+            [==[local Align = function(Part0, Part1, Position, Orientation)
+	local NormalPart1 = Part1
+	Part1 = UhhhhhhResolveBodyHideTarget(Part0, NormalPart1)
+	local AlignPosition = Instance.new("AlignPosition"); do]==],
+            "constraint body target initialization"
+        )
+        source = replaceOnce(
+            source,
+            [==[		Attachment2.Name = "GelatekATT2"
+		Attachment2.Parent = Part1
+	end
+
+	AlignPosition.Attachment0 = Attachment1]==],
+            [==[		Attachment2.Name = "GelatekATT2"
+		Attachment2.Parent = Part1
+	end
+	table.insert(Events, RunService.PreSimulation:Connect(function()
+		local Target = UhhhhhhResolveBodyHideTarget(Part0, NormalPart1)
+		if Target and Target.Parent and Attachment2.Parent ~= Target then
+			Attachment2.Parent = Target
+		end
+	end))
+
+	AlignPosition.Attachment0 = Attachment1]==],
+            "dynamic constraint body retargeting"
         )
         source = replaceOnce(
             source,
@@ -10758,6 +10953,19 @@ end]==],
 	end
 end]==],
             "manual-position controller spawn"
+        )
+        source = replaceCount(
+            source,
+            "\t\tFakeRig.Parent = workspace",
+            [==[		local ControllerAnimate = FakeRig:FindFirstChild("Animate")
+		if ControllerAnimate and ControllerAnimate:IsA("LocalScript") then
+			-- The generated template script is empty. Uhhhhhh owns controller
+			-- animation, and Gelatek's optional classic animator is a Lua closure.
+			ControllerAnimate:Destroy()
+		end
+		FakeRig.Parent = workspace]==],
+            3,
+            "pre-parent dummy controller animation removal"
         )
         source = replaceOnce(
             source,
@@ -10976,8 +11184,14 @@ end))]==],
         source = replaceOnce(
             source,
             "local function Death()\n\tGlobal.Stopped = true",
-            "local function Death()\n\tGlobal.Stopped = true\n\tGlobal.UhhhhhhTBZGelatekPreservedController = Global.UhhhhhhTBZGelatekPreserveController == true and FakeRig or nil\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekPhysicalRoot = nil\n\tGlobal.UhhhhhhTBZGelatekControllerRoot = nil\n\tGlobal.UhhhhhhTBZGelatekFlingActive = nil",
-            "accessory target cleanup"
+            "local function Death()\n\tGlobal.Stopped = true\n\tGlobal.UhhhhhhTBZGelatekPreservedController = Global.UhhhhhhTBZGelatekPreserveController == true and FakeRig or nil\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tif UhhhhhhTBZGelatekBodyHideTargetFolder and UhhhhhhTBZGelatekBodyHideTargetFolder.Parent then\n\t\tUhhhhhhTBZGelatekBodyHideTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekBodyHideTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekPhysicalRoot = nil\n\tGlobal.UhhhhhhTBZGelatekControllerRoot = nil\n\tGlobal.UhhhhhhTBZGelatekFlingActive = nil",
+            "Gelatek target cleanup"
+        )
+        source = replaceOnce(
+            source,
+            "Player.Character = workspace:FindFirstChild(Character.Name)",
+            "Player.Character = Character -- restore the exact physical shell, even when two generations share its name",
+            "exact physical character restoration"
         )
         source = replaceCount(
             source,
@@ -11144,18 +11358,80 @@ end))]==],
         return nil
     end
 
-    local function waitForAppearance(character, timeout)
+    local function waitForAppearance(character, timeout, expectedAccessoryCount)
         if not character or Player.Character ~= character then
-            return
+            return false, 0
         end
-        local deadline = os.clock() + timeout
-        repeat
-            local ok, loaded = pcall(Player.HasAppearanceLoaded, Player)
-            if not ok or loaded then
-                return
+        expectedAccessoryCount = math.max(math.floor(tonumber(expectedAccessoryCount) or 0), 0)
+        local startedAt = os.clock()
+        local lastAccessoryChange = startedAt
+        local deadline = startedAt + math.max(tonumber(timeout) or 0, 0.1)
+        local function accessoryChanged(child)
+            if child:IsA("Accessory") then
+                lastAccessoryChange = os.clock()
             end
-            task.wait(0.05)
+        end
+        local addedConnection = character.ChildAdded:Connect(accessoryChanged)
+        local removedConnection = character.ChildRemoved:Connect(accessoryChanged)
+        local ready = false
+        local count = 0
+        repeat
+            local accessories, allReady = collectReadyAccessories(character)
+            count = #accessories
+            local now = os.clock()
+            local observedLongEnough = now - startedAt >= (expectedAccessoryCount > 0 and 0.35 or 1)
+            local stable = now - lastAccessoryChange >= 0.65
+            local appearanceLoaded = false
+            local loadedOk, loaded = pcall(Player.HasAppearanceLoaded, Player)
+            if loadedOk then
+                appearanceLoaded = loaded == true
+            end
+            ready = count >= expectedAccessoryCount
+                and allReady
+                and observedLongEnough
+                and stable
+                and (appearanceLoaded or now - startedAt >= 1.25)
+            if ready then
+                break
+            end
+            RunService.Heartbeat:Wait()
         until Player.Character ~= character or os.clock() >= deadline
+        addedConnection:Disconnect()
+        removedConnection:Disconnect()
+        return ready and Player.Character == character, count
+    end
+
+    local function prepareCharacterAppearance(character, humanoid, isRespawnGeneration)
+        local expected = accessorySnapshotCaptured and #accessoryTemplates or 0
+        local ready, count = waitForAppearance(
+            character,
+            isRespawnGeneration and 5 or 3,
+            expected
+        )
+        local restored = 0
+        if accessorySnapshotCaptured and count < expected then
+            restored = restoreMissingAccessories(character, humanoid)
+            if restored > 0 then
+                RunService.Heartbeat:Wait()
+                RunService.Heartbeat:Wait()
+            end
+        end
+        local accessories = collectReadyAccessories(character)
+        local finalCount = #accessories
+        if not accessorySnapshotCaptured or finalCount >= expected then
+            snapshotAccessoryAppearance(character)
+        end
+        if isRespawnGeneration then
+            warn(
+                ("Gelatek respawn appearance: %d/%d accessories ready%s%s"):format(
+                    finalCount,
+                    expected,
+                    restored > 0 and ("; restored " .. tostring(restored) .. " from the prior generation") or "",
+                    ready and "" or "; appearance wait reached its deadline"
+                )
+            )
+        end
+        return finalCount
     end
 
     local function findRespawnSignal()
@@ -11280,9 +11556,6 @@ end))]==],
             -- CharacterAdded/reset stack; the outer serialized loop waits for
             -- this fresh character to animate and settle first.
             restoreCharacterRuntime(character, humanoid)
-            if awaitAppearance then
-                waitForAppearance(character, 3)
-            end
             local settleDeadline = os.clock() + 0.35
             repeat
                 RunService.Heartbeat:Wait()
@@ -11295,7 +11568,7 @@ end))]==],
         else
             restoreCharacterRuntime(character, humanoid)
             if awaitAppearance then
-                waitForAppearance(character, 3)
+                waitForAppearance(character, 3, 0)
             end
         end
         return true, nil, character
@@ -11320,6 +11593,12 @@ end))]==],
         if typeof(accessoryTargetFolder) == "Instance" and accessoryTargetFolder.Parent then
             pcall(function()
                 accessoryTargetFolder:Destroy()
+            end)
+        end
+        local bodyHideTargetFolder = global.UhhhhhhTBZGelatekBodyHideTargetFolder
+        if typeof(bodyHideTargetFolder) == "Instance" and bodyHideTargetFolder.Parent then
+            pcall(function()
+                bodyHideTargetFolder:Destroy()
             end)
         end
         if type(global.TableOfEvents) == "table" then
@@ -11368,6 +11647,7 @@ end))]==],
             global.UhhhhhhTBZGelatekPermaReady = nil
             global.UhhhhhhTBZGelatekControllerReady = nil
             global.UhhhhhhTBZGelatekAccessoryTargetFolder = nil
+            global.UhhhhhhTBZGelatekBodyHideTargetFolder = nil
             global.UhhhhhhTBZGelatekPhysicalRoot = nil
             global.UhhhhhhTBZGelatekControllerRoot = nil
             global.UhhhhhhTBZGelatekFlingActive = nil
@@ -11382,6 +11662,7 @@ end))]==],
         detachScaleBridge()
         detachPoseMirror(true)
         uninstallResetBridge()
+        clearAccessoryTemplates()
         rebindInProgress = false
         pendingPhysicalCharacter = nil
         restoreVoidDestruction()
@@ -11410,6 +11691,7 @@ end))]==],
         global.UhhhhhhTBZGelatekHiddenPartsY = nil
         global.UhhhhhhTBZGelatekCharacterSpacingScale = nil
         global.UhhhhhhTBZGelatekAccessoryTargetFolder = nil
+        global.UhhhhhhTBZGelatekBodyHideTargetFolder = nil
         global.UhhhhhhTBZGelatekPhysicalRoot = nil
         global.UhhhhhhTBZGelatekControllerRoot = nil
         global.UhhhhhhTBZGelatekFlingActive = nil
@@ -11432,6 +11714,7 @@ end))]==],
         restartRequested = false
         local returnToStaticRoot = pendingReturnCFrame
         pendingReturnCFrame = nil
+        local isRespawnGeneration = typeof(returnToStaticRoot) == "CFrame"
         if not (backend.Rig and backend.Rig.Parent) then
             backend.Running = false
         end
@@ -11457,11 +11740,12 @@ end))]==],
 
             originalCharacter = Player.Character
             assert(originalCharacter and originalCharacter.Parent, "real character is not ready")
+            local originalHumanoid = originalCharacter:FindFirstChildOfClass("Humanoid")
+            assert(originalHumanoid, "real character Humanoid is not ready")
+            prepareCharacterAppearance(originalCharacter, originalHumanoid, isRespawnGeneration)
             rebindInProgress = preservedControllerAtStart ~= nil
             pendingPhysicalCharacter = originalCharacter
             isolatePhysicalCharacter(originalCharacter)
-            local originalHumanoid = originalCharacter:FindFirstChildOfClass("Humanoid")
-            assert(originalHumanoid, "real character Humanoid is not ready")
             backend.RealCharacter = originalCharacter
             backend.ActiveRealCharacter = originalCharacter
             Bridge.RealCharacter = originalCharacter
@@ -11622,8 +11906,15 @@ end))]==],
             end
             attachCameraBridge(rig)
             attachPoseMirror(rig)
-            if reusedController and type(Lifecycle.RefreshController) == "function" then
+            if (isRespawnGeneration or reusedController) and type(Lifecycle.RefreshController) == "function" then
                 Lifecycle.RefreshController(rig)
+            end
+            if isRespawnGeneration then
+                warn(
+                    ("Gelatek respawn controller ready: generation %d; movement runtime refreshed"):format(
+                        backend.RigGeneration
+                    )
+                )
             end
             rebindInProgress = false
             pendingPhysicalCharacter = nil
@@ -11820,10 +12111,9 @@ end
 local __TheoLifecycle = {}
 local __TheoManualRefreshSerial = 0
 __TheoLifecycle.RefreshController = function()
-    -- A retained external controller is the same Instance after Roblox gives us
-    -- a new physical character. Force the movement owner to destroy its old
-    -- module state and initialise the selected moveset/dance against that rig
-    -- again, without replacing the controller model.
+    -- A replacement or retained external controller needs the same movement
+    -- teardown/reinitialisation that a manual deanimate/reanimate receives.
+    -- Refresh module state without replacing the controller model here.
     __TheoManualRefreshSerial += 1
 end
 local __TheoContext = {
@@ -11844,6 +12134,16 @@ local __TheoContext = {
 local GelatekReanimator = __TheoFactory(__TheoRoot .. "/runtime/backend_gelatek.lua")(__TheoContext)
 local function __TheoIsExternal()
     return Reanimate.Current == GelatekReanimator
+end
+Reanimate.GetActiveRealCharacter = function()
+	if Reanimate.Current == LimbReanimator then
+		return LimbReanimator.ActiveRealCharacter
+	elseif Reanimate.Current == HatReanimator then
+		return HatReanimator.ActiveRealCharacter
+	elseif Reanimate.Current == GelatekReanimator then
+		return GelatekReanimator.RealCharacter
+	end
+	return nil
 end
 
 -- The controller humanoid can remain seated while the live Roblox humanoid is
@@ -19057,8 +19357,32 @@ function LimbReanimator.Start()
 
 	local BaseParts = {}
 	local UnknownCharacterJoints = {}
+	local LimbAccessoryBindings = setmetatable({}, { __mode = "k" })
 	local ActiveRealCharacter = nil
 	local ActiveDescendantConnection = nil
+	local function TrackLimbAccessoryWeld(weld, character)
+		if character ~= ActiveRealCharacter or not weld:IsDescendantOf(character) then
+			return
+		end
+		local handle = weld.Parent
+		if not handle or not handle:IsA("BasePart") then
+			return
+		end
+		local part0, part1 = weld.Part0, weld.Part1
+		local anchor = part0 == handle and part1 or (part1 == handle and part0 or nil)
+		if not anchor or not anchor:IsA("BasePart") then
+			return
+		end
+		LimbAccessoryBindings[handle] = {
+			Handle = handle,
+			Weld = weld,
+			AnchorName = anchor.Name,
+			C0 = weld.C0,
+			C1 = weld.C1,
+			HandleIsPart0 = part0 == handle,
+			Detached = false,
+		}
+	end
 	local CharOnDesc = function(v, character)
 		if character ~= ActiveRealCharacter or not v:IsDescendantOf(character) then
 			return
@@ -19073,6 +19397,8 @@ function LimbReanimator.Start()
 					end
 				end)
 			end
+		elseif v:IsA("Weld") and v.Name == "AccessoryWeld" then
+			TrackLimbAccessoryWeld(v, character)
 		elseif Util.IsCharacterJoint(v) then
 			local part0, part1 = Util.GetCharacterJointParts(v)
 			local deadline = os.clock() + 5
@@ -19198,6 +19524,7 @@ function LimbReanimator.Start()
 		end
 		table.clear(BaseParts)
 		table.clear(UnknownCharacterJoints)
+		table.clear(LimbAccessoryBindings)
 		for _, map in LimbMapping do
 			map.Reference = nil
 			map.MotorReference = nil
@@ -19256,6 +19583,88 @@ function LimbReanimator.Start()
 		-- The first bind can happen before the controller rig exists. Repeat once
 		-- so equipped tools and every late-created joint see the finished target.
 		BindRealCharacter(ActiveRealCharacter)
+	end
+
+	local function ResolveLimbBodyTargetCFrame(partName, normalCFrame, physicalPart, accessory)
+		local resolver = Reanimate.ResolveBodyHideTargetCFrame
+		if type(resolver) == "function" then
+			local success, result = pcall(resolver, physicalPart, normalCFrame, partName, accessory)
+			if success and typeof(result) == "CFrame" then
+				return result
+			end
+		end
+		return normalCFrame
+	end
+
+	local function GetLimbControllerPart(reanimCharacter, partName)
+		local canonical = partName
+		local canonicalResolver = Reanimate.GetBodyHideCanonicalName
+		if type(canonicalResolver) == "function" then
+			local success, result = pcall(canonicalResolver, partName)
+			if success and type(result) == "string" then
+				canonical = result
+			end
+		end
+		return reanimCharacter:FindFirstChild(canonical)
+	end
+
+	local function GetLimbAccessoryNormalTarget(binding, reanimCharacter)
+		local handle = binding.Handle
+		local controllerAnchor = GetLimbControllerPart(reanimCharacter, binding.AnchorName)
+		if not handle or not controllerAnchor or not controllerAnchor:IsA("BasePart") then
+			return nil, nil
+		end
+		for _, child in handle:GetChildren() do
+			if child:IsA("Attachment") then
+				local targetAttachment = controllerAnchor:FindFirstChild(child.Name)
+				if targetAttachment and targetAttachment:IsA("Attachment") then
+					return targetAttachment.WorldCFrame * child.CFrame:Inverse(), controllerAnchor
+				end
+			end
+		end
+		if binding.HandleIsPart0 then
+			return controllerAnchor.CFrame * binding.C1 * binding.C0:Inverse(), controllerAnchor
+		end
+		return controllerAnchor.CFrame * binding.C0 * binding.C1:Inverse(), controllerAnchor
+	end
+
+	local function UpdateLimbAccessories(reanimCharacter)
+		local hiddenResolver = Reanimate.ShouldBodyHidePart
+		for handle, binding in pairs(LimbAccessoryBindings) do
+			if not handle.Parent then
+				LimbAccessoryBindings[handle] = nil
+				continue
+			end
+			local anchorHidden = false
+			if type(hiddenResolver) == "function" then
+				local success, result = pcall(hiddenResolver, binding.AnchorName)
+				anchorHidden = success and result == true
+			end
+			local weld = binding.Weld
+			if weld and not weld.Parent then
+				binding.Weld = nil
+				binding.Detached = true
+			elseif anchorHidden and weld then
+				binding.C0, binding.C1 = weld.C0, weld.C1
+				binding.Detached = true
+				binding.Weld = nil
+				weld:Destroy()
+			end
+			if binding.Detached then
+				local normalCFrame, controllerAnchor = GetLimbAccessoryNormalTarget(binding, reanimCharacter)
+				if normalCFrame and controllerAnchor then
+					local targetCFrame = ResolveLimbBodyTargetCFrame(
+						binding.AnchorName,
+						normalCFrame,
+						handle,
+						true
+					)
+					handle.CFrame = targetCFrame
+					handle.Velocity = controllerAnchor.Velocity
+					handle.RotVelocity = controllerAnchor.RotVelocity
+				end
+			end
+		end
 	end
 
 	local lastrep = 0
@@ -19334,13 +19743,21 @@ function LimbReanimator.Start()
 						p0 = RootPart
 					end
 					if p0 and p1 then
+						local p0CFrame = p0.CFrame
+						local p1CFrame = p1.CFrame
+						if map.RPart0 ~= "ROOT" then
+							p0CFrame = ResolveLimbBodyTargetCFrame(map.Part0, p0CFrame, nil, false)
+						end
+						p1CFrame = ResolveLimbBodyTargetCFrame(map.Part1, p1CFrame, nil, false)
 						if map.Type == 1 then
-							cf = p0.CFrame:ToObjectSpace(p1.CFrame)
+							cf = p0CFrame:ToObjectSpace(p1CFrame)
 						end
 						if map.Type == 2 then
 							local offset = map.Offset or CFrame.identity
 							local c0, c1 = CFrame.new(map.C0), CFrame.new(map.C1)
-							local transform = offset * (p0.CFrame * c0):ToObjectSpace(p1.CFrame * c1) * offset:Inverse()
+							local transform = offset
+								* (p0CFrame * c0):ToObjectSpace(p1CFrame * c1)
+								* offset:Inverse()
 							local jointC0, jointC1 = Util.GetCharacterJointFrames(v)
 							if jointC0 and jointC1 then
 								cf = jointC0 * transform * jointC1:Inverse()
@@ -19357,6 +19774,7 @@ function LimbReanimator.Start()
 				end
 			end
 		end
+		UpdateLimbAccessories(ReanimCharacter)
 	end
 
 	Reanimate.Starting = false
@@ -19656,6 +20074,7 @@ HatReanimator.StaticRoot = nil
 HatReanimator.ActiveRealCharacter = nil
 HatReanimator.RigGeneration = 0
 HatReanimator.CollidableHandles = setmetatable({}, { __mode = "k" })
+HatReanimator.BodyHideTargets = setmetatable({}, { __mode = "k" })
 HatReanimator.HatMapSummary = "(no hat map yet, please * Reanimate * to build)"
 HatReanimator.HatCFrameOverride = {}
 HatReanimator.Status = {
@@ -20067,6 +20486,7 @@ function HatReanimator.Start()
 	local Hat2HatRefs = {}
 	local function ResetHatRefs()
 		table.clear(Hat2HatRefs)
+		table.clear(HatReanimator.BodyHideTargets)
 		for _, ref in HatRefs do
 			ref.Hat = nil
 			ref.Han = nil
@@ -20270,12 +20690,13 @@ function HatReanimator.Start()
 		table.clear(Hat2HatRefs)
 		table.clear(HatRefs)
 		table.clear(HatMap)
-		local function addhat(limb, data)
+		local function addhat(limb, data, bodyProxy)
 			if data and data[2] then
 				data = data[2]
 				if limb then
 					data.Limb = limb
 				end
+				data.BodyProxy = bodyProxy == true
 				local index = #HatMap
 				data.Index = index
 				table.insert(HatMap, data)
@@ -20290,12 +20711,12 @@ function HatReanimator.Start()
 				})
 			end
 		end
-		addhat("Head", hatrig.Head)
-		addhat("Torso", hatrig.Torso)
-		addhat("Left Arm", hatrig.LeftArm)
-		addhat("Right Arm", hatrig.RightArm)
-		addhat("Left Leg", hatrig.LeftLeg)
-		addhat("Right Leg", hatrig.RightLeg)
+		addhat("Head", hatrig.Head, true)
+		addhat("Torso", hatrig.Torso, true)
+		addhat("Left Arm", hatrig.LeftArm, true)
+		addhat("Right Arm", hatrig.RightArm, true)
+		addhat("Left Leg", hatrig.LeftLeg, true)
+		addhat("Right Leg", hatrig.RightLeg, true)
 		if #limbstobuild > 0 and #hatfors.Block > 0 then
 			local blocks = {}
 			local i = 0
@@ -20312,11 +20733,11 @@ function HatReanimator.Start()
 					local a, b = v[1], v[2]
 					a[2].C0 = CFrame.new(0, -0.5, 0)
 					b[2].C0 = CFrame.new(0, 0.5, 0)
-					addhat(name, a)
-					addhat(name, b)
+					addhat(name, a, true)
+					addhat(name, b, true)
 					summary ..= "  2 Block as " .. name:gsub(" ", "") .. " (block build)\n"
 				elseif #v == 1 then
-					addhat(name, v[1])
+					addhat(name, v[1], true)
 					summary ..= "  1 Block as " .. name:gsub(" ", "") .. " (block build)\n"
 				end
 			end
@@ -22049,9 +22470,26 @@ function HatReanimator.Start()
 								else
 									RefHatToHatRefs(hat)
 								end
+								local bodyHideTarget = HatReanimator.BodyHideTargets[handle] or {}
+								bodyHideTarget.PartName = mapped and mapped.Limb or nil
+								bodyHideTarget.Accessory = not (ref and ref.Map and ref.Map.BodyProxy)
+								bodyHideTarget.Physical = true
+								HatReanimator.BodyHideTargets[handle] = bodyHideTarget
 								local tcf, tvel = GetHatMappedCFrame(mapped)
 								tcf = tcf or RCRootPart.CFrame * CFrame.new(0, 5, 0)
 								tvel = tvel or Vector3.zero
+								if mapped and type(Reanimate.ResolveBodyHideTargetCFrame) == "function" then
+									local resolved, redirected = pcall(
+										Reanimate.ResolveBodyHideTargetCFrame,
+										handle,
+										tcf,
+										mapped.Limb,
+										bodyHideTarget.Accessory
+									)
+									if resolved and typeof(redirected) == "CFrame" then
+										tcf = redirected
+									end
+								end
 								local aligned = SetUACFrameNetless(
 									handle,
 									dt,
@@ -22099,10 +22537,16 @@ function HatReanimator.Start()
 		for _, ref in HatRefs do
 			local ph = ref.PH
 			if ph then
+				local mapped = GetHatMappedOverride(ref.Map)
+			local bodyHideTarget = HatReanimator.BodyHideTargets[ph] or {}
+			bodyHideTarget.PartName = mapped and mapped.Limb or nil
+			bodyHideTarget.Accessory = not (ref.Map and ref.Map.BodyProxy)
+			bodyHideTarget.Physical = false
+			HatReanimator.BodyHideTargets[ph] = bodyHideTarget
 				if ReanimOkay and ref.Hat and ref.Aligned then
 					ph.Transparency = 1
 				else
-					local tcf, _ = GetHatMappedCFrame(GetHatMappedOverride(ref.Map))
+					local tcf, _ = GetHatMappedCFrame(mapped)
 					if tcf then
 						local lltm = ltm
 						if Reanimate.FirstPersonBody then
@@ -22763,6 +23207,7 @@ SavedAnimLibOptions.KrystalHeadTracking = SavedAnimLibOptions.KrystalHeadTrackin
 SavedAnimLibOptions.KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride ~= false
 SavedAnimLibOptions.KrystalHeadStrength = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadStrength) or 1, 0, 1.5)
 SavedAnimLibOptions.KrystalHeadSmoothing = math.clamp(tonumber(SavedAnimLibOptions.KrystalHeadSmoothing) or 10, 1, 30)
+SavedAnimLibOptions.KeepAccessoriesWhenHiding = SavedAnimLibOptions.KeepAccessoriesWhenHiding ~= false
 if type(SavedAnimLibOptions.HiddenBodyParts) ~= "table" then
 	SavedAnimLibOptions.HiddenBodyParts = {}
 end
@@ -22867,7 +23312,7 @@ SavedDanceEffectsOptions.AnchorMode = table.find(DanceEffectAnchorModes, SavedDa
 	or "Center of Mass"
 
 local AnimLib = {
-	Version = "1.8.2",
+	Version = "1.8.6",
 	Settings = {
 		Speed = SavedAnimLibOptions.Speed,
 		FadeIn = SavedAnimLibOptions.FadeIn,
@@ -22880,6 +23325,7 @@ local AnimLib = {
 		KrystalHeadOverride = SavedAnimLibOptions.KrystalHeadOverride,
 		KrystalHeadStrength = SavedAnimLibOptions.KrystalHeadStrength,
 		KrystalHeadSmoothing = SavedAnimLibOptions.KrystalHeadSmoothing,
+		KeepAccessoriesWhenHiding = SavedAnimLibOptions.KeepAccessoriesWhenHiding,
 		HiddenBodyParts = SavedAnimLibOptions.HiddenBodyParts,
 		DanceEffects = SavedDanceEffectsOptions,
 		DanceSoundProvider = function()
@@ -25825,157 +26271,213 @@ local function GetDetectedDanceEffectBodyParts(figure)
 	return names
 end
 
--- This uses the same final animation-overlay stage as the Krystal head port.
--- Moving the controller joints, instead of relying on LocalTransparencyModifier,
--- also moves every reanimator's mapped physical limb. The original animation
--- transform is restored at the beginning of the next final-render callback so
--- the offset cannot accumulate or poison Krystal's own neck overlay.
-local BodyHideOverlay = {
-	Character = nil,
-	UnderlyingMotorTransforms = setmetatable({}, { __mode = "k" }),
-	LastMotorTransforms = setmetatable({}, { __mode = "k" }),
-	UnderlyingPartCFrames = setmetatable({}, { __mode = "k" }),
-	LastPartCFrames = setmetatable({}, { __mode = "k" }),
+do
+-- Hidden physical parts use a dedicated target controller at the safe edge of
+-- the void. Each reanimator redirects its existing replicated physics writer to
+-- these targets; the animated controller itself is never moved or transformed.
+local BodyHideR15ToR6 = {
+	UpperTorso = "Torso",
+	LowerTorso = "Torso",
+	LeftUpperArm = "Left Arm",
+	LeftLowerArm = "Left Arm",
+	LeftHand = "Left Arm",
+	RightUpperArm = "Right Arm",
+	RightLowerArm = "Right Arm",
+	RightHand = "Right Arm",
+	LeftUpperLeg = "Left Leg",
+	LeftLowerLeg = "Left Leg",
+	LeftFoot = "Left Leg",
+	RightUpperLeg = "Right Leg",
+	RightLowerLeg = "Right Leg",
+	RightFoot = "Right Leg",
 }
 
-local function BodyHideCFrameAlmostEqual(a, b)
-	if typeof(a) ~= "CFrame" or typeof(b) ~= "CFrame" then
-		return false
-	end
-	local delta = a:ToObjectSpace(b)
-	local _, angle = delta:ToAxisAngle()
-	return delta.Position.Magnitude < 0.0001 and math.abs(angle) < 0.0001
+local BodyHideAttachmentParts = {
+	HatAttachment = "Head",
+	HairAttachment = "Head",
+	FaceFrontAttachment = "Head",
+	FaceCenterAttachment = "Head",
+	NeckAttachment = "Torso",
+	BodyFrontAttachment = "Torso",
+	BodyBackAttachment = "Torso",
+	WaistFrontAttachment = "Torso",
+	WaistBackAttachment = "Torso",
+	WaistCenterAttachment = "Torso",
+	LeftShoulderAttachment = "Left Arm",
+	LeftGripAttachment = "Left Arm",
+	RightShoulderAttachment = "Right Arm",
+	RightGripAttachment = "Right Arm",
+	LeftFootAttachment = "Left Leg",
+	RightFootAttachment = "Right Leg",
+}
+
+local BodyHideTargetController = Instance.new("Model")
+BodyHideTargetController.Name = "_Uhhhhhh_BodyHideTargetController"
+BodyHideTargetController.Archivable = false
+BodyHideTargetController.Parent = workspace
+local BodyHideTargetParts = {}
+
+local function IsFiniteBodyHideNumber(value)
+	return type(value) == "number"
+		and value == value
+		and value > -math.huge
+		and value < math.huge
 end
 
-local function RestoreBodyHideOverlay()
-	for motor, applied in pairs(BodyHideOverlay.LastMotorTransforms) do
-		if motor and motor.Parent and BodyHideCFrameAlmostEqual(motor.Transform, applied) then
-			local underlying = BodyHideOverlay.UnderlyingMotorTransforms[motor]
-			if typeof(underlying) == "CFrame" then
-				pcall(function()
-					motor.Transform = underlying
-				end)
-			end
-		end
-	end
-	for part, applied in pairs(BodyHideOverlay.LastPartCFrames) do
-		if part and part.Parent and BodyHideCFrameAlmostEqual(part.CFrame, applied) then
-			local underlying = BodyHideOverlay.UnderlyingPartCFrames[part]
-			if typeof(underlying) == "CFrame" then
-				pcall(function()
-					part.CFrame = underlying
-				end)
-			end
-		end
-	end
-	table.clear(BodyHideOverlay.UnderlyingMotorTransforms)
-	table.clear(BodyHideOverlay.LastMotorTransforms)
-	table.clear(BodyHideOverlay.UnderlyingPartCFrames)
-	table.clear(BodyHideOverlay.LastPartCFrames)
-end
-
-local function GetBodyHideY()
-	local destroyHeight = workspace.FallenPartsDestroyHeight
-	if
-		type(destroyHeight) ~= "number"
-		or destroyHeight ~= destroyHeight
-		or destroyHeight <= -math.huge
-		or destroyHeight >= math.huge
-	then
+local function GetBodyHideTargetY()
+	local destroyHeight = FallenPartsDestroyHeight
+	if not IsFiniteBodyHideNumber(destroyHeight) then
 		destroyHeight = -500
 	end
 	return destroyHeight + 5
 end
 
-local function IsEnabledBodyHideMotor(motor)
-	local success, enabled = pcall(function()
-		return motor.Enabled
-	end)
-	return not success or enabled ~= false
+local function GetCanonicalBodyHidePartName(partName)
+	if type(partName) ~= "string" then
+		return nil
+	end
+	return BodyHideR15ToR6[partName] or partName
 end
 
-local function ApplyBodyHideOverlay(figure)
-	if typeof(figure) ~= "Instance" or not figure:IsA("Model") or not figure.Parent then
-		BodyHideOverlay.Character = nil
-		return
-	end
-	BodyHideOverlay.Character = figure
-
-	local bodyParts = {}
-	local desiredCFrames = {}
-	local hiddenParts = {}
-	local hiddenY = GetBodyHideY()
-	local hasHiddenPart = false
-	for _, part in figure:GetChildren() do
-		if IsDanceEffectBodyPart(figure, part) then
-			-- Clear values left by the old transparency-based implementation and
-			-- leave first-person visibility under Uhhhhhh's normal camera writer.
-			part.LocalTransparencyModifier = Reanimate.LocalTransparencyModifier
-			bodyParts[part] = true
-			desiredCFrames[part] = part.CFrame
-			if SavedAnimLibOptions.HiddenBodyParts[part.Name] == true then
-				hiddenParts[part] = true
-				hasHiddenPart = true
-				desiredCFrames[part] = CFrame.new(part.Position.X, hiddenY, part.Position.Z) * part.CFrame.Rotation
-			end
-		end
-	end
-	if not hasHiddenPart then
-		return
-	end
-
-	local motorDrivenParts = {}
-	local affectedMotors = {}
-	for _, descendant in figure:GetDescendants() do
-		if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
-			local part0, part1 = descendant.Part0, descendant.Part1
-			local enabled = IsEnabledBodyHideMotor(descendant)
-			if enabled and bodyParts[part1] then
-				motorDrivenParts[part1] = true
-			end
-			if enabled and (hiddenParts[part0] or hiddenParts[part1]) then
-				table.insert(affectedMotors, descendant)
-			end
-		end
-	end
-
-	-- Disabled/removed Motor6Ds are the defining case for jointless ragdoll and
-	-- VR. Those independent parts receive the same late CFrame overlay directly.
-	for part in pairs(hiddenParts) do
-		if not motorDrivenParts[part] then
-			local underlying = part.CFrame
-			local applied = desiredCFrames[part]
-			BodyHideOverlay.UnderlyingPartCFrames[part] = underlying
-			part.CFrame = applied
-			BodyHideOverlay.LastPartCFrames[part] = applied
-		end
-	end
-
-	-- Solve each affected Motor6D from desired world-space poses. This lets a
-	-- hidden torso move to the safe void height while visible child limbs stay in
-	-- their animated world positions, rather than dragging the whole assembly.
-	for _, motor in affectedMotors do
-		local part0, part1 = motor.Part0, motor.Part1
-		if part0 and part1 then
-			local desiredPart0 = desiredCFrames[part0] or part0.CFrame
-			local desiredPart1 = desiredCFrames[part1] or part1.CFrame
-			local underlying = motor.Transform
-			local applied = motor.C0:Inverse() * desiredPart0:Inverse() * desiredPart1 * motor.C1
-			BodyHideOverlay.UnderlyingMotorTransforms[motor] = underlying
-			motor.Transform = applied
-			BodyHideOverlay.LastMotorTransforms[motor] = applied
-		end
-	end
+local function IsBodyHidePartSelected(partName)
+	local canonical = GetCanonicalBodyHidePartName(partName)
+	return canonical ~= nil
+		and (
+			SavedAnimLibOptions.HiddenBodyParts[partName] == true
+			or SavedAnimLibOptions.HiddenBodyParts[canonical] == true
+		)
 end
 
--- Restore BodyHide first, then let Krystal derive from the untouched animation,
--- and finally layer BodyHide over both. Keeping them in one callback prevents
--- either overlay from mistaking the other's previous-frame transform for input.
-AddToRenderStep(function(_, dt)
-	RestoreBodyHideOverlay()
-	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
-	ApplyBodyHideOverlay(Reanimate.Character)
+local function ShouldRedirectBodyHidePart(partName, accessory)
+	return IsBodyHidePartSelected(partName)
+		and (accessory ~= true or not AnimLib.Settings.KeepAccessoriesWhenHiding)
+end
+
+local function GetBodyHideAccessoryAnchorName(physicalPart, normalTarget)
+	local function ReadWeldAnchor(handle)
+		if typeof(handle) ~= "Instance" or not handle:IsA("BasePart") then
+			return nil
+		end
+		local weld = handle:FindFirstChild("AccessoryWeld")
+		if weld and weld:IsA("JointInstance") then
+			local part0, part1 = weld.Part0, weld.Part1
+			if part0 and part0 ~= handle then
+				return part0.Name
+			elseif part1 and part1 ~= handle then
+				return part1.Name
+			end
+		end
+		return nil
+	end
+
+	local anchorName = ReadWeldAnchor(normalTarget) or ReadWeldAnchor(physicalPart)
+	if anchorName then
+		return anchorName
+	end
+	for _, candidate in { physicalPart, normalTarget } do
+		if typeof(candidate) == "Instance" and candidate:IsA("BasePart") then
+			for _, child in candidate:GetChildren() do
+				if child:IsA("Attachment") and BodyHideAttachmentParts[child.Name] then
+					return BodyHideAttachmentParts[child.Name]
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function GetBodyHideTargetPart(partName, normalCFrame)
+	local canonical = GetCanonicalBodyHidePartName(partName)
+	if not canonical or typeof(normalCFrame) ~= "CFrame" then
+		return nil
+	end
+	local target = BodyHideTargetParts[canonical]
+	if not target or not target.Parent then
+		target = Instance.new("Part")
+		target.Name = canonical .. " Void Target"
+		target.Size = Vector3.one
+		target.Transparency = 1
+		target.Anchored = true
+		target.CanCollide = false
+		target.CanQuery = false
+		target.CanTouch = false
+		target.CastShadow = false
+		target.Archivable = false
+		target.Parent = BodyHideTargetController
+		BodyHideTargetParts[canonical] = target
+	end
+	local position = normalCFrame.Position
+	local x = IsFiniteBodyHideNumber(position.X) and position.X or 0
+	local z = IsFiniteBodyHideNumber(position.Z) and position.Z or 0
+	target.CFrame = CFrame.new(x, GetBodyHideTargetY(), z) * normalCFrame.Rotation
+	return target
+end
+
+local function ResolveBodyHideTargetPart(physicalPart, normalTarget, explicitPartName, accessory)
+	if typeof(normalTarget) ~= "Instance" or not normalTarget:IsA("BasePart") then
+		return normalTarget
+	end
+	local isAccessory = accessory == true
+	if accessory == nil and typeof(physicalPart) == "Instance" then
+		isAccessory = physicalPart:FindFirstAncestorWhichIsA("Accessory") ~= nil
+	end
+	local partName = explicitPartName
+		or (isAccessory and GetBodyHideAccessoryAnchorName(physicalPart, normalTarget))
+		or (typeof(physicalPart) == "Instance" and physicalPart.Name)
+	if not ShouldRedirectBodyHidePart(partName, isAccessory) then
+		return normalTarget
+	end
+	return GetBodyHideTargetPart(partName, normalTarget.CFrame) or normalTarget
+end
+
+local function GetBodyHideTargetInfo(physicalPart, normalTarget, explicitPartName, accessory)
+	local isAccessory = accessory == true
+	if accessory == nil and typeof(physicalPart) == "Instance" then
+		isAccessory = physicalPart:FindFirstAncestorWhichIsA("Accessory") ~= nil
+	end
+	local partName = explicitPartName
+		or (isAccessory and GetBodyHideAccessoryAnchorName(physicalPart, normalTarget))
+		or (typeof(physicalPart) == "Instance" and physicalPart.Name)
+	local canonical = GetCanonicalBodyHidePartName(partName)
+	return ShouldRedirectBodyHidePart(partName, isAccessory), canonical
+end
+
+local function ResolveBodyHideTargetCFrame(physicalPart, normalCFrame, explicitPartName, accessory)
+	if typeof(normalCFrame) ~= "CFrame" then
+		return normalCFrame
+	end
+	local isAccessory = accessory == true
+	if accessory == nil and typeof(physicalPart) == "Instance" then
+		isAccessory = physicalPart:FindFirstAncestorWhichIsA("Accessory") ~= nil
+	end
+	local partName = explicitPartName
+		or (typeof(physicalPart) == "Instance" and physicalPart.Name)
+	if not ShouldRedirectBodyHidePart(partName, isAccessory) then
+		return normalCFrame
+	end
+	local target = GetBodyHideTargetPart(partName, normalCFrame)
+	return target and target.CFrame or normalCFrame
+end
+
+Reanimate.GetBodyHideCanonicalName = GetCanonicalBodyHidePartName
+Reanimate.ShouldBodyHidePart = IsBodyHidePartSelected
+Reanimate.ResolveBodyHideTargetPart = ResolveBodyHideTargetPart
+Reanimate.ResolveBodyHideTargetCFrame = ResolveBodyHideTargetCFrame
+
+local BodyHideGlobal = (getgenv and getgenv()) or shared or _G
+local PreviousBodyHideTargetInfo = BodyHideGlobal.UhhhhhhTBZGetBodyHideTargetInfo
+BodyHideGlobal.UhhhhhhTBZGetBodyHideTargetInfo = GetBodyHideTargetInfo
+SCREENGUI.Destroying:Once(function()
+	if BodyHideGlobal.UhhhhhhTBZGetBodyHideTargetInfo == GetBodyHideTargetInfo then
+		BodyHideGlobal.UhhhhhhTBZGetBodyHideTargetInfo = PreviousBodyHideTargetInfo
+	end
+	BodyHideTargetController:Destroy()
 end)
+
+AddToRenderStep(function(_, dt)
+	ApplyKrystalHeadOverlay(dt, Reanimate.Character)
+end)
+end
 
 local function GetDanceEffectGhostSource(figure)
 	local realCharacter = Player.Character
@@ -26365,6 +26867,21 @@ UI.CreateSlider(AnimationOptionsPage, "Fade In Time", AnimLib.Settings.FadeIn, 0
 	:Connect(function(value)
 		SetAnimLibOption("FadeIn", value)
 	end)
+UI.CreateSeparator(AnimationOptionsPage)
+UI.CreateText(AnimationOptionsPage, "<b>Body Visibility</b>", 14, Enum.TextXAlignment.Center)
+UI.CreateSwitch(
+	AnimationOptionsPage,
+	"Keep Accessories When Hiding",
+	AnimLib.Settings.KeepAccessoriesWhenHiding
+).Changed:Connect(function(value)
+	SetAnimLibOption("KeepAccessoriesWhenHiding", value)
+end)
+UI.CreateText(
+	AnimationOptionsPage,
+	"Hidden network-owned body parts are redirected to a dedicated void target through the active reanimator. The animation controller stays in place; accessories keep their normal target when the switch above is enabled.",
+	10,
+	Enum.TextXAlignment.Center
+)
 local JointPresetNames = { "Full Body", "Upper Body", "Lower Body", "Arms Only" }
 local JointPresetIndex = table.find(JointPresetNames, AnimLib.Settings.JointPreset) or 1
 if not table.find(JointPresetNames, AnimLib.Settings.JointPreset) then
@@ -26461,12 +26978,6 @@ AddToRenderStep(function(_, dt)
 		RefreshHiddenBodyPartDropdown()
 	end
 end, AnimationOptionsPage)
-UI.CreateText(
-	AnimationOptionsPage,
-	"Moves selected controller limbs to FallenPartsDestroyHeight + 5 at the final animation stage (uses -495 when the height is NaN). Separate from Dance Effects afterimages.",
-	10,
-	Enum.TextXAlignment.Center
-)
 local KrystalHeadOptionsPage = UI.CreatePage()
 KrystalHeadOptionsPage.ZIndex = 2
 KrystalHeadOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
