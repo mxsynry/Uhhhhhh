@@ -18,7 +18,7 @@ $$      $$$$$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$
 
 Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
- 
+
 -- Uhhhhhh Reanimate Modded
 local required = {"writefile", "readfile", "isfile", "isfolder", "makefolder", "loadstring"}
 for _, name in ipairs(required) do
@@ -32,14 +32,16 @@ end
 ensure("Theos Dancezzzzz")
 ensure("Theos Dancezzzzz/Bridge")
 ensure("Theos Dancezzzzz/Bridge/runtime")
+ensure("Theos Dancezzzzz/Bridge/server")
 ensure("Theos Dancezzzzz/Bridge/vendor")
 
 local files = {
-    ["Theos Dancezzzzz/Bridge/README.md"] = [=====[# Uhhhhhh Reanimate Modded
+    ["Theos Dancezzzzz/Bridge/README.md"] = [=====[
+# Uhhhhhh Reanimate Modded
 
 Run `launch.lua`.
 
-Package label: `1.0.9 BETA / runtime hotfix 11`.
+Package label: `1.0.9 BETA / runtime hotfix 16`.
 
 - Available reanimators: Limb, Hats, and Gelatek. Neuron has been removed.
 - Gelatek defaults to its native CFrame follower path and exact-instance
@@ -48,16 +50,30 @@ Package label: `1.0.9 BETA / runtime hotfix 11`.
   native R6 path; R15 automatically uses Gelatek's R15-to-R6 physical mapping
   because Uhhhhhh movement and ragdoll modules use an R6 controller. The
   conversion is automatic and is not exposed as a duplicate rig switch.
-- Gelatek exposes every upstream config except automatic R15-to-R6 conversion.
-  Its classic R6 animator switch is available again and defaults to disabled;
-  when enabled, its chat connection is included in generation cleanup.
-- A one-time schema-7 migration restores the stable Uhhhhhh integration profile:
-  direct-CFrame following is used, dynamic/fast follower variants are off,
-  ownership tweaks stay enabled, and the optional optimizer is off.
+- Gelatek's classic R6 animator defaults to enabled, matching upstream and
+  preserving normal animation when permanent death is disabled. Its disable
+  switch remains available for movesets that need exclusive joint control.
+- A one-time schema-8 migration restores the stable Uhhhhhh integration profile:
+  direct-CFrame following is used, dynamic/fast follower variants are off, and
+  ownership tweaks stay enabled.
+- The redundant visibility setting and whole-game performance setting were
+  removed from Gelatek configuration. Body hiding owns visibility, while global
+  performance mutation is deliberately outside the reanimator lifecycle.
 - If Roblox respawns while Gelatek is active, a single serialized generation
   loop fully deanimates, restores the fresh Roblox character and Animate runtime,
   lets that normal spawn settle, then starts a new Gelatek generation. It never
   recursively calls `Start` or overlaps two Gelatek generations.
+- Respawn recovery no longer mistakes Gelatek's retired, already-jointless
+  physical shell for a normal fresh avatar. If a place deliberately retains only
+  that shell, the next generation uses Gelatek's permanent-death path once; the
+  saved `Permanent Death` switch is not changed.
+- Gelatek's PD task now guards ResetButtonCallback, ping lookup, Head lookup,
+  head breaking, and alignment. A failure records the real traceback and ends
+  the readiness wait immediately instead of degrading into a generic timeout.
+- When the bundled UhhhhhhServer helper is installed, Gelatek asks it to disable
+  the dead state, remove the neck joint on the server, and assign network
+  ownership before the client runtime starts. The local timed head-break remains
+  the fallback when that helper is absent.
 - During that hand-off, the incoming physical shell is collision-isolated only
   while it overlaps the retiring controller, then its original collision flags
   are restored for the normal-spawn interval. The new controller is built at the
@@ -72,6 +88,11 @@ Package label: `1.0.9 BETA / runtime hotfix 11`.
 - Gelatek now treats a missing controller `Animate` script, optional Bullet,
   and already-removed Bullet constraints as recoverable addon states instead of
   indexing or destroying `nil` during a fresh generation.
+- Gelatek's constraint path normalizes upstream CFrame, Vector3, and numeric
+  attachment offsets before character-scale multiplication. The old mismatch
+  could abort controller assignment with `Vector3 expected, got number`.
+- The legacy `cat.webm` credits download is disabled because sandboxed mobile
+  filesystems can expose `getsynasset` while still rejecting that copy path.
 - Gelatek's empty controller-template `Animate` LocalScript is disabled before
   cloning, so it can no longer produce a path-only developer-console error.
 - Gelatek uses Uhhhhhh's shared noclip, Infinite Jump, seat-state, and click-fling
@@ -105,6 +126,15 @@ Package label: `1.0.9 BETA / runtime hotfix 11`.
 - Eyo-Zen's character scale is initialized before its delayed notification, so
   a freshly rebuilt controller cannot reach the notification with a nil scale.
 - The main page includes a random-dance button.
+- `Favorites` is created directly below `Animation Options`, with separate
+  Dances and Movesets collections and a working favorite/unfavorite toggle.
+- The bundled `v_dance1` compatibility patch clamps its particle envelope after
+  the late timeline subtraction so `NumberSequence` never receives a negative
+  envelope.
+- The Server Reanimator keeps two paths: use an installed UhhhhhhServer endpoint
+  directly, or let a registered loader use the selected remote to install the
+  packaged helper source first. Long failures use a Core notification and the
+  developer console instead of the small in-window notice.
 - Physics Glue target duration is configurable from `0.001` to `30` seconds
   and is persisted in `tree.ehehetilde`.
 - Limb target behavior is a single mutually-exclusive choice: physics fling,
@@ -118,8 +148,10 @@ Package label: `1.0.9 BETA / runtime hotfix 11`.
   `Player.Character` to that controller, and hands the camera to its Humanoid.
   Hat Gelatek mode now ports that complete handoff before the timed head-break
   and retains the real shell explicitly for mapping, tools, cleanup, and respawn.
-- Hat hitbox display follows the bound real character and retained collidable
-  accessory handles, restoring the green ownership outlines across respawns.
+- Hat hitbox display keeps the two original diagnostics separate: thick green
+  outlines follow every mapped controller limb, while thin green wireframes
+  follow retained collidable physical hats. It does not move placeholders,
+  rewrite Hat CFrames, or change the controller/physical alignment path.
 - Animation Options includes a persistent `Hide Body Parts` picker for the live
   physical shell. Limb and Hat use the shared invisible target controller at
   `FallenPartsDestroyHeight + 5`: Limb solves physical joint offsets against a
@@ -155,9 +187,6 @@ future remote payloads.
 Gelatek is jointless on the detached physical shell.
 
 Static validation cannot replace a fresh-server Roblox/executor physics test.
-
-
-
 
 ]=====],
     ["Theos Dancezzzzz/Bridge/config.default.json"] = [=====[{
@@ -198,7 +227,8 @@ local patcher = loadLocal(ROOT .. "/runtime/source_patcher.lua")
 local patched = patcher.patch(source, config)
 return compile(patched, "Uhhhhhh")()
 ]=====],
-    ["Theos Dancezzzzz/Bridge/runtime/backend_gelatek.lua"] = [=====[return function(Context)
+    ["Theos Dancezzzzz/Bridge/runtime/backend_gelatek.lua"] = [=====[
+return function(Context)
     local UI = Context.UI
     local SaveData = Context.SaveData
     local Reanimate = Context.Reanimate
@@ -213,21 +243,19 @@ return compile(patched, "Uhhhhhh")()
     local options = type(SaveData.TheoBridge.Gelatek) == "table" and SaveData.TheoBridge.Gelatek or {}
     SaveData.TheoBridge.Gelatek = options
 
-    local CURRENT_OPTIONS_SCHEMA = 7
+    local CURRENT_OPTIONS_SCHEMA = 8
     local defaults = {
-        -- Uhhhhhh owns the controller joints. Gelatek's built-in animator would
-        -- compete with movement styles and ragdoll modules on the same frame.
-        AnimationsDisabled = true,
+        -- Match Gelatek's original behavior: its controller can animate even
+        -- when permanent death is disabled and no Uhhhhhh moveset is active.
+        AnimationsDisabled = false,
         DontBreakHairWelds = false,
         PermanentDeath = false,
-        Headless = false,
         TeleportBackWhenVoided = false,
         AlignReanimate = false,
         FullForceAlign = false,
         FasterHeartbeat = false,
         DynamicalVelocity = false,
         DisableTweaks = false,
-        OptimizeGame = false,
         LoadLibrary = false,
         DetailedCredits = false,
         TorsoFling = false,
@@ -245,13 +273,12 @@ return compile(patched, "Uhhhhhh")()
         -- animators on one controller or disabled Gelatek's ownership claims.
         -- Reset only the stability-critical switches once. Every switch remains
         -- exposed and can be changed deliberately after this migration.
-        options.AnimationsDisabled = true
+        options.AnimationsDisabled = false
         options.AlignReanimate = false
         options.FullForceAlign = false
         options.FasterHeartbeat = false
         options.DynamicalVelocity = false
         options.DisableTweaks = false
-        options.OptimizeGame = false
         options.SchemaVersion = CURRENT_OPTIONS_SCHEMA
     end
     local backend = {
@@ -265,6 +292,9 @@ return compile(patched, "Uhhhhhh")()
         RigGeneration = 0,
         Running = false,
         LastError = nil,
+        EffectivePermanentDeath = false,
+        PermanentDeathFallback = false,
+        ServerPreparedPermanentDeath = false,
         IgnoreSharedFling = false,
     }
 
@@ -299,6 +329,29 @@ return compile(patched, "Uhhhhhh")()
 
     local function environment()
         return (getgenv and getgenv()) or shared or _G
+    end
+
+    local function preparePermanentDeathWithServerHelper()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local folder = replicatedStorage:FindFirstChild("UhhhhhhServer")
+        local request = folder and folder:FindFirstChild("Request")
+        if not folder
+            or tonumber(folder:GetAttribute("ProtocolVersion")) ~= 1
+            or not request
+            or not request:IsA("RemoteFunction")
+        then
+            return false
+        end
+        local ok, response = pcall(request.InvokeServer, request, "PrepareGelatek", {
+            PermanentDeath = true,
+        })
+        if not ok or type(response) ~= "table" or response.Ok ~= true then
+            if ok and response and response.Error ~= "unknown action" then
+                warn("Gelatek server helper rejected PD preparation: " .. tostring(response.Error))
+            end
+            return false
+        end
+        return response.PermanentDeathPrepared == true, response
     end
 
     local function isolatePhysicalCharacter(character)
@@ -446,7 +499,7 @@ return compile(patched, "Uhhhhhh")()
             options[key] = value == true
         end)
         if description then
-            addDescription(parent, "Ã¢ÂÂ³ " .. description)
+            addDescription(parent, "-> " .. description)
         end
         return control
     end
@@ -491,6 +544,12 @@ return compile(patched, "Uhhhhhh")()
         )
         UI.CreateText(
             parent,
+            "If the server returns only an already-jointless shell, that respawn uses PD fallback once; the saved switch stays off.",
+            9,
+            Enum.TextXAlignment.Center
+        )
+        UI.CreateText(
+            parent,
             "Character Scale resizes the controller and preserves its ground clearance.",
             9,
             Enum.TextXAlignment.Center
@@ -501,11 +560,10 @@ return compile(patched, "Uhhhhhh")()
             parent,
             "Disable Gelatek's Own Animator",
             "AnimationsDisabled",
-            "Enabled by default. Turn it off only if you specifically want Gelatek's classic R6 animator."
+            "Off by default, matching Gelatek. Enable it when a Uhhhhhh moveset should fully own the joints."
         )
         addSwitch(parent, "Don't Break Hair Welds", "DontBreakHairWelds")
         addSwitch(parent, "Permanent Death", "PermanentDeath")
-        addSwitch(parent, "Headless", "Headless", "Only applies with Permanent Death.")
         addSwitch(parent, "Teleport Back When Voided", "TeleportBackWhenVoided")
 
         UI.CreateText(parent, "<b>Reanimation settings</b>", 12, Enum.TextXAlignment.Left)
@@ -525,8 +583,7 @@ return compile(patched, "Uhhhhhh")()
             "Turning this on disables Gelatek's ownership/stability tweaks and can lose physical parts."
         )
 
-        UI.CreateText(parent, "<b>Optimization and misc.</b>", 12, Enum.TextXAlignment.Left)
-        addSwitch(parent, "Optimize Game", "OptimizeGame", "Runs Gelatek's optional external optimizer.")
+        UI.CreateText(parent, "<b>Misc.</b>", 12, Enum.TextXAlignment.Left)
         addSwitch(parent, "Load Library", "LoadLibrary", "Loads Gelatek's optional external library.")
         addSwitch(parent, "Detailed Credits", "DetailedCredits")
 
@@ -1165,12 +1222,21 @@ return compile(patched, "Uhhhhhh")()
 
         source = replaceOnce(
             source,
-            [==[	loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/L8X/GameOptimizer/main/src.lua", true))()]==],
-            [==[	local OptimizerSource = game:HttpGet("https://raw.githubusercontent.com/L8X/GameOptimizer/main/src.lua")
-	local OptimizerChunk, OptimizerError = loadstring(OptimizerSource)
-	assert(type(OptimizerChunk) == "function", "Gelatek optimizer compile failed: " .. tostring(OptimizerError))
-	OptimizerChunk()]==],
-            "executor-safe optimizer"
+            "local BodyVels = {}",
+[==[local BodyVels = {}
+local UhhhhhhTBZCreatedObjects = {}
+-- This patch runs before Gelatek declares its local Config table.
+local UhhhhhhTBZRunToken = (Global.GelatekReanimateConfig or {}).RunToken
+local function UhhhhhhTBZRunActive()
+	return UhhhhhhTBZRunToken ~= nil
+		and Global.UhhhhhhTBZGelatekRunToken == UhhhhhhTBZRunToken
+		and Global.Stopped ~= true
+end
+local function UhhhhhhTBZTrack(Object)
+	table.insert(UhhhhhhTBZCreatedObjects, Object)
+	return Object
+end]==],
+            "generation-owned object registry"
         )
         source = replaceOnce(
             source,
@@ -1186,6 +1252,12 @@ return compile(patched, "Uhhhhhh")()
             'game:GetService("Players").LocalPlayer.Chatted:connect(function(aa)',
             'table.insert(Events, game:GetService("Players").LocalPlayer.Chatted:Connect(function(aa)',
             "classic animator chat cleanup start"
+        )
+        source = replaceOnce(
+            source,
+            "if getsynasset and request and writefile and isfile then",
+            "if false then -- legacy cat.webm promo disabled; it breaks sandboxed mobile filesystems",
+            "disabled legacy cat video"
         )
         source = replaceOnce(
             source,
@@ -1247,8 +1319,38 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
             [==[local Align = function(Part0, Part1, Position, Orientation)
 	local NormalPart1 = Part1
 	Part1 = UhhhhhhResolveBodyHideTarget(Part0, NormalPart1)
-	local AlignPosition = Instance.new("AlignPosition"); do]==],
+	local AlignPosition = UhhhhhhTBZTrack(Instance.new("AlignPosition")); do]==],
             "constraint body target initialization"
+        )
+        source = replaceOnce(
+            source,
+            'local AlignOrientation = Instance.new("AlignOrientation"); do',
+            'local AlignOrientation = UhhhhhhTBZTrack(Instance.new("AlignOrientation")); do',
+            "tracked align orientation"
+        )
+        source = replaceOnce(
+            source,
+            'local Attachment1 = Instance.new("Attachment"); do',
+            'local Attachment1 = UhhhhhhTBZTrack(Instance.new("Attachment")); do',
+            "tracked source attachment"
+        )
+        source = replaceOnce(
+            source,
+            'local Attachment2 = Instance.new("Attachment"); do',
+            'local Attachment2 = UhhhhhhTBZTrack(Instance.new("Attachment")); do',
+            "tracked target attachment"
+        )
+        source = replaceOnce(
+            source,
+            'repeat task.wait() until isnetworkowner(Part0) == true',
+            'repeat task.wait() until not UhhhhhhTBZRunActive() or not Part0.Parent or isnetworkowner(Part0) == true\n\t\t\tif not UhhhhhhTBZRunActive() or not Part0.Parent then return end',
+            "generation-safe full-force ownership wait"
+        )
+        source = replaceOnce(
+            source,
+            'local AlignPosition2 = Instance.new("AlignPosition"); do',
+            'if not UhhhhhhTBZRunActive() or not Part0.Parent or not Attachment1.Parent or not Attachment2.Parent then return end\n\t\t\tlocal AlignPosition2 = UhhhhhhTBZTrack(Instance.new("AlignPosition")); do',
+            "tracked full-force constraint"
         )
         source = replaceOnce(
             source,
@@ -1288,10 +1390,32 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
         )
         source = replaceOnce(
             source,
-            [==[		Attachment1.Position = Position or Vector3.new(0,0,0)]==],
-            [==[		local BasePosition = Position or Vector3.new(0,0,0)
+            [==[		Attachment1.Position = Position or Vector3.new(0,0,0)
+		Attachment1.Orientation = Orientation or Vector3.new(0,0,0)]==],
+            [==[		local BasePosition
+		if typeof(Position) == "Vector3" then
+			BasePosition = Position
+		elseif typeof(Position) == "CFrame" then
+			BasePosition = Position.Position
+		elseif type(Position) == "number" then
+			BasePosition = Vector3.new(0, Position, 0)
+		else
+			BasePosition = Vector3.new(0,0,0)
+		end
 		Attachment1:SetAttribute("UhhhhhhCharacterSpacingBasePosition", BasePosition)
-		Attachment1.Position = BasePosition * (tonumber(Global.UhhhhhhTBZGelatekCharacterSpacingScale) or 1)]==],
+		Attachment1.Position = BasePosition * (tonumber(Global.UhhhhhhTBZGelatekCharacterSpacingScale) or 1)
+		local BaseOrientation
+		if typeof(Orientation) == "Vector3" then
+			BaseOrientation = Orientation
+		elseif typeof(Orientation) == "CFrame" then
+			local X, Y, Z = Orientation:ToOrientation()
+			BaseOrientation = Vector3.new(math.deg(X), math.deg(Y), math.deg(Z))
+		elseif type(Orientation) == "number" then
+			BaseOrientation = Vector3.new(0, 0, Orientation)
+		else
+			BaseOrientation = Vector3.new(0,0,0)
+		end
+		Attachment1.Orientation = BaseOrientation]==],
             "constraint joint-spacing offset"
         )
         source = replaceOnce(
@@ -1451,9 +1575,83 @@ end]==],
         )
         source = replaceOnce(
             source,
-            'game:GetService("StarterGui"):SetCore("ResetButtonCallback", true)\n\t\twarn("Godmoded in: "',
-            'Global.UhhhhhhTBZGelatekPermaReady = true\n\t\tgame:GetService("StarterGui"):SetCore("ResetButtonCallback", true)\n\t\twarn("Godmoded in: "',
-            "permadeath ready marker"
+            'local Head = Character:FindFirstChild("Head"); Head:BreakJoints() \n',
+            'local Head = Character:FindFirstChild("Head"); Head:BreakJoints()\n',
+            "permadeath head-break whitespace"
+        )
+        source = replaceOnce(
+            source,
+            'Align(Character:FindFirstChild("Head"), FakeRig:FindFirstChild("Head"))\t\n',
+            'Align(Character:FindFirstChild("Head"), FakeRig:FindFirstChild("Head"))\n',
+            "permadeath align whitespace"
+        )
+        source = replaceOnce(
+            source,
+            [==[if IsPermaDeath == true then
+	task.spawn(function()
+		FakeHum.BreakJointsOnDeath = false
+		game:GetService("StarterGui"):SetCore("ResetButtonCallback", false)
+		task.wait(Players.RespawnTime + game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 750)
+		local Head = Character:FindFirstChild("Head"); Head:BreakJoints()
+		Offsets["Head"] = {FakeRig:FindFirstChild("Head"), CFrame.new()}
+		if AlignReanimate == true then
+			Align(Character:FindFirstChild("Head"), FakeRig:FindFirstChild("Head"))
+		end
+		game:GetService("StarterGui"):SetCore("ResetButtonCallback", true)
+		warn("Godmoded in: " .. string.sub(tostring(tick()-Speed),1,string.find(tostring(tick()-Speed),".")+5))
+	end)
+end]==],
+            [==[if IsPermaDeath == true then
+	task.spawn(function()
+		Global.UhhhhhhTBZGelatekPermaError = nil
+		local PermaOk, PermaReason = xpcall(function()
+			FakeHum.BreakJointsOnDeath = false
+			pcall(game:GetService("StarterGui").SetCore, game:GetService("StarterGui"), "ResetButtonCallback", false)
+			local NetworkDelay = 0
+			pcall(function()
+				local Ping = game:GetService("Stats").Network.ServerStatsItem:FindFirstChild("Data Ping")
+				NetworkDelay = Ping and math.max((tonumber(Ping:GetValue()) or 0) / 750, 0) or 0
+			end)
+			if Config.ServerPermanentDeathReady ~= true then
+				task.wait(math.max(tonumber(Players.RespawnTime) or 0, 0) + NetworkDelay)
+			end
+			if not UhhhhhhTBZRunActive() then
+				return
+			end
+			local Head = Character:FindFirstChild("Head")
+			local TargetHead = FakeRig and FakeRig:FindFirstChild("Head")
+			assert(Head and Head:IsA("BasePart"), "physical Head disappeared before the PD break")
+			assert(TargetHead and TargetHead:IsA("BasePart"), "controller Head is missing")
+			if Config.ServerPermanentDeathReady ~= true then
+				local Broke, BreakReason = pcall(Head.BreakJoints, Head)
+				assert(Broke, "head joint break failed: " .. tostring(BreakReason))
+			end
+			Offsets["Head"] = {TargetHead, CFrame.new()}
+			if AlignReanimate == true then
+				Align(Head, TargetHead)
+			end
+			Global.UhhhhhhTBZGelatekPermaReady = true
+		end, debug.traceback)
+		pcall(game:GetService("StarterGui").SetCore, game:GetService("StarterGui"), "ResetButtonCallback", true)
+		if not PermaOk then
+			Global.UhhhhhhTBZGelatekPermaError = tostring(PermaReason)
+			warn("Gelatek permanent death failed: " .. tostring(PermaReason))
+		elseif Global.UhhhhhhTBZGelatekPermaReady then
+			warn("Godmoded in: " .. string.sub(tostring(tick()-Speed),1,string.find(tostring(tick()-Speed),".")+5))
+		end
+	end)
+end]==],
+            "robust permanent-death lifecycle"
+        )
+        source = replaceOnce(
+            source,
+            [==[		while task.wait(0.05) do
+			Root_Offset = Root_Offset * -1
+		end]==],
+            [==[		while UhhhhhhTBZRunActive() and task.wait(0.05) do
+			Root_Offset = Root_Offset * -1
+		end]==],
+            "generation-safe root offset loop"
         )
         source = replaceOnce(
             source,
@@ -1561,7 +1759,7 @@ end))]==],
         source = replaceOnce(
             source,
             "local function Death()\n\tGlobal.Stopped = true",
-            "local function Death()\n\tGlobal.Stopped = true\n\tGlobal.UhhhhhhTBZGelatekPreservedController = Global.UhhhhhhTBZGelatekPreserveController == true and FakeRig or nil\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tif UhhhhhhTBZGelatekBodyHideTargetFolder and UhhhhhhTBZGelatekBodyHideTargetFolder.Parent then\n\t\tUhhhhhhTBZGelatekBodyHideTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekBodyHideTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekPhysicalRoot = nil\n\tGlobal.UhhhhhhTBZGelatekControllerRoot = nil\n\tGlobal.UhhhhhhTBZGelatekFlingActive = nil",
+            "local function Death()\n\tGlobal.Stopped = true\n\tif Global.UhhhhhhTBZGelatekRunToken == UhhhhhhTBZRunToken then Global.UhhhhhhTBZGelatekRunToken = nil end\n\tfor _, Object in ipairs(UhhhhhhTBZCreatedObjects) do\n\t\tif Object and Object.Parent then pcall(function() Object:Destroy() end) end\n\tend\n\ttable.clear(UhhhhhhTBZCreatedObjects)\n\tGlobal.UhhhhhhTBZGelatekPreservedController = Global.UhhhhhhTBZGelatekPreserveController == true and FakeRig or nil\n\tif UhhhhhhTBZAccessoryTargetFolder and UhhhhhhTBZAccessoryTargetFolder.Parent then\n\t\tUhhhhhhTBZAccessoryTargetFolder:Destroy()\n\tend\n\tif UhhhhhhTBZGelatekBodyHideTargetFolder and UhhhhhhTBZGelatekBodyHideTargetFolder.Parent then\n\t\tUhhhhhhTBZGelatekBodyHideTargetFolder:Destroy()\n\tend\n\tGlobal.UhhhhhhTBZGelatekAccessoryTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekBodyHideTargetFolder = nil\n\tGlobal.UhhhhhhTBZGelatekPhysicalRoot = nil\n\tGlobal.UhhhhhhTBZGelatekControllerRoot = nil\n\tGlobal.UhhhhhhTBZGelatekFlingActive = nil",
             "Gelatek target cleanup"
         )
         source = replaceOnce(
@@ -1644,8 +1842,58 @@ end))]==],
         return false
     end
 
-    local function getPlayableCandidate(character, excluded)
-        if not character or character == excluded or not character.Parent then
+    local function countConnectedBodyJoints(character)
+        local count = 0
+        if typeof(character) ~= "Instance" or not character:IsA("Model") then
+            return count
+        end
+        for _, instance in ipairs(character:GetDescendants()) do
+            if instance:IsA("Motor6D") then
+                local part0 = instance.Part0
+                local part1 = instance.Part1
+                if part0
+                    and part1
+                    and part0:IsDescendantOf(character)
+                    and part1:IsDescendantOf(character)
+                then
+                    count += 1
+                end
+            end
+        end
+        return count
+    end
+
+    local function isDetachedPermadeathShell(character, humanoid)
+        if typeof(character) ~= "Instance"
+            or not character:IsA("Model")
+            or not character.Parent
+            or Player.Character ~= character
+        then
+            return false
+        end
+        humanoid = humanoid or character:FindFirstChildOfClass("Humanoid")
+        local root = character:FindFirstChild("HumanoidRootPart")
+        local head = character:FindFirstChild("Head")
+        if not humanoid
+            or not root
+            or not head
+            or humanoid.Health <= 0
+        then
+            return false
+        end
+        -- Gelatek's normal path removes every body Motor6D except Neck. A
+        -- healthy Roblox spawn has several connected body joints in both R6
+        -- and R15, so zero/one means this is a retained reanimation shell,
+        -- not a newly assembled avatar.
+        return countConnectedBodyJoints(character) <= 1
+    end
+
+    local function getPlayableCandidate(character, excluded, secondExcluded)
+        if not character
+            or character == excluded
+            or character == secondExcluded
+            or not character.Parent
+        then
             return nil
         end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -1712,18 +1960,18 @@ end))]==],
         return true
     end
 
-    local function waitForPlayableCharacter(excluded, timeout, preferred)
+    local function waitForPlayableCharacter(excluded, timeout, preferred, secondExcluded)
         local latestCharacter = preferred
         local characterAddedConnection = Player.CharacterAdded:Connect(function(character)
-            if character ~= excluded then
+            if character ~= excluded and character ~= secondExcluded then
                 latestCharacter = character
             end
         end)
         local deadline = os.clock() + timeout
         repeat
-            local character, humanoid = getPlayableCandidate(latestCharacter, excluded)
+            local character, humanoid = getPlayableCandidate(latestCharacter, excluded, secondExcluded)
             if not character then
-                character, humanoid = getPlayableCandidate(Player.Character, excluded)
+                character, humanoid = getPlayableCandidate(Player.Character, excluded, secondExcluded)
             end
             if character then
                 characterAddedConnection:Disconnect()
@@ -1909,17 +2157,38 @@ end))]==],
         return pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", resetBindable)
     end
 
-    local function recoverAfterStop(excluded, preferred, awaitAppearance, continueRespawn)
+    local function recoverAfterStop(excluded, preferred, awaitAppearance, continueRespawn, retiredCharacter)
+        -- After Gelatek stops, its Death function briefly restores the old
+        -- physical shell to Player.Character. Never accept that as a normal
+        -- CharacterAdded replacement: Gelatek has already removed its body
+        -- joints. Wait for a genuinely new server spawn first.
+        local retiredExclusion = continueRespawn and retiredCharacter or nil
         local character, humanoid = waitForPlayableCharacter(
             excluded,
             math.max(game:GetService("Players").RespawnTime + 4, 8),
-            preferred
+            preferred,
+            retiredExclusion
         )
+        local permanentDeathFallback = false
+        if not character and continueRespawn then
+            local retiredHumanoid = retiredCharacter
+                and retiredCharacter:FindFirstChildOfClass("Humanoid")
+            if isDetachedPermadeathShell(retiredCharacter, retiredHumanoid) then
+                -- Some places retain the jointless physical shell instead of
+                -- sending a normal CharacterAdded spawn. Reusing it is valid,
+                -- but the next generation must follow Gelatek's PD branch.
+                character = retiredCharacter
+                humanoid = retiredHumanoid
+                permanentDeathFallback = true
+            end
+        end
         if not character then
             requestSingleRespawn(excluded)
             character, humanoid = waitForPlayableCharacter(
                 excluded,
-                math.max(game:GetService("Players").RespawnTime + 8, 12)
+                math.max(game:GetService("Players").RespawnTime + 8, 12),
+                nil,
+                retiredExclusion
             )
         end
         if not character then
@@ -1942,13 +2211,16 @@ end))]==],
             if Player.Character ~= character or humanoid.Health <= 0 then
                 return false, "fresh Roblox character disappeared before Gelatek could restart"
             end
+            if isDetachedPermadeathShell(character, humanoid) then
+                permanentDeathFallback = true
+            end
         else
             restoreCharacterRuntime(character, humanoid)
             if awaitAppearance then
                 waitForAppearance(character, 3, 0)
             end
         end
-        return true, nil, character
+        return true, nil, character, permanentDeathFallback
     end
 
     local function destroyRetiredPhysicalCharacter(retired, active, queued)
@@ -2022,6 +2294,7 @@ end))]==],
             global.Stopped = false
             global.UhhhhhhTBZGelatekStop = nil
             global.UhhhhhhTBZGelatekPermaReady = nil
+            global.UhhhhhhTBZGelatekPermaError = nil
             global.UhhhhhhTBZGelatekControllerReady = nil
             global.UhhhhhhTBZGelatekAccessoryTargetFolder = nil
             global.UhhhhhhTBZGelatekBodyHideTargetFolder = nil
@@ -2052,6 +2325,9 @@ end))]==],
         backend.RealCharacter = nil
         backend.ActiveRealCharacter = nil
         backend.Running = false
+        backend.EffectivePermanentDeath = false
+        backend.PermanentDeathFallback = false
+        backend.ServerPreparedPermanentDeath = false
         Reanimate.Character = nil
         Bridge.Character = nil
         Bridge.RealCharacter = nil
@@ -2062,6 +2338,7 @@ end))]==],
         global.Stopped = false
         global.UhhhhhhTBZGelatekStop = nil
         global.UhhhhhhTBZGelatekPermaReady = nil
+        global.UhhhhhhTBZGelatekPermaError = nil
         global.UhhhhhhTBZGelatekControllerReady = nil
         global.UhhhhhhTBZShouldNoclip = nil
         global.UhhhhhhTBZGelatekDestroyHeight = nil
@@ -2082,15 +2359,21 @@ end))]==],
     function backend.Start()
         backend.LastError = nil
         backend.Running = false
+        backend.EffectivePermanentDeath = false
+        backend.PermanentDeathFallback = false
+        backend.ServerPreparedPermanentDeath = false
         Reanimate.Starting = true
         Reanimate.Stopping = false
 
         local restartRequested = true
         local pendingReturnCFrame = nil
+        local pendingPermanentDeathFallback = false
         while restartRequested and not Reanimate.Stopping do
         restartRequested = false
         local returnToStaticRoot = pendingReturnCFrame
         pendingReturnCFrame = nil
+        local inheritedPermanentDeathFallback = pendingPermanentDeathFallback
+        pendingPermanentDeathFallback = false
         local isRespawnGeneration = typeof(returnToStaticRoot) == "CFrame"
         if not (backend.Rig and backend.Rig.Parent) then
             backend.Running = false
@@ -2102,6 +2385,7 @@ end))]==],
         local preservedControllerAtStart = backend.Rig and backend.Rig.Parent and backend.Rig or nil
         rebindInProgress = preservedControllerAtStart ~= nil
         local respawnConnections = {}
+        local generationRunToken = {}
         local function disconnectRespawnObservers()
             for _, connection in ipairs(respawnConnections) do
                 pcall(function()
@@ -2119,6 +2403,36 @@ end))]==],
             assert(originalCharacter and originalCharacter.Parent, "real character is not ready")
             local originalHumanoid = originalCharacter:FindFirstChildOfClass("Humanoid")
             assert(originalHumanoid, "real character Humanoid is not ready")
+            local effectivePermanentDeath = options.PermanentDeath == true
+            local permanentDeathFallback = false
+            if not effectivePermanentDeath
+                and isRespawnGeneration
+                and (inheritedPermanentDeathFallback
+                    or isDetachedPermadeathShell(originalCharacter, originalHumanoid))
+            then
+                effectivePermanentDeath = true
+                permanentDeathFallback = true
+                warn(
+                    "Gelatek: retained jointless shell detected; using PD fallback for this generation only"
+                )
+                Util.Notify("Gelatek PD fallback (this respawn only)")
+            end
+            backend.EffectivePermanentDeath = effectivePermanentDeath
+            backend.PermanentDeathFallback = permanentDeathFallback
+            local serverPreparedPermanentDeath = false
+            if effectivePermanentDeath then
+                local prepared, response = preparePermanentDeathWithServerHelper()
+                serverPreparedPermanentDeath = prepared == true
+                if serverPreparedPermanentDeath then
+                    warn(
+                        ("Gelatek: server helper prepared PD; %d neck joint(s) removed, %d owned part(s)"):format(
+                            tonumber(response.NeckJointsBroken) or 0,
+                            tonumber(response.OwnedParts) or 0
+                        )
+                    )
+                end
+            end
+            backend.ServerPreparedPermanentDeath = serverPreparedPermanentDeath
             prepareCharacterAppearance(originalCharacter, originalHumanoid, isRespawnGeneration)
             rebindInProgress = preservedControllerAtStart ~= nil
             pendingPhysicalCharacter = originalCharacter
@@ -2136,7 +2450,9 @@ end))]==],
             local global = environment()
             global.HubMode = true
             global.UhhhhhhTBZGelatekPermaReady = false
+            global.UhhhhhhTBZGelatekPermaError = nil
             global.UhhhhhhTBZGelatekControllerReady = false
+            global.UhhhhhhTBZGelatekRunToken = generationRunToken
             global.UhhhhhhTBZGelatekCharacterSpacingScale = characterScale()
             global.UhhhhhhTBZGelatekPreserveController = nil
             global.UhhhhhhTBZGelatekPreservedController = preservedControllerAtStart
@@ -2165,20 +2481,20 @@ end))]==],
             end
             global.GelatekReanimateConfig = {
                 AnimationsDisabled = options.AnimationsDisabled,
+                RunToken = generationRunToken,
                 -- Uhhhhhh's movement styles and ragdoll modules target an R6
                 -- controller. Gelatek still auto-detects and maps every physical
                 -- R15 body part to that controller.
                 R15ToR6 = backend.DetectedRig == "R15",
                 DontBreakHairWelds = options.DontBreakHairWelds,
-                PermanentDeath = options.PermanentDeath,
-                Headless = options.Headless,
+                PermanentDeath = effectivePermanentDeath,
+                ServerPermanentDeathReady = serverPreparedPermanentDeath,
                 TeleportBackWhenVoided = options.TeleportBackWhenVoided,
                 AlignReanimate = options.AlignReanimate,
                 FullForceAlign = options.FullForceAlign,
                 FasterHeartbeat = options.FasterHeartbeat,
                 DynamicalVelocity = options.DynamicalVelocity,
                 DisableTweaks = options.DisableTweaks,
-                OptimizeGame = options.OptimizeGame,
                 LoadLibrary = options.LoadLibrary,
                 DetailedCredits = options.DetailedCredits,
                 TorsoFling = options.TorsoFling,
@@ -2227,19 +2543,22 @@ end))]==],
                 ensureVisibleHead(rig)
                 task.wait(0.05)
             until (
-                options.PermanentDeath
+                effectivePermanentDeath
                     and global.UhhhhhhTBZGelatekPermaReady == true
                     and global.UhhhhhhTBZGelatekControllerReady == true
-                or not options.PermanentDeath
+                or not effectivePermanentDeath
                     and global.UhhhhhhTBZGelatekControllerReady == true
             )
+                or global.UhhhhhhTBZGelatekPermaError ~= nil
                 or not rig.Parent
                 or os.clock() >= readyDeadline
-            if options.PermanentDeath then
+            if effectivePermanentDeath then
                 assert(
                     global.UhhhhhhTBZGelatekPermaReady == true
                         and global.UhhhhhhTBZGelatekControllerReady == true,
-                    "Gelatek controller appeared, but permanent-death assignment did not finish"
+                    global.UhhhhhhTBZGelatekPermaError
+                        and ("Gelatek permanent death failed: " .. tostring(global.UhhhhhhTBZGelatekPermaError))
+                        or "Gelatek controller appeared, but permanent-death assignment did not finish"
                 )
             else
                 assert(
@@ -2359,6 +2678,11 @@ end))]==],
 
         disconnectRespawnObservers()
 
+        local cleanupGlobal = environment()
+        if cleanupGlobal.UhhhhhhTBZGelatekRunToken == generationRunToken then
+            cleanupGlobal.UhhhhhhTBZGelatekRunToken = nil
+        end
+
         if not ok then
             backend.LastError = tostring(reason)
             warn("Gelatek: " .. backend.LastError)
@@ -2375,11 +2699,12 @@ end))]==],
         local excludedRig = backend.Rig
         local retiredPhysicalCharacter = originalCharacter
         fallbackCleanup(queuedRespawnCharacter, continueRespawn, controllerPreserved)
-        local recovered, recoveryError, recoveredCharacter = recoverAfterStop(
+        local recovered, recoveryError, recoveredCharacter, recoveredPermanentDeathFallback = recoverAfterStop(
             excludedRig,
             queuedRespawnCharacter,
             continueRespawn,
-            continueRespawn
+            continueRespawn,
+            retiredPhysicalCharacter
         )
         if not recovered then
             backend.LastError = backend.LastError and (backend.LastError .. " | recovery: " .. recoveryError) or recoveryError
@@ -2401,6 +2726,7 @@ end))]==],
             -- The old generation has fully stopped; only the static tracker is
             -- retained for the clean controller that the next iteration builds.
             pendingReturnCFrame = staticRootCFrame
+            pendingPermanentDeathFallback = recoveredPermanentDeathFallback == true
             restartRequested = true
             backend.LastError = nil
             task.wait()
@@ -2841,7 +3167,7 @@ end)]==]
     source = replaceOnce(
         source,
         creditMarker,
-        creditMarker .. '\n\tUI.CreateText(CreditsPage, "Gelatek Ã¢ÂÂ Gelatek", 11, Enum.TextXAlignment.Right)',
+        creditMarker .. '\n\tUI.CreateText(CreditsPage, "Gelatek - Gelatek", 11, Enum.TextXAlignment.Right)',
         "credits"
     )
 
@@ -2926,7 +3252,7 @@ function M.report()
     }
     print("===== Uhhhhhh Reanimate Modded 1.0.9 BETA capability report =====")
     for _, row in ipairs(rows) do
-        print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " Ã¢ÂÂ " .. row[3])
+        print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " - " .. row[3])
     end
     print("Hidden-property functions are never emulated with setscriptable by this bridge.")
     return rows
@@ -2981,14 +3307,6 @@ local R15ToR6 = Config.R15ToR6 or false -- Convert R15 To R6
 local AlignReanimate = Config.AlignReanimate or false -- Align Reanimate
 local MaxAlignReanimate = Config.FullForceAlign or false -- Maximazes Align Position Force by making another one, might be less stable but no longer wacky
 
--- [[ Optimizer ]] --
-local OptimizeGame = Config.OptimizeGame or false -- Runs Game Optimizer.
-if OptimizeGame == true and (not TestService:FindFirstChild("Check")) then
-	loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/L8X/GameOptimizer/main/src.lua", true))()
-	local Part = Instance.new("Part")
-	Part.Name = "Check"
-	Part.Parent = TestService
-end
 local FasterHeartbeat = Config.FasterHeartbeat or false
 -- Uses Newer Runservices, which makes artifical event x2 times faster than heartbeat, can affect fps. 
 
@@ -2996,7 +3314,6 @@ local FasterHeartbeat = Config.FasterHeartbeat or false
 local DontBreakHairWelds = Config.DontBreakHairWelds or false -- Keeps Hair to head (Non Perma Only)
 local IsLoadLibraryEnabled = Config.LoadLibrary or false -- LoadLibrary
 local TeleportBackWhenVoided = Config.TeleportBackWhenVoided or false -- Teleports back to surface whenever you fall into void
-local IsHeadless = Config.Headless or false -- Headless Only On Permanent Death
 local OldVelocityMethod = Config.OldVelocityMethod or false -- Self Explainatory
 
 -- [[ Flinging Methods ]] --
@@ -3557,12 +3874,8 @@ if IsPermaDeath == true then
 		game:GetService("StarterGui"):SetCore("ResetButtonCallback", false)
 		task.wait(Players.RespawnTime + game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 750)
 		local Head = Character:FindFirstChild("Head"); Head:BreakJoints() 
-		if IsHeadless == false then
-			Offsets["Head"] = {FakeRig:FindFirstChild("Head"), CFrame.new()}
-		else
-			Character:FindFirstChild("Head"):Destroy()
-		end
-		if IsHeadless == false and AlignReanimate == true then
+		Offsets["Head"] = {FakeRig:FindFirstChild("Head"), CFrame.new()}
+		if AlignReanimate == true then
 			Align(Character:FindFirstChild("Head"), FakeRig:FindFirstChild("Head"))	
 		end
 		game:GetService("StarterGui"):SetCore("ResetButtonCallback", true)
@@ -4080,7 +4393,8 @@ end)
 warn("Reanimated in " .. string.sub(tostring(tick()-Speed),1,string.find(tostring(tick()-Speed),".")+5))
 
 ]=====],
-    ["Theos Dancezzzzz/Bridge/vendor/Uhhhhhh.lua"] = [=====[--[[
+    ["Theos Dancezzzzz/Bridge/vendor/Uhhhhhh.lua"] = [=====[
+--[[
  ...    :::::        ::        ::        ::        ::        ::        
  ;;     ;;;;;;       ;;;       ;;;       ;;;       ;;;       ;;;       
 [['     [[[[[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. 
@@ -9288,6 +9602,29 @@ Util.ShowPartHitbox = function(part, color, lifetime)
 	return w
 end
 
+-- Gelatek's ownership display is a separate visual system from the thin
+-- wireframe hitboxes above: it puts one thick outline on each body part.  Hat
+-- reanimation uses the same per-limb presentation for its controller targets,
+-- without touching the physical hats or the controller's transparency.
+Util.ShowPartLimbOutline = function(part, color, lifetime)
+	local outline = Instance.new("SelectionBox")
+	outline.Name = "_Uhhhhhh_ReanimateHitbox"
+	outline.Adornee = part
+	outline.Color3 = color or Color3.fromRGB(125, 240, 125)
+	outline.LineThickness = 0.4
+	outline.SurfaceTransparency = 1
+	outline.Transparency = 0
+	-- SelectionBox must live in the 3D hierarchy to render consistently.
+	outline.Parent = part
+	if lifetime == nil then
+		lifetime = 1
+	end
+	if lifetime > 0 then
+		Debris:AddItem(outline, lifetime)
+	end
+	return outline
+end
+
 local RIGHTGRIP_C0 = CFrame.new(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, -1, 0)
 Util.PredictionFling = function(target)
 	if typeof(target) == "Instance" then
@@ -9510,7 +9847,7 @@ function LimbReanimator.Config(parent)
 	end)
 	local flingVelocityMagnitude = UI.CreateSlider(
 		parent,
-		"Ã¢ÂÂ³ Fling Velocity",
+		"-> Fling Velocity",
 		LimbReanimator.FlingVelocityMagnitude,
 		1,
 		1000000000,
@@ -9524,7 +9861,7 @@ function LimbReanimator.Config(parent)
 	end)
 	local flingVelocityDirection = UI.CreateDropdown(
 		parent,
-		"Ã¢ÂÂ³ Fling Direction",
+		"-> Fling Direction",
 		{ "Up", "Down", "Forward", "Backward" },
 		LimbReanimator.FlingVelocityDirection
 	)
@@ -10451,6 +10788,8 @@ HatReanimator.StaticRoot = nil
 HatReanimator.ActiveRealCharacter = nil
 HatReanimator.RigGeneration = 0
 HatReanimator.CollidableHandles = setmetatable({}, { __mode = "k" })
+HatReanimator.MappedBodyLimbs = {}
+HatReanimator.ActiveLimbOutlines = setmetatable({}, { __mode = "k" })
 HatReanimator.BodyHideTargets = setmetatable({}, { __mode = "k" })
 HatReanimator.HatMapSummary = "(no hat map yet, please * Reanimate * to build)"
 HatReanimator.HatCFrameOverride = {}
@@ -10460,6 +10799,20 @@ HatReanimator.Status = {
 	RespawnFling = "(no status)",
 }
 function HatReanimator.ShowHitboxes()
+	local controller = Reanimate.Character
+	if controller and controller.Parent then
+		for limbName in HatReanimator.MappedBodyLimbs do
+			local limb = controller:FindFirstChild(limbName)
+			if limb and limb:IsA("BasePart") then
+				local outline = Util.ShowPartLimbOutline(limb, Color3.fromRGB(125, 240, 125), 0)
+				HatReanimator.ActiveLimbOutlines[outline] = true
+			end
+		end
+	end
+
+	-- Keep the original thin physical-hat diagnostics as a separate layer.  The
+	-- thick outlines above are the mapped limb targets; these wireframes are the
+	-- retained collidable accessory handles.
 	local seen = {}
 	local function showHandle(handle)
 		if
@@ -11067,6 +11420,7 @@ function HatReanimator.Start()
 		table.clear(Hat2HatRefs)
 		table.clear(HatRefs)
 		table.clear(HatMap)
+		table.clear(HatReanimator.MappedBodyLimbs)
 		local function addhat(limb, data, bodyProxy)
 			if data and data[2] then
 				data = data[2]
@@ -11074,6 +11428,9 @@ function HatReanimator.Start()
 					data.Limb = limb
 				end
 				data.BodyProxy = bodyProxy == true
+				if data.BodyProxy and limb then
+					HatReanimator.MappedBodyLimbs[limb] = true
+				end
 				local index = #HatMap
 				data.Index = index
 				table.insert(HatMap, data)
@@ -12311,7 +12668,9 @@ function HatReanimator.Start()
 						w.Parent = handle
 					end
 				end
-				handle:SetAttribute("_Uhhhhhh_HasCollide", false)
+				-- Preserve the original collision marker.  Joint detachment changes
+				-- current collision state, but it does not change whether this handle
+				-- was the collidable physical hat selected for diagnostics/fling.
 			end
 		end
 		Humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
@@ -13007,6 +13366,7 @@ function HatReanimator.Start()
 	HatReanimator.ActiveRealCharacter = nil
 	HatReanimator.RigGeneration += 1
 	table.clear(HatReanimator.CollidableHandles)
+	table.clear(HatReanimator.MappedBodyLimbs)
 	--replicatesignal(Player.ConnectDiedSignalBackend)
 	Reanimate.Stopping = false
 	Reanimate.DestroyCharacter()
@@ -13084,6 +13444,12 @@ local function ClearReanimateHitboxes()
 			child:Destroy()
 		end
 	end
+	for outline in HatReanimator.ActiveLimbOutlines do
+		if outline and outline.Parent then
+			outline:Destroy()
+		end
+	end
+	table.clear(HatReanimator.ActiveLimbOutlines)
 end
 local function ReanimateShowHitboxes()
 	ClearReanimateHitboxes()
@@ -13227,7 +13593,7 @@ do
 	end)
 	UI.CreateText(
 		MainPage,
-		"red = bound real torso/root | cyan = controller rootpart | green = collidable hats",
+		"red = bound real torso/root | cyan = controller rootpart | thick green = mapped Hat limbs | thin green = collidable hats",
 		10,
 		Enum.TextXAlignment.Center
 	)
@@ -13273,7 +13639,7 @@ do
 		end
 	end)
 	local KeepSeatSitStateSwitch, KeepSeatSitStateText =
-		UI.CreateSwitch(MainPage, "Ã¢ÂÂ³ Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
+		UI.CreateSwitch(MainPage, "-> Keep Humanoid Sit State", Reanimate.KeepSeatSitState)
 	KeepSeatSitStateSwitch.Changed:Connect(function(val)
 		Reanimate.KeepSeatSitState = val
 		SaveData.KeepSeatSitState = val
@@ -16114,6 +16480,7 @@ task.wait()
 
 local MovementStyles = {}
 local DanceableDances = {}
+local MainNavButtons = {}
 
 local CurrentMovementStyle = nil
 local MovementStyleIndex = 2
@@ -16141,7 +16508,7 @@ local function ResetDancePose(figure, force)
 	end
 end
 
-do
+;(function()
 -- Forked from the mouse/camera head tracking in the bundled Krystal Dance V3
 -- moveset. This is applied at the final render stage so it can layer over, or
 -- deliberately replace, the neck pose written by a moveset or dance.
@@ -17030,26 +17397,26 @@ local function UpdateDanceEffectVisualizer(dt, figure)
 		-- selection explicit even when DyPos would normally prefer Player.Character.
 		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 		if position then
-			DanceEffects.AnchorSource = "Cyan reanimated root Ã¢ÂÂ Blue Root Part"
+			DanceEffects.AnchorSource = "Cyan reanimated root - Blue Root Part"
 		end
 	elseif SavedDanceEffectsOptions.DynamicPosition then
 		local realCharacter = Player.Character
 		if realCharacter and realCharacter ~= figure then
 			position, root, scale, anchorCFrame = GetDanceEffectAnchor(realCharacter, anchorMode)
 			if position then
-				DanceEffects.AnchorSource = "Real character Ã¢ÂÂ " .. anchorMode
+				DanceEffects.AnchorSource = "Real character - " .. anchorMode
 			end
 		end
 		if not position then
 			position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 			if position then
-				DanceEffects.AnchorSource = "Red character Ã¢ÂÂ " .. anchorMode .. " (fallback)"
+				DanceEffects.AnchorSource = "Red character - " .. anchorMode .. " (fallback)"
 			end
 		end
 	else
 		position, root, scale, anchorCFrame = GetDanceEffectAnchor(figure, anchorMode)
 		if position then
-			DanceEffects.AnchorSource = "Red character Ã¢ÂÂ " .. anchorMode
+			DanceEffects.AnchorSource = "Red character - " .. anchorMode
 		end
 	end
 	if
@@ -17176,7 +17543,13 @@ AnimationOptionsPage.ZIndex = 1
 AnimationOptionsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
 AnimationOptionsPage.Interactable = false
 AnimationOptionsPage.Visible = false
-UI.CreateButton(MainPage, "Animation Options &gt;", 20).Activated:Connect(function()
+local AnimationOptionsNavButton = UI.CreateButton(MainPage, "Animation Options &gt;", 20)
+AnimationOptionsNavButton.Parent.Name = "animation options tab"
+MainNavButtons.Favorites = UI.CreateButton(MainPage, "Favorites &gt;", 20)
+MainNavButtons.Favorites.Parent.Name = "favorites tab dances movesets"
+MainNavButtons.ServerReanim = UI.CreateButton(MainPage, "Server-Side Reanimator &gt;", 20)
+MainNavButtons.ServerReanim.Parent.Name = "server side reanimator tab fakechar patch"
+AnimationOptionsNavButton.Activated:Connect(function()
 	AnimationOptionsPage.Interactable = false
 	AnimationOptionsPage.Visible = true
 	MainPage.Interactable = false
@@ -17291,7 +17664,7 @@ RebuildHiddenBodyPartDropdown = function(partNames)
 			hiddenCount += 1
 		end
 	end
-	choices[1] = hiddenCount .. "/" .. #HiddenBodyPartNames .. " hidden Ã¢ÂÂ choose a part"
+	choices[1] = hiddenCount .. "/" .. #HiddenBodyPartNames .. " hidden - choose a part"
 	if #HiddenBodyPartNames > 0 then
 		choices[2] = hiddenCount == 0 and "[ ] Hide all" or "[x] Show all"
 		for _, partName in HiddenBodyPartNames do
@@ -17329,8 +17702,11 @@ RebuildHiddenBodyPartDropdown = function(partNames)
 		else
 			local partName = HiddenBodyPartNames[index - 2]
 			if partName then
-				SavedAnimLibOptions.HiddenBodyParts[partName] =
-					SavedAnimLibOptions.HiddenBodyParts[partName] == true and nil or true
+				if SavedAnimLibOptions.HiddenBodyParts[partName] == true then
+					SavedAnimLibOptions.HiddenBodyParts[partName] = nil
+				else
+					SavedAnimLibOptions.HiddenBodyParts[partName] = true
+				end
 			end
 		end
 		task.defer(RebuildHiddenBodyPartDropdown)
@@ -17339,7 +17715,7 @@ end
 
 local function RefreshHiddenBodyPartDropdown()
 	local partNames = GetDetectedDanceEffectBodyParts(Reanimate.Character)
-	local signature = table.concat(partNames, "\0")
+	local signature = table.concat(partNames, "|")
 	if signature ~= HiddenBodyPartSignature then
 		HiddenBodyPartSignature = signature
 		RebuildHiddenBodyPartDropdown(partNames)
@@ -17404,7 +17780,7 @@ UI.CreateSwitch(KrystalHeadOptionsPage, "Krystal Head Tracking", AnimLib.Setting
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadTracking", value)
 	end)
-UI.CreateSwitch(KrystalHeadOptionsPage, "Ã¢ÂÂ³ Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed
+UI.CreateSwitch(KrystalHeadOptionsPage, "-> Override Animated Head", AnimLib.Settings.KrystalHeadOverride).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadOverride", value)
 	end)
@@ -17414,11 +17790,11 @@ UI.CreateText(
 	10,
 	Enum.TextXAlignment.Center
 )
-UI.CreateSlider(KrystalHeadOptionsPage, "Ã¢ÂÂ³ Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed
+UI.CreateSlider(KrystalHeadOptionsPage, "-> Tracking Strength", AnimLib.Settings.KrystalHeadStrength, 0, 1.5, 0.05).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadStrength", math.clamp(value, 0, 1.5))
 	end)
-UI.CreateSlider(KrystalHeadOptionsPage, "Ã¢ÂÂ³ Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed
+UI.CreateSlider(KrystalHeadOptionsPage, "-> Tracking Smoothing", AnimLib.Settings.KrystalHeadSmoothing, 1, 30, 1).Changed
 	:Connect(function(value)
 		SetAnimLibOption("KrystalHeadSmoothing", math.clamp(value, 1, 30))
 	end)
@@ -17479,13 +17855,13 @@ UI.CreateSwitch(
 ).Changed:Connect(function(value)
 	SavedDanceEffectsOptions.DynamicPosition = value
 end)
-UI.CreateSwitch(DanceEffectsOptionsPage, "Ã¢ÂÂ³ Stay Vertical", SavedDanceEffectsOptions.StayVertical).Changed
+UI.CreateSwitch(DanceEffectsOptionsPage, "-> Stay Vertical", SavedDanceEffectsOptions.StayVertical).Changed
 	:Connect(function(value)
 		SavedDanceEffectsOptions.StayVertical = value
 	end)
 UI.CreateDropdown(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Anchor Point",
+	"-> Anchor Point",
 	DanceEffectAnchorModes,
 	table.find(DanceEffectAnchorModes, SavedDanceEffectsOptions.AnchorMode) or 1
 ).Changed:Connect(function(value)
@@ -17510,7 +17886,7 @@ UI.CreateSwitch(DanceEffectsOptionsPage, "Character Afterimage", SavedDanceEffec
 	end)
 local DanceEffectsAfterimageSpawnRate = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Spawn Rate",
+	"-> Spawn Rate",
 	SavedDanceEffectsOptions.AfterimageSpawnRate,
 	0.25,
 	4,
@@ -17521,7 +17897,7 @@ DanceEffectsAfterimageSpawnRate.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageFadeSpeed = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Fade Speed",
+	"-> Fade Speed",
 	SavedDanceEffectsOptions.AfterimageFadeSpeed,
 	0.25,
 	4,
@@ -17532,7 +17908,7 @@ DanceEffectsAfterimageFadeSpeed.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageScale = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Image Scale",
+	"-> Image Scale",
 	SavedDanceEffectsOptions.AfterimageScale,
 	0.25,
 	1.5,
@@ -17543,7 +17919,7 @@ DanceEffectsAfterimageScale.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageTransparency = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Transparency %",
+	"-> Transparency %",
 	SavedDanceEffectsOptions.AfterimageTransparency,
 	0,
 	100,
@@ -17553,13 +17929,13 @@ DanceEffectsAfterimageTransparency.Changed:Connect(function(value)
 	SavedDanceEffectsOptions.AfterimageTransparency = math.clamp(math.floor(value), 0, 100)
 end)
 local DanceEffectsAfterimageGlow =
-	UI.CreateSwitch(DanceEffectsOptionsPage, "Ã¢ÂÂ³ Glow", SavedDanceEffectsOptions.AfterimageGlowEnabled)
+	UI.CreateSwitch(DanceEffectsOptionsPage, "-> Glow", SavedDanceEffectsOptions.AfterimageGlowEnabled)
 DanceEffectsAfterimageGlow.Changed:Connect(function(value)
 	SavedDanceEffectsOptions.AfterimageGlowEnabled = value
 end)
 local DanceEffectsAfterimageGlowBrightness = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Glow Brightness",
+	"-> Glow Brightness",
 	SavedDanceEffectsOptions.AfterimageGlowBrightness,
 	0,
 	10,
@@ -17570,7 +17946,7 @@ DanceEffectsAfterimageGlowBrightness.Changed:Connect(function(value)
 end)
 local DanceEffectsAfterimageGlowRange = UI.CreateSlider(
 	DanceEffectsOptionsPage,
-	"Ã¢ÂÂ³ Glow Range",
+	"-> Glow Range",
 	SavedDanceEffectsOptions.AfterimageGlowRange,
 	0,
 	30,
@@ -17603,7 +17979,7 @@ RebuildDanceEffectsBodyPartDropdown = function(partNames)
 			visibleCount += 1
 		end
 	end
-	choices[1] = visibleCount .. "/" .. #DanceEffectsDetectedBodyParts .. " visible Ã¢ÂÂ choose a part"
+	choices[1] = visibleCount .. "/" .. #DanceEffectsDetectedBodyParts .. " visible - choose a part"
 	if #DanceEffectsDetectedBodyParts > 0 then
 		choices[2] = visibleCount == #DanceEffectsDetectedBodyParts and "[ ] Hide all" or "[x] Show all"
 		for _, partName in DanceEffectsDetectedBodyParts do
@@ -17640,7 +18016,11 @@ RebuildDanceEffectsBodyPartDropdown = function(partNames)
 			local partName = DanceEffectsDetectedBodyParts[index - 2]
 			if partName then
 				local hidden = SavedDanceEffectsOptions.AfterimageHiddenParts[partName] == true
-				SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = hidden and nil or true
+				if hidden then
+					SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = nil
+				else
+					SavedDanceEffectsOptions.AfterimageHiddenParts[partName] = true
+				end
 			end
 		end
 		DestroyDanceEffectGhosts()
@@ -17651,7 +18031,7 @@ end
 local function RefreshDanceEffectsBodyPartDropdown()
 	local sourceFigure = GetDanceEffectGhostSource(Reanimate.Character)
 	local partNames = GetDetectedDanceEffectBodyParts(sourceFigure)
-	local signature = table.concat(partNames, "\0")
+	local signature = table.concat(partNames, "|")
 	if signature ~= DanceEffectsBodyPartSignature then
 		DanceEffectsBodyPartSignature = signature
 		RebuildDanceEffectsBodyPartDropdown(partNames)
@@ -17675,7 +18055,7 @@ UI.CreateText(
 )
 UI.CreateText(
 	DanceEffectsOptionsPage,
-	"Accent color Ã¢ÂÂ use #RRGGBB, RRGGBB, R,G,B, or rgb(R,G,B)",
+	"Accent color - use #RRGGBB, RRGGBB, R,G,B, or rgb(R,G,B)",
 	11,
 	Enum.TextXAlignment.Center
 )
@@ -17685,7 +18065,7 @@ local DanceEffectsAccentStatus = UI.CreateText(
 	DanceEffectsOptionsPage,
 	'<font color="#'
 		.. SavedDanceEffectsOptions.Accent
-		.. '">Ã¢ÂÂ </font> Saved accent: #'
+		.. '">[]</font> Saved accent: #'
 		.. SavedDanceEffectsOptions.Accent,
 	11,
 	Enum.TextXAlignment.Center
@@ -17699,7 +18079,7 @@ DanceEffectsAccentInput.FocusLost:Connect(function()
 	end
 	SavedDanceEffectsOptions.Accent = hex
 	DanceEffectsAccentInput.Text = "#" .. hex
-	DanceEffectsAccentStatus.Text = '<font color="#' .. hex .. '">Ã¢ÂÂ </font> Saved accent: #' .. hex
+	DanceEffectsAccentStatus.Text = '<font color="#' .. hex .. '">[]</font> Saved accent: #' .. hex
 end)
 UI.CreateSeparator(DanceEffectsOptionsPage)
 UI.CreateText(
@@ -17798,7 +18178,7 @@ UI.CreateButton(AnimationOptionsPage, "Reset Character Pose", 18).Activated:Conn
 	ResetDancePose(Reanimate.Character, true)
 end)
 UI.CreateSeparator(MainPage)
-end
+end)()
 
 if type(SaveData.MovesetIndex) == "number" then
 	MovementStyleIndex = SaveData.MovesetIndex
@@ -17872,6 +18252,852 @@ DancesPage.Back.Activated:Connect(function()
 		DancesPage.Visible = false
 	end)
 end)
+
+local FavoriteSystem = { Refresh = function() end, OpenModuleDetails = function() end }
+;(function()
+	local FavoritesPage = UI.CreateItemListPage()
+	local FavoriteDancesPage = UI.CreateItemListPage()
+	local FavoriteMovesetsPage = UI.CreateItemListPage()
+	FavoriteSystem.Pages = {
+		Hub = FavoritesPage,
+		Dances = FavoriteDancesPage,
+		Movesets = FavoriteMovesetsPage,
+	}
+
+	for _, page in { FavoritesPage, FavoriteDancesPage, FavoriteMovesetsPage } do
+		page.ZIndex = 1
+		page.Position = UDim2.new(0.5, 360, 0.5, 0)
+		page.Interactable = false
+		page.Visible = false
+	end
+
+	UI.CreateText(FavoritesPage.List, "<b>FAVORITES</b>", 20, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		FavoritesPage.List,
+		"Choose which saved collection to browse.",
+		11,
+		Enum.TextXAlignment.Center
+	)
+	UI.CreateSeparator(FavoritesPage.List)
+	local FavoriteDancesButton, FavoriteDancesText = UI.CreateButton(FavoritesPage.List, "Dances &gt;", 20)
+	local FavoriteMovesetsButton, FavoriteMovesetsText = UI.CreateButton(FavoritesPage.List, "Movesets &gt;", 20)
+	FavoriteDancesButton.Parent.Name = "favorite dances tab"
+	FavoriteMovesetsButton.Parent.Name = "favorite movesets tab"
+	FavoriteSystem.CategoryLabels = {
+		Dances = FavoriteDancesText,
+		Movesets = FavoriteMovesetsText,
+	}
+
+	local function OpenPage(page, parentPage)
+		FavoriteSystem.Refresh()
+		page.Interactable = false
+		page.Visible = true
+		parentPage.Interactable = false
+		local tween = TweenService:Create(
+			page,
+			TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+			{ Position = UDim2.new(0.5, 0, 0.5, 0) }
+		)
+		tween:Play()
+		tween.Completed:Connect(function()
+			page.Interactable = true
+		end)
+	end
+
+	local function ClosePage(page, parentPage)
+		page.Interactable = false
+		parentPage.Interactable = false
+		local tween = TweenService:Create(
+			page,
+			TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(0.5, 360, 0.5, 0) }
+		)
+		tween:Play()
+		tween.Completed:Connect(function()
+			parentPage.Interactable = true
+			page.Visible = false
+		end)
+	end
+
+	local FavoritesNavButton = MainNavButtons.Favorites
+	FavoritesNavButton.Activated:Connect(function()
+		OpenPage(FavoritesPage, MainPage)
+	end)
+	FavoritesPage.Back.Activated:Connect(function()
+		ClosePage(FavoritesPage, MainPage)
+	end)
+	FavoriteDancesButton.Activated:Connect(function()
+		OpenPage(FavoriteDancesPage, FavoritesPage)
+	end)
+	FavoriteMovesetsButton.Activated:Connect(function()
+		OpenPage(FavoriteMovesetsPage, FavoritesPage)
+	end)
+	FavoriteDancesPage.Back.Activated:Connect(function()
+		ClosePage(FavoriteDancesPage, FavoritesPage)
+	end)
+	FavoriteMovesetsPage.Back.Activated:Connect(function()
+		ClosePage(FavoriteMovesetsPage, FavoritesPage)
+	end)
+end)()
+
+;(function()
+local ServerReanimPage = UI.CreateItemListPage()
+ServerReanimPage.ZIndex = 1
+ServerReanimPage.Position = UDim2.new(0.5, 360, 0.5, 0)
+ServerReanimPage.Interactable = false
+ServerReanimPage.Visible = false
+
+SaveData.ServerReanim = type(SaveData.ServerReanim) == "table" and SaveData.ServerReanim or {}
+local ServerReanimSettings = SaveData.ServerReanim
+ServerReanimSettings.FakeChar = ServerReanimSettings.FakeChar == true
+ServerReanimSettings.ImproveHat = ServerReanimSettings.ImproveHat == true
+ServerReanimSettings.ImproveLimb = ServerReanimSettings.ImproveLimb == true
+ServerReanimSettings.ImproveGelatek = ServerReanimSettings.ImproveGelatek == true
+ServerReanimSettings.AvatarUserId = math.max(1, math.floor(tonumber(ServerReanimSettings.AvatarUserId) or Player.UserId))
+if ServerReanimSettings.ImproveHat or ServerReanimSettings.ImproveLimb or ServerReanimSettings.ImproveGelatek then
+	ServerReanimSettings.FakeChar = false
+end
+
+local function GetReplicatedRemotePath(remote)
+	local ok, path = pcall(remote.GetFullName, remote)
+	if ok and type(path) == "string" and path ~= "" then
+		return path
+	end
+	return remote.Name
+end
+
+local function GetReplicatedRemoteLuaPath(remote)
+	local chain = {}
+	local current = remote
+	while current and current.Parent and current.Parent ~= game do
+		table.insert(chain, 1, current.Name)
+		current = current.Parent
+	end
+	if not current or current.Parent ~= game then
+		return GetReplicatedRemotePath(remote)
+	end
+
+	local expression
+	local serviceOk, service = pcall(game.GetService, game, current.ClassName)
+	if serviceOk and service == current then
+		expression = "game:GetService(" .. string.format("%q", current.ClassName) .. ")"
+	else
+		expression = "game:WaitForChild(" .. string.format("%q", current.Name) .. ")"
+	end
+	for _, name in chain do
+		expression ..= ":WaitForChild(" .. string.format("%q", name) .. ")"
+	end
+	return expression
+end
+
+local function IsReplicatedRemote(instance)
+	local className = instance and instance.ClassName
+	return className == "RemoteEvent" or className == "RemoteFunction" or className == "UnreliableRemoteEvent"
+end
+
+local ServerReanimAdapters = {}
+local UpdateServerReanimStatus = function() end
+local function ServerReanimNotice(text, duration)
+	text = tostring(text)
+	warn("Uhhhhhh :: Server Reanim :: " .. text)
+	pcall(StarterGui.SetCore, StarterGui, "SendNotification", {
+		Title = "Uhhhhhh Server Reanim",
+		Text = text,
+		Duration = tonumber(duration) or 8,
+	})
+end
+
+local function RegisterServerReanimAdapter(adapter)
+	assert(type(adapter) == "table", "server reanim adapter must be a table")
+	assert(type(adapter.Name) == "string" and adapter.Name ~= "", "server reanim adapter needs a name")
+	assert(type(adapter.Matches) == "function", "server reanim adapter needs Matches(remote, info)")
+	assert(
+		type(adapter.Reanimate) == "function"
+			or type(adapter.Patch) == "function"
+			or type(adapter.InstallHelper) == "function",
+		"server reanim adapter needs Reanimate, Patch, or InstallHelper"
+	)
+	for i = #ServerReanimAdapters, 1, -1 do
+		if ServerReanimAdapters[i].Name == adapter.Name then
+			table.remove(ServerReanimAdapters, i)
+		end
+	end
+	table.insert(ServerReanimAdapters, adapter)
+	UpdateServerReanimStatus()
+	return function()
+		local index = table.find(ServerReanimAdapters, adapter)
+		if index then
+			table.remove(ServerReanimAdapters, index)
+			UpdateServerReanimStatus()
+		end
+	end
+end
+_G_Uhhhhhh.RegisterServerReanimAdapter = RegisterServerReanimAdapter
+
+local ServerReanimRemoteRecords = {}
+local ServerReanimRemoteContainers = {}
+local ServerReanimPreviousPaths = nil
+local ServerReanimSelectedRecord = nil
+local ServerReanimSelectedAdapter = nil
+local RefreshServerReanimRemotes
+
+local ServerReanimTitle = UI.CreateText(
+	ServerReanimPage.List,
+	"<b>SERVER-SIDE REANIMATOR</b>",
+	18,
+	Enum.TextXAlignment.Center
+)
+ServerReanimTitle.Parent.Name = "server reanim remote scanner"
+UI.CreateText(
+	ServerReanimPage.List,
+	"Pick a remote. UhhhhhhServer remotes run directly. A registered loader can use the selected remote to install the helper first. Unknown remotes need a loader that knows their arguments.",
+	11,
+	Enum.TextXAlignment.Center
+)
+local ServerReanimStatusText = UI.CreateText(
+	ServerReanimPage.List,
+	"Remote: none\nMethod: none",
+	12,
+	Enum.TextXAlignment.Center
+)
+ServerReanimStatusText.Parent.Name = "reanim remote adapter status"
+local ServerReanimScanSummary = UI.CreateText(
+	ServerReanimPage.List,
+	"Remote scanner has not run yet.",
+	11,
+	Enum.TextXAlignment.Center
+)
+ServerReanimScanSummary.Parent.Name = "remote scanner totals added removed"
+
+local ServerReanimAvatarUserId = UI.CreateTextbox(
+	ServerReanimPage.List,
+	tostring(ServerReanimSettings.AvatarUserId),
+	"Avatar User ID",
+	16
+)
+ServerReanimAvatarUserId.Parent.Parent.Name = "avatar user id fake character"
+
+local ServerReanimSwitches = {}
+ServerReanimSwitches.FakeChar = UI.CreateSwitch(ServerReanimPage.List, "FakeChar", ServerReanimSettings.FakeChar)
+ServerReanimSwitches.ImproveHat = UI.CreateSwitch(
+	ServerReanimPage.List,
+	"Improve Hat Reanimation",
+	ServerReanimSettings.ImproveHat
+)
+ServerReanimSwitches.ImproveLimb = UI.CreateSwitch(
+	ServerReanimPage.List,
+	"Improve Limb Reanimation",
+	ServerReanimSettings.ImproveLimb
+)
+ServerReanimSwitches.ImproveGelatek = UI.CreateSwitch(
+	ServerReanimPage.List,
+	"Improve Gelatek Reanimation",
+	ServerReanimSettings.ImproveGelatek
+)
+for _, switch in ServerReanimSwitches do
+	-- Keep the unparented BoolValues alive with the page without placing them in the searchable list.
+	switch.Parent = ServerReanimPage
+end
+
+local ServerReanimActionButton, ServerReanimActionText = UI.CreateButton(
+	ServerReanimPage.List,
+	"* Reanimate *",
+	18
+)
+ServerReanimActionButton.Parent.Name = "reanimate patch server action"
+local ServerReanimRemoveButton = UI.CreateButton(ServerReanimPage.List, "Remove FakeChar", 15)
+ServerReanimRemoveButton.Parent.Name = "remove fake character deanimate"
+local ServerReanimRefreshButton = UI.CreateButton(ServerReanimPage.List, "Refresh remotes", 16)
+ServerReanimRefreshButton.Parent.Name = "refresh remotes scan"
+local ServerReanimExportButton = UI.CreateButton(ServerReanimPage.List, "Export remote snapshot", 16)
+ServerReanimExportButton.Parent.Name = "export remote snapshot json"
+local ServerReanimCopyHelperButton = UI.CreateButton(ServerReanimPage.List, "Copy Uhhhhhh helper source", 16)
+ServerReanimCopyHelperButton.Parent.Name = "copy server helper source"
+UI.CreateSeparator(ServerReanimPage.List)
+
+local function IsServerReanimPatchMode()
+	return ServerReanimSettings.ImproveHat
+		or ServerReanimSettings.ImproveLimb
+		or ServerReanimSettings.ImproveGelatek
+end
+
+local ServerReanimHelperPath = "Theos Dancezzzzz/Bridge/server/UhhhhhhServer.server.lua"
+local function ReadServerReanimHelper()
+	if type(isfile) ~= "function" or type(readfile) ~= "function" or not isfile(ServerReanimHelperPath) then
+		return nil, "Bundled helper file is missing: " .. ServerReanimHelperPath
+	end
+	local ok, source = pcall(readfile, ServerReanimHelperPath)
+	if not ok or type(source) ~= "string" or source == "" then
+		return nil, "Could not read the bundled helper: " .. tostring(source)
+	end
+	if not source:find("UhhhhhhServer", 1, true) or not source:find("ProtocolVersion", 1, true) then
+		return nil, "Bundled helper failed its marker check"
+	end
+	return source
+end
+
+local function GetServerReanimAction(adapter)
+	local wanted = IsServerReanimPatchMode() and "Patch" or "Reanimate"
+	if adapter and type(adapter[wanted]) == "function" then
+		return wanted, wanted
+	end
+	if adapter and type(adapter.InstallHelper) == "function" then
+		return "InstallHelper", "Install Helper"
+	end
+	return wanted, wanted
+end
+
+local function FindServerReanimAdapter(record)
+	if not record or not record.Instance or not record.Instance.Parent then
+		return nil
+	end
+	for _, adapter in ServerReanimAdapters do
+		local ok, matches = pcall(adapter.Matches, record.Instance, record)
+		if ok and matches == true then
+			return adapter
+		end
+	end
+	return nil
+end
+
+UpdateServerReanimStatus = function()
+	ServerReanimSelectedRecord = nil
+	for _, record in ServerReanimRemoteRecords do
+		if
+			record.Path == ServerReanimSettings.SelectedRemotePath
+			and record.ClassName == ServerReanimSettings.SelectedRemoteClass
+		then
+			ServerReanimSelectedRecord = record
+			break
+		end
+	end
+	ServerReanimSelectedAdapter = FindServerReanimAdapter(ServerReanimSelectedRecord)
+
+	local remoteStatus = "not selected"
+	if type(ServerReanimSettings.SelectedRemotePath) == "string" then
+		if ServerReanimSelectedRecord then
+			remoteStatus = "selected - " .. ServerReanimSelectedRecord.Path
+		else
+			remoteStatus = "selected remote missing - " .. ServerReanimSettings.SelectedRemotePath
+		end
+	end
+	local adapterStatus = ServerReanimSelectedAdapter and ServerReanimSelectedAdapter.Name or "none"
+	local _, actionLabel = GetServerReanimAction(ServerReanimSelectedAdapter)
+	ServerReanimStatusText.Text = "Remote: "
+		.. remoteStatus
+		.. "\nMethod: "
+		.. adapterStatus
+		.. "\nAction: "
+		.. actionLabel
+	ServerReanimActionText.Text = "* " .. actionLabel .. " *"
+end
+
+local UhhhhhhServerSyncConnection = nil
+local function StopUhhhhhhServerSync()
+	if UhhhhhhServerSyncConnection then
+		UhhhhhhServerSyncConnection:Disconnect()
+		UhhhhhhServerSyncConnection = nil
+	end
+end
+
+local function GetServerReanimRelativePath(instance, root)
+	local path = {}
+	local current = instance
+	while current and current ~= root do
+		table.insert(path, 1, current.Name)
+		current = current.Parent
+	end
+	return current == root and path or nil
+end
+
+local function StartUhhhhhhServerSync(syncRemote)
+	StopUhhhhhhServerSync()
+	local elapsed = 0
+	UhhhhhhServerSyncConnection = RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		if elapsed < 1 / 15 then
+			return
+		end
+		elapsed = 0
+		if not syncRemote.Parent then
+			StopUhhhhhhServerSync()
+			return
+		end
+		local character = Reanimate.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not root or not root:IsA("BasePart") then
+			return
+		end
+		local parts = {}
+		for _, descendant in character:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				local path = GetServerReanimRelativePath(descendant, character)
+				if path then
+					table.insert(parts, {
+						Path = path,
+						Relative = root.CFrame:ToObjectSpace(descendant.CFrame),
+						Size = descendant.Size,
+					})
+					if #parts >= 64 then
+						break
+					end
+				end
+			end
+		end
+		syncRemote:FireServer({
+			Root = root.CFrame,
+			Parts = parts,
+		})
+	end)
+end
+
+RegisterServerReanimAdapter({
+	Name = "UhhhhhhServer v1",
+	Matches = function(remote)
+		local folder = remote and remote.Parent
+		return remote
+			and remote:IsA("RemoteFunction")
+			and remote.Name == "Request"
+			and folder
+			and folder.Name == "UhhhhhhServer"
+			and tonumber(folder:GetAttribute("ProtocolVersion")) == 1
+			and folder:FindFirstChild("Sync")
+			and folder.Sync:IsA("RemoteEvent")
+	end,
+	Reanimate = function(remote, options)
+		if options.FakeChar ~= true then
+			Util.UINotify("Enable FakeChar before using the UhhhhhhServer reanimate action.")
+			return false
+		end
+		local response = remote:InvokeServer("Reanimate", options)
+		if type(response) ~= "table" or response.Ok ~= true then
+			warn("Uhhhhhh :: UhhhhhhServer Reanimate rejected: " .. tostring(response and response.Error))
+			return false
+		end
+		StartUhhhhhhServerSync(remote.Parent.Sync)
+		return true
+	end,
+	Patch = function(remote, options)
+		local response = remote:InvokeServer("Patch", options)
+		if type(response) ~= "table" or response.Ok ~= true then
+			warn("Uhhhhhh :: UhhhhhhServer Patch rejected: " .. tostring(response and response.Error))
+			return false
+		end
+		Util.UINotify(
+			"Patched " .. tostring(response.OwnedParts or 0) .. " parts for " .. tostring(response.Method or "Generic")
+		)
+		return true
+	end,
+	Remove = function(remote)
+		local response = remote:InvokeServer("RemoveFakeChar")
+		if type(response) ~= "table" or response.Ok ~= true then
+			warn("Uhhhhhh :: UhhhhhhServer RemoveFakeChar rejected: " .. tostring(response and response.Error))
+			return false
+		end
+		StopUhhhhhhServerSync()
+		return true
+	end,
+})
+
+local ServerReanimSyncingOptions = false
+local function SetServerReanimOption(name, value)
+	if ServerReanimSyncingOptions then
+		return
+	end
+	ServerReanimSyncingOptions = true
+	ServerReanimSettings[name] = value == true
+	if name == "FakeChar" and value == true then
+		for _, improveName in { "ImproveHat", "ImproveLimb", "ImproveGelatek" } do
+			ServerReanimSettings[improveName] = false
+			ServerReanimSwitches[improveName].Value = false
+		end
+	elseif name ~= "FakeChar" and value == true then
+		ServerReanimSettings.FakeChar = false
+		ServerReanimSwitches.FakeChar.Value = false
+	end
+	ServerReanimSyncingOptions = false
+	SaveSettingsNow()
+	UpdateServerReanimStatus()
+end
+
+for name, switch in ServerReanimSwitches do
+	switch.Changed:Connect(function(value)
+		SetServerReanimOption(name, value)
+	end)
+end
+ServerReanimAvatarUserId.FocusLost:Connect(function()
+	local userId = tonumber(ServerReanimAvatarUserId.Text)
+	if not userId or userId < 1 then
+		ServerReanimAvatarUserId.Text = tostring(ServerReanimSettings.AvatarUserId)
+		Util.UINotify("Avatar User ID must be a positive number.")
+		return
+	end
+	ServerReanimSettings.AvatarUserId = math.floor(userId)
+	ServerReanimAvatarUserId.Text = tostring(ServerReanimSettings.AvatarUserId)
+	SaveSettingsNow()
+end)
+
+local function CopyServerReanimText(text, label)
+	local ok = pcall(setclipboard, text)
+	Util.UINotify(ok and (label .. " copied") or ("Could not copy " .. label:lower()))
+end
+
+local function OpenServerReanimRemoteDetails(record)
+	local page = UI.CreatePage()
+	page.ZIndex = 2
+	page.Position = UDim2.new(0.5, 360, 0.5, 0)
+	page.Interactable = false
+	page.Visible = true
+	UI.CreateButton(page, "&lt; Back to remotes", 18).Activated:Connect(function()
+		page.Interactable = false
+		ServerReanimPage.Interactable = false
+		local tween = TweenService:Create(
+			page,
+			TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(0.5, 360, 0.5, 0) }
+		)
+		tween:Play()
+		tween.Completed:Connect(function()
+			ServerReanimPage.Interactable = true
+			page:Destroy()
+		end)
+	end)
+	UI.CreateSeparator(page)
+	UI.CreateText(page, record.Instance.Name, 20, Enum.TextXAlignment.Left)
+	UI.CreateText(page, "Class: " .. record.ClassName, 13, Enum.TextXAlignment.Left)
+	UI.CreateText(page, "Full path: " .. record.Path, 12, Enum.TextXAlignment.Left)
+	UI.CreateText(page, "Lua path: " .. record.LuaPath, 11, Enum.TextXAlignment.Left)
+	UI.CreateButton(page, "Copy full path", 16).Activated:Connect(function()
+		CopyServerReanimText(record.Path, "Full path")
+	end)
+	UI.CreateButton(page, "Copy Lua path", 16).Activated:Connect(function()
+		CopyServerReanimText(record.LuaPath, "Lua path")
+	end)
+
+	local selected = ServerReanimSettings.SelectedRemotePath == record.Path
+		and ServerReanimSettings.SelectedRemoteClass == record.ClassName
+	local selectButton, selectText = UI.CreateButton(
+		page,
+		selected and "Unselect reanim remote" or "Select as reanim remote",
+		16
+	)
+	selectButton.Activated:Connect(function()
+		if
+			ServerReanimSettings.SelectedRemotePath == record.Path
+			and ServerReanimSettings.SelectedRemoteClass == record.ClassName
+		then
+			ServerReanimSettings.SelectedRemotePath = nil
+			ServerReanimSettings.SelectedRemoteClass = nil
+			selectText.Text = "Select as reanim remote"
+		else
+			ServerReanimSettings.SelectedRemotePath = record.Path
+			ServerReanimSettings.SelectedRemoteClass = record.ClassName
+			selectText.Text = "Unselect reanim remote"
+		end
+		SaveSettingsNow()
+		UpdateServerReanimStatus()
+		RefreshServerReanimRemotes()
+	end)
+
+	local attributes = {}
+	local attributesOk, attributeValues = pcall(record.Instance.GetAttributes, record.Instance)
+	if attributesOk then
+		for name, value in attributeValues do
+			table.insert(attributes, name .. " (" .. typeof(value) .. ") = " .. tostring(value))
+		end
+		table.sort(attributes)
+	end
+	UI.CreateSeparator(page)
+	UI.CreateText(page, "<b>ATTRIBUTES</b>", 14, Enum.TextXAlignment.Center)
+	UI.CreateText(
+		page,
+		#attributes > 0 and table.concat(attributes, "\n") or "No replicated attributes",
+		11,
+		Enum.TextXAlignment.Left
+	)
+	ServerReanimPage.Interactable = false
+	local tween = TweenService:Create(
+		page,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+		{ Position = UDim2.new(0.5, 0, 0.5, 0) }
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		page.Interactable = true
+	end)
+end
+
+local function ClearServerReanimRemoteCards()
+	for _, container in ServerReanimRemoteContainers do
+		if container.Parent then
+			container:Destroy()
+		end
+	end
+	table.clear(ServerReanimRemoteContainers)
+end
+
+RefreshServerReanimRemotes = function()
+	local remotes = {}
+	local counts = {
+		RemoteEvent = 0,
+		RemoteFunction = 0,
+		UnreliableRemoteEvent = 0,
+	}
+	for _, instance in game:GetDescendants() do
+		if IsReplicatedRemote(instance) then
+			local className = instance.ClassName
+			counts[className] += 1
+			table.insert(remotes, {
+				Instance = instance,
+				ClassName = className,
+				Path = GetReplicatedRemotePath(instance),
+				LuaPath = GetReplicatedRemoteLuaPath(instance),
+			})
+		end
+	end
+	table.sort(remotes, function(a, b)
+		return a.Path:lower() < b.Path:lower()
+	end)
+
+	local currentPaths = {}
+	for _, record in remotes do
+		currentPaths[record.ClassName .. "|" .. record.Path] = true
+	end
+	local added, removed = 0, 0
+	if ServerReanimPreviousPaths then
+		for key in currentPaths do
+			if not ServerReanimPreviousPaths[key] then
+				added += 1
+			end
+		end
+		for key in ServerReanimPreviousPaths do
+			if not currentPaths[key] then
+				removed += 1
+			end
+		end
+	end
+	ServerReanimPreviousPaths = currentPaths
+	ServerReanimRemoteRecords = remotes
+	if type(ServerReanimSettings.SelectedRemotePath) ~= "string" then
+		for _, record in remotes do
+			if FindServerReanimAdapter(record) then
+				ServerReanimSettings.SelectedRemotePath = record.Path
+				ServerReanimSettings.SelectedRemoteClass = record.ClassName
+				SaveSettingsNow()
+				break
+			end
+		end
+	end
+	ServerReanimScanSummary.Text = #remotes
+		.. " remotes - "
+		.. counts.RemoteEvent
+		.. " events, "
+		.. counts.RemoteFunction
+		.. " functions, "
+		.. counts.UnreliableRemoteEvent
+		.. " unreliable\nSince last scan: +"
+		.. added
+		.. " / -"
+		.. removed
+	UpdateServerReanimStatus()
+
+	ClearServerReanimRemoteCards()
+	for _, record in remotes do
+		local item = UI.CreateItemListItem(ServerReanimPage.List)
+		table.insert(ServerReanimRemoteContainers, item.Parent)
+		local isSelected = ServerReanimSettings.SelectedRemotePath == record.Path
+			and ServerReanimSettings.SelectedRemoteClass == record.ClassName
+		UI.CreateText(item, (isSelected and "[SELECTED] " or "") .. record.Instance.Name .. " &gt;", 17, Enum.TextXAlignment.Left)
+		UI.CreateText(item, record.ClassName .. " - " .. record.Path, 11, Enum.TextXAlignment.Left)
+		item.Parent.Name = record.Instance.Name .. " " .. record.ClassName .. " " .. record.Path
+		Util.LinkDestroyI2C(
+			item,
+			item.Activated:Connect(function()
+				OpenServerReanimRemoteDetails(record)
+			end)
+		)
+	end
+end
+
+ServerReanimRefreshButton.Activated:Connect(RefreshServerReanimRemotes)
+ServerReanimExportButton.Activated:Connect(function()
+	if #ServerReanimRemoteRecords == 0 then
+		RefreshServerReanimRemotes()
+	end
+	local exported = {}
+	for _, record in ServerReanimRemoteRecords do
+		table.insert(exported, {
+			Name = record.Instance.Name,
+			ClassName = record.ClassName,
+			Path = record.Path,
+			LuaPath = record.LuaPath,
+		})
+	end
+	local payload = {
+		Schema = 1,
+		GeneratedAt = os.time(),
+		PlaceId = game.PlaceId,
+		GameId = game.GameId,
+		Remotes = exported,
+	}
+	local encoded, json = pcall(HttpService.JSONEncode, HttpService, payload)
+	local path = "UhhhhhhReanim/remote-snapshot-" .. tostring(game.PlaceId) .. ".json"
+	local written = encoded and pcall(writefile, path, json)
+	Util.UINotify(written and ("Saved " .. path) or "Could not export the remote snapshot")
+end)
+
+ServerReanimCopyHelperButton.Activated:Connect(function()
+	local source, reason = ReadServerReanimHelper()
+	if not source then
+		ServerReanimNotice(reason)
+		return
+	end
+	local copied = type(setclipboard) == "function" and pcall(setclipboard, source)
+	ServerReanimNotice(copied and "Uhhhhhh helper source copied." or "Clipboard is unavailable.")
+end)
+
+ServerReanimActionButton.Activated:Connect(function()
+	UpdateServerReanimStatus()
+	if not ServerReanimSelectedRecord then
+		ServerReanimNotice("Select a remote first.")
+		return
+	end
+	if not ServerReanimSelectedAdapter then
+		ServerReanimNotice(
+			"No method is registered for this remote. Add a loader adapter for its argument format, or select an installed UhhhhhhServer remote.",
+			10
+		)
+		return
+	end
+	local selectedRemote = ServerReanimSelectedRecord.Instance
+	local selectedAdapter = ServerReanimSelectedAdapter
+	local actionName, actionLabel = GetServerReanimAction(selectedAdapter)
+	local action = selectedAdapter[actionName]
+	if type(action) ~= "function" then
+		ServerReanimNotice(selectedAdapter.Name .. " cannot " .. actionLabel:lower() .. ".")
+		return
+	end
+	ServerReanimActionButton.Interactable = false
+	ServerReanimActionText.Text = actionLabel .. "..."
+	task.spawn(function()
+		local ok, result
+		if actionName == "InstallHelper" then
+			local helperSource, helperError = ReadServerReanimHelper()
+			if not helperSource then
+				ok = false
+				result = helperError
+			else
+				ok, result = xpcall(
+					action,
+					debug.traceback,
+					selectedRemote,
+					helperSource,
+					table.clone(ServerReanimSettings)
+				)
+			end
+		else
+			ok, result = xpcall(action, debug.traceback, selectedRemote, table.clone(ServerReanimSettings))
+		end
+		if not ok then
+			ServerReanimNotice(actionLabel .. " failed. Full error is in the console.")
+			warn("Uhhhhhh :: Server Reanim " .. actionName .. " failed\n" .. tostring(result))
+		elseif result == false then
+			ServerReanimNotice(actionLabel .. " was rejected by " .. selectedAdapter.Name .. ".")
+		elseif actionName == "InstallHelper" then
+			local installedRecord
+			local deadline = os.clock() + 5
+			repeat
+				task.wait(0.25)
+				RefreshServerReanimRemotes()
+				for _, record in ServerReanimRemoteRecords do
+					local adapter = FindServerReanimAdapter(record)
+					if adapter and adapter.Name == "UhhhhhhServer v1" then
+						installedRecord = record
+						break
+					end
+				end
+			until installedRecord or os.clock() >= deadline
+			if installedRecord then
+				ServerReanimSettings.SelectedRemotePath = installedRecord.Path
+				ServerReanimSettings.SelectedRemoteClass = installedRecord.ClassName
+				SaveSettingsNow()
+				UpdateServerReanimStatus()
+				ServerReanimNotice("Helper installed. UhhhhhhServer is selected.")
+			else
+				ServerReanimNotice("Loader returned, but UhhhhhhServer did not appear. Check the console.", 10)
+			end
+		end
+		ServerReanimActionButton.Interactable = true
+		UpdateServerReanimStatus()
+	end)
+end)
+
+ServerReanimRemoveButton.Activated:Connect(function()
+	UpdateServerReanimStatus()
+	local remove = ServerReanimSelectedAdapter and ServerReanimSelectedAdapter.Remove
+	if type(remove) ~= "function" or not ServerReanimSelectedRecord then
+		Util.UINotify("The selected adapter cannot remove a FakeChar.")
+		return
+	end
+	local ok, result = xpcall(remove, debug.traceback, ServerReanimSelectedRecord.Instance)
+	if not ok then
+		warn("Uhhhhhh :: Server Reanim remove failed\n" .. tostring(result))
+		Util.UINotify("Remove FakeChar failed. Check the console.")
+	elseif result ~= false then
+		Util.UINotify("FakeChar removed")
+	end
+end)
+
+local ServerReanimRefreshScheduled = false
+local function ScheduleServerReanimRefresh(instance)
+	if not IsReplicatedRemote(instance) or not ServerReanimPage.Visible or ServerReanimRefreshScheduled then
+		return
+	end
+	ServerReanimRefreshScheduled = true
+	task.defer(function()
+		ServerReanimRefreshScheduled = false
+		if ServerReanimPage.Visible then
+			RefreshServerReanimRemotes()
+		end
+	end)
+end
+game.DescendantAdded:Connect(ScheduleServerReanimRefresh)
+game.DescendantRemoving:Connect(ScheduleServerReanimRefresh)
+UpdateServerReanimStatus()
+
+local ServerReanimNavButton = MainNavButtons.ServerReanim
+ServerReanimNavButton.Activated:Connect(function()
+	RefreshServerReanimRemotes()
+	ServerReanimPage.Interactable = false
+	ServerReanimPage.Visible = true
+	MainPage.Interactable = false
+	local tween = TweenService:Create(
+		ServerReanimPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+		{ Position = UDim2.new(0.5, 0, 0.5, 0) }
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		ServerReanimPage.Interactable = true
+	end)
+end)
+ServerReanimPage.Back.Activated:Connect(function()
+	ServerReanimPage.Interactable = false
+	ServerReanimPage.Visible = true
+	MainPage.Interactable = false
+	local tween = TweenService:Create(
+		ServerReanimPage,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+		{ Position = UDim2.new(0.5, 360, 0.5, 0) }
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		MainPage.Interactable = true
+		ServerReanimPage.Visible = false
+	end)
+end)
+end)()
+
 local KeybindsPage = UI.CreateItemListPage()
 KeybindsPage.ZIndex = 1
 KeybindsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
@@ -18200,6 +19426,9 @@ end)
 if type(SaveData.ModuleConfigs) ~= "table" then
 	SaveData.ModuleConfigs = {}
 end
+if type(SaveData.FavoriteModules) ~= "table" then
+	SaveData.FavoriteModules = {}
+end
 local function GiveFunctionsToFunction(func)
 	local env = b_getfenv(func)
 	env.RandomString = Util.RandomString
@@ -18233,6 +19462,7 @@ local function GiveFunctionsToFunction(func)
 	env.OnPlayerChatted = OnPlayerChatted
 	env.HiddenGui = SCREENGUI
 	env.FallenPartsDestroyHeight = FallenPartsDestroyHeight
+	env.RegisterServerReanimAdapter = _G_Uhhhhhh.RegisterServerReanimAdapter
 end
 local function ClearModules()
 	table.clear(MovementStyles)
@@ -18240,6 +19470,7 @@ local function ClearModules()
 	Util.ClearAllChildrenGui(MovesetsPage.List)
 	Util.ClearAllChildrenGui(DancesPage.List)
 	RefreshKeybinds()
+	FavoriteSystem.Refresh()
 end
 local function GetModuleHash(m)
 	if m.Hash then
@@ -18329,34 +19560,176 @@ local function GetModuleHash(m)
 	m.Hash = str
 	return str
 end
+;(function()
+local FavoriteLabel = "[+] Favorite [+]"
+local FavoritedLabel = "[-] Favorited [-]"
+
+local function GetFavoriteKey(m)
+	return tostring(m.ModuleType or "MODULE") .. ":" .. GetModuleHash(m)
+end
+
+local function IsFavorite(m)
+	return SaveData.FavoriteModules[GetFavoriteKey(m)] == true
+end
+
+local function GetFavoriteLabel(m)
+	if IsFavorite(m) then
+		return FavoritedLabel
+	end
+	return FavoriteLabel
+end
+
+local function ToggleFavorite(m)
+	local key = GetFavoriteKey(m)
+	if SaveData.FavoriteModules[key] == true then
+		SaveData.FavoriteModules[key] = nil
+	else
+		SaveData.FavoriteModules[key] = true
+	end
+	SaveSettingsNow()
+	FavoriteSystem.Refresh()
+	return IsFavorite(m)
+end
+
+local OpenModuleDetails
+local function BuildFavoritePage(page, modules, kindName)
+	Util.ClearAllChildrenGui(page.List)
+	local heading = UI.CreateText(page.List, "<b>FAVORITE " .. string.upper(kindName) .. "</b>", 18, Enum.TextXAlignment.Center)
+	heading.Parent.Name = "favorite " .. string.lower(kindName) .. " heading"
+	local favorites = {}
+	for _, m in modules do
+		if IsFavorite(m) then
+			table.insert(favorites, m)
+		end
+	end
+	table.sort(favorites, function(a, b)
+		return tostring(a.Name):lower() < tostring(b.Name):lower()
+	end)
+
+	if #favorites == 0 then
+		local empty = UI.CreateText(
+			page.List,
+			"[*] No favorite " .. string.lower(kindName) .. " yet [*]",
+			15,
+			Enum.TextXAlignment.Center
+		)
+		empty.Parent.Name = "no favorite " .. string.lower(kindName)
+		return 0
+	end
+
+	for _, m in favorites do
+		local item = UI.CreateItemListItem(page.List)
+		UI.CreateText(item, "[*] " .. m.Name .. " &gt;", 19, Enum.TextXAlignment.Left)
+		UI.CreateText(
+			item,
+			string.split(m.Description, "\n")[1],
+			11,
+			Enum.TextXAlignment.Left
+		)
+		item.Parent.Name = "favorite " .. kindName .. " " .. m.Name .. " " .. m.Description
+		Util.LinkDestroyI2C(
+			item,
+			item.Activated:Connect(function()
+				OpenModuleDetails(m, page)
+			end)
+		)
+	end
+	return #favorites
+end
+
+FavoriteSystem.Refresh = function()
+	local pages = FavoriteSystem.Pages
+	if not pages then
+		return
+	end
+	local danceCount = BuildFavoritePage(pages.Dances, DanceableDances, "Dances")
+	local movesetCount = BuildFavoritePage(pages.Movesets, MovementStyles, "Movesets")
+	if FavoriteSystem.CategoryLabels then
+		FavoriteSystem.CategoryLabels.Dances.Text = "Dances (" .. danceCount .. ") &gt;"
+		FavoriteSystem.CategoryLabels.Movesets.Text = "Movesets (" .. movesetCount .. ") &gt;"
+	end
+end
+
+OpenModuleDetails = function(m, parentPage)
+	local page = UI.CreatePage()
+	page.ZIndex = 2
+	page.Position = UDim2.new(0.5, 360, 0.5, 0)
+	page.Interactable = false
+	page.Visible = true
+	UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
+		page.Interactable = false
+		parentPage.Interactable = false
+		local tween = TweenService:Create(
+			page,
+			TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(0.5, 360, 0.5, 0) }
+		)
+		tween:Play()
+		tween.Completed:Connect(function()
+			parentPage.Interactable = true
+			page:Destroy()
+		end)
+	end)
+	UI.CreateSeparator(page)
+	UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
+	UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
+
+	if m.ModuleType == "MOVESET" then
+		local equip, equiptext = UI.CreateButton(page, "Use Moveset", 20)
+		if MovementStyleIndex == table.find(MovementStyles, m) then
+			equiptext.Text = "* ACTIVE *"
+		end
+		equip.Activated:Connect(function()
+			equiptext.Text = "* ACTIVE *"
+			MovementStyleIndex = table.find(MovementStyles, m)
+		end)
+	else
+		local equip, equiptext = UI.CreateButton(page, "Play Dance", 20)
+		if CurrentDance == m then
+			equiptext.Text = "Stop Dance"
+		end
+		equip.Activated:Connect(function()
+			if CurrentDance == m then
+				equiptext.Text = "Play Dance"
+				CurrentDance = nil
+			else
+				equiptext.Text = "Stop Dance"
+				CurrentDance = m
+			end
+		end)
+	end
+
+	local favoriteButton, favoriteText = UI.CreateButton(page, GetFavoriteLabel(m), 18)
+	favoriteButton.Activated:Connect(function()
+		local nowFavorite = ToggleFavorite(m)
+		favoriteText.Text = GetFavoriteLabel(m)
+		Util.UINotify(nowFavorite and ("Favorited " .. m.Name) or ("Unfavorited " .. m.Name))
+	end)
+	UI.CreateSeparator(page)
+	UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
+	m.Config(page)
+	parentPage.Interactable = false
+	local tween = TweenService:Create(
+		page,
+		TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In),
+		{ Position = UDim2.new(0.5, 0, 0.5, 0) }
+	)
+	tween:Play()
+	tween.Completed:Connect(function()
+		page.Interactable = true
+	end)
+end
+FavoriteSystem.OpenModuleDetails = OpenModuleDetails
+end)()
+
 local function AddMoveset(m)
 	if type(m) == "table" then
-		if not m.Name then
-			return
-		end
-		if not m.Description then
-			return
-		end
-		if not m.Config then
-			return
-		end
-		if not m.Assets then
-			return
-		end
-		if not m.Init then
-			return
-		end
-		if not m.Update then
-			return
-		end
-		if not m.Destroy then
+		if not m.Name or not m.Description or not m.Config or not m.Assets or not m.Init or not m.Update or not m.Destroy then
 			return
 		end
 		GetModuleHash(m)
-		if m.LoadConfig then
-			if SaveData.ModuleConfigs[m.Hash] then
-				pcall(m.LoadConfig, SaveData.ModuleConfigs[m.Hash])
-			end
+		if m.LoadConfig and SaveData.ModuleConfigs[m.Hash] then
+			pcall(m.LoadConfig, SaveData.ModuleConfigs[m.Hash])
 		end
 		table.insert(MovementStyles, m)
 		local item = UI.CreateItemListItem(MovesetsPage.List)
@@ -18368,83 +19741,21 @@ local function AddMoveset(m)
 		Util.LinkDestroyI2C(
 			item,
 			item.Activated:Connect(function()
-				local page = UI.CreatePage()
-				page.ZIndex = 2
-				page.Position = UDim2.new(0.5, 360, 0.5, 0)
-				page.Interactable = false
-				page.Visible = true
-				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
-					page.Interactable = false
-					MovesetsPage.Interactable = false
-					local tween = TweenService:Create(
-						page,
-						TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
-						{
-							Position = UDim2.new(0.5, 360, 0.5, 0),
-						}
-					)
-					tween:Play()
-					tween.Completed:Connect(function()
-						MovesetsPage.Interactable = true
-						page:Destroy()
-					end)
-				end)
-				UI.CreateSeparator(page)
-				UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
-				UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
-				local equip, equiptext = UI.CreateButton(page, "Use Moveset", 20)
-				if MovementStyleIndex == table.find(MovementStyles, m) then
-					equiptext.Text = "* ACTIVE *"
-				end
-				equip.Activated:Connect(function()
-					equiptext.Text = "* ACTIVE *"
-					MovementStyleIndex = table.find(MovementStyles, m)
-				end)
-				UI.CreateSeparator(page)
-				UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
-				m.Config(page)
-				MovesetsPage.Interactable = false
-				local tween =
-					TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-						Position = UDim2.new(0.5, 0, 0.5, 0),
-					})
-				tween:Play()
-				tween.Completed:Connect(function()
-					page.Interactable = true
-				end)
+				FavoriteSystem.OpenModuleDetails(m, MovesetsPage)
 			end)
 		)
 		return m.Name
 	end
 end
+
 local function AddDance(m)
 	if type(m) == "table" then
-		if not m.Name then
-			return
-		end
-		if not m.Description then
-			return
-		end
-		if not m.Assets then
-			return
-		end
-		if not m.Config then
-			return
-		end
-		if not m.Init then
-			return
-		end
-		if not m.Update then
-			return
-		end
-		if not m.Destroy then
+		if not m.Name or not m.Description or not m.Assets or not m.Config or not m.Init or not m.Update or not m.Destroy then
 			return
 		end
 		GetModuleHash(m)
-		if m.LoadConfig then
-			if SaveData.ModuleConfigs[m.Hash] then
-				pcall(m.LoadConfig, SaveData.ModuleConfigs[m.Hash])
-			end
+		if m.LoadConfig and SaveData.ModuleConfigs[m.Hash] then
+			pcall(m.LoadConfig, SaveData.ModuleConfigs[m.Hash])
 		end
 		table.insert(DanceableDances, m)
 		local item = UI.CreateItemListItem(DancesPage.List)
@@ -18456,55 +19767,7 @@ local function AddDance(m)
 		Util.LinkDestroyI2C(
 			item,
 			item.Activated:Connect(function()
-				local page = UI.CreatePage()
-				page.ZIndex = 2
-				page.Position = UDim2.new(0.5, 360, 0.5, 0)
-				page.Interactable = false
-				page.Visible = true
-				UI.CreateButton(page, " &lt; Hurry back", 20).Activated:Connect(function()
-					page.Interactable = false
-					DancesPage.Interactable = false
-					local tween = TweenService:Create(
-						page,
-						TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
-						{
-							Position = UDim2.new(0.5, 360, 0.5, 0),
-						}
-					)
-					tween:Play()
-					tween.Completed:Connect(function()
-						DancesPage.Interactable = true
-						page:Destroy()
-					end)
-				end)
-				UI.CreateSeparator(page)
-				UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
-				UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
-				local equip, equiptext = UI.CreateButton(page, "Play Dance", 20)
-				if CurrentDance == m then
-					equiptext.Text = "Stop Dance"
-				end
-				equip.Activated:Connect(function()
-					if CurrentDance == m then
-						equiptext.Text = "Play Dance"
-						CurrentDance = nil
-					else
-						equiptext.Text = "Stop Dance"
-						CurrentDance = m
-					end
-				end)
-				UI.CreateSeparator(page)
-				UI.CreateText(page, "* Configuration *", 15, Enum.TextXAlignment.Center)
-				m.Config(page)
-				DancesPage.Interactable = false
-				local tween =
-					TweenService:Create(page, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
-						Position = UDim2.new(0.5, 0, 0.5, 0),
-					})
-				tween:Play()
-				tween.Completed:Connect(function()
-					page.Interactable = true
-				end)
+				FavoriteSystem.OpenModuleDetails(m, DancesPage)
 			end)
 		)
 		return m.Name
@@ -19139,7 +20402,17 @@ local function ReplaceBuiltinPlainOnce(source, needle, replacement)
 	return source:sub(1, first - 1) .. replacement .. source:sub(last + 1), true
 end
 local function PatchBuiltinModuleSource(filename, source)
-	if filename ~= "v_moveset2.lua" or type(source) ~= "string" then
+	if type(source) ~= "string" then
+		return source, false
+	end
+	if filename == "v_dance1.lua" then
+		return ReplaceBuiltinPlainOnce(
+			source,
+			"\t\t\tgroup1t -= math.max(0, t - 44.537)",
+			"\t\t\tgroup1t -= math.max(0, t - 44.537)\n\t\t\tgroup1t = math.clamp(group1t, 0, 1)"
+		)
+	end
+	if filename ~= "v_moveset2.lua" then
 		return source, false
 	end
 	local moduleMarker = 'm.InternalName = "IPLAYTERRARIEYE"'
@@ -19346,9 +20619,11 @@ local function ForceModuleReload(force)
 		local patchedBuiltin
 		data, patchedBuiltin = PatchBuiltinModuleSource(x, data)
 		if patchedBuiltin then
-			InitLogsText.Text ..= "\n[LOG] Applied respawn-safe builtin patch to " .. x .. "."
+			InitLogsText.Text ..= "\n[LOG] Applied builtin compatibility patch to " .. x .. "."
 		elseif x == "v_moveset2.lua" then
 			InitLogsText.Text ..= "\n[WARN] Eyo-Zen scale patch did not match " .. x .. "."
+		elseif x == "v_dance1.lua" then
+			InitLogsText.Text ..= "\n[WARN] NumberSequence envelope patch did not match " .. x .. "."
 		end
 		task.wait()
 		InitLogsText.Text ..= "\n[LOG] Loadstringing VANILLA " .. x .. "..."
@@ -19420,6 +20695,7 @@ local function ForceModuleReload(force)
 	end
 	InitLogsText.Text ..= "\n[LOG] Refreshing Dance keybinds..."
 	RefreshKeybinds()
+	FavoriteSystem.Refresh()
 	InitLogsText.Text ..= "\n[LOG] Loaded " .. (#MovementStyles + #DanceableDances) .. " modules - " .. #MovementStyles .. " Movesets, " .. #DanceableDances .. " Dances."
 	InitLogsText.Text ..= "\n[LOG] Init complete!"
 	Util.UINotify("Init complete" .. (InitLogsText.Text:find("ERROR") and " with errors" or ""))
@@ -19956,28 +21232,24 @@ local d = function(generation)
 		if not ExtrasEnabled() then
 			return
 		end
+		local function TryGetLegacyReference(url)
+			local ok, content = pcall(game.HttpGet, game, url)
+			return ok and type(content) == "string" and content or nil
+		end
 		local checkfiles = {
-			["Dances/myuu.mp3"] = game:HttpGet(
+			["Dances/myuu.mp3"] = TryGetLegacyReference(
 				"https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/myuu.mp3"
 			),
-			["Dances/emoboy.mp3"] = game:HttpGet(
+			["Dances/emoboy.mp3"] = TryGetLegacyReference(
 				"https://raw.githubusercontent.com/Nitro-GT/music/refs/heads/main/emoboy.mp3"
 			),
-			["KDV3/Sphere.mp3"] = game:HttpGet(
+			["KDV3/Sphere.mp3"] = TryGetLegacyReference(
 				"https://raw.githubusercontent.com/Solary-3/Scripts/refs/heads/Audios-1/Sphere.mp3"
 			),
 		}
 		local function checkfile(id)
-			if isfile(id) then
-				local content = checkfiles[id]
-				if not content then
-					return true
-				end
-				if content == readfile(id) then
-					return true
-				end
-			end
-			return false
+			local content = checkfiles[id]
+			return content ~= nil and isfile(id) and content == readfile(id)
 		end
 		local foundakdrv3 = false
 		local foundinfyield = false
@@ -20217,9 +21489,6 @@ if UntrustedExtrasControl.Enabled then
 	StartUntrustedExtras()
 end
 
-
-
-
 ]=====],
     ["Theos Dancezzzzz/theo.lua"] = [=====[
 assert(not _G.UhhhhhhLoaded, "Rejoin before starting Theo")
@@ -20282,6 +21551,441 @@ if isfile(path) then
 end
 
 error("Unable to load Theo Dance: " .. tostring(remoteFailure), 0)
+
+]=====],
+    ["Theos Dancezzzzz/Bridge/server/UhhhhhhServer.server.lua"] = [=====[
+-- Install this Script in ServerScriptService for the built-in Uhhhhhh Server Reanim adapter.
+-- It exposes a fixed reanimation command set; it never evaluates source supplied by a client.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local PROTOCOL_VERSION = 1
+local SYNC_RATE = 1 / 20
+local MAX_SYNC_PARTS = 64
+local MAX_PATH_DEPTH = 8
+local MAX_ROOT_STEP = 2048
+
+local function EnsureInstance(className, name, parent)
+	local existing = parent:FindFirstChild(name)
+	if existing then
+		assert(existing.ClassName == className, existing:GetFullName() .. " must be a " .. className)
+		return existing
+	end
+	local instance = Instance.new(className)
+	instance.Name = name
+	instance.Parent = parent
+	return instance
+end
+
+local RemoteFolder = EnsureInstance("Folder", "UhhhhhhServer", ReplicatedStorage)
+local RequestRemote = EnsureInstance("RemoteFunction", "Request", RemoteFolder)
+local SyncRemote = EnsureInstance("RemoteEvent", "Sync", RemoteFolder)
+RemoteFolder:SetAttribute("ProtocolVersion", PROTOCOL_VERSION)
+RemoteFolder:SetAttribute("Capabilities", "FakeChar,PoseSync,PatchNetworkOwnership,PrepareGelatek")
+RequestRemote:SetAttribute("ProtocolVersion", PROTOCOL_VERSION)
+
+local PlayerStates = {}
+
+local function IsFiniteNumber(value)
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function IsFiniteCFrame(value)
+	if typeof(value) ~= "CFrame" then
+		return false
+	end
+	for _, component in { value:GetComponents() } do
+		if not IsFiniteNumber(component) then
+			return false
+		end
+	end
+	return true
+end
+
+local function IsSafePartSize(value)
+	return typeof(value) == "Vector3"
+		and IsFiniteNumber(value.X)
+		and IsFiniteNumber(value.Y)
+		and IsFiniteNumber(value.Z)
+		and value.X >= 0.05
+		and value.Y >= 0.05
+		and value.Z >= 0.05
+		and value.X <= 50
+		and value.Y <= 50
+		and value.Z <= 50
+end
+
+local function GetPlayerPivot(player)
+	local character = player.Character
+	if character then
+		local ok, pivot = pcall(character.GetPivot, character)
+		if ok and IsFiniteCFrame(pivot) then
+			return pivot
+		end
+	end
+	return CFrame.new(0, 10, 0)
+end
+
+local function GetState(player)
+	local state = PlayerStates[player]
+	if state then
+		return state
+	end
+	state = {
+		Character = nil,
+		UserId = player.UserId,
+		LastPivot = GetPlayerPivot(player),
+		Generation = 0,
+		Replacing = false,
+		RebuildScheduled = false,
+		Connections = {},
+		LastSync = 0,
+		LastRequests = {},
+	}
+	PlayerStates[player] = state
+	return state
+end
+
+local function DisconnectStateConnections(state)
+	for _, connection in state.Connections do
+		connection:Disconnect()
+	end
+	table.clear(state.Connections)
+end
+
+local BuildFakeCharacter
+
+local function ScheduleFakeCharacterRebuild(player, state, model, generation)
+	if
+		state.Replacing
+		or state.RebuildScheduled
+		or state.Character ~= model
+		or state.Generation ~= generation
+	then
+		return
+	end
+	state.RebuildScheduled = true
+	task.defer(function()
+		state.RebuildScheduled = false
+		if
+			player.Parent == Players
+			and state.Character == model
+			and state.Generation == generation
+			and not state.Replacing
+		then
+			BuildFakeCharacter(player, state, state.UserId, state.LastPivot)
+		end
+	end)
+end
+
+local function PrepareFakeCharacter(player, state, model, pivot, generation)
+	model.Name = player.Name .. "_UhhhhhhFakeChar"
+	model:SetAttribute("UhhhhhhFakeChar", true)
+	model:SetAttribute("OwnerUserId", player.UserId)
+	model:SetAttribute("AvatarUserId", state.UserId)
+
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.BreakJointsOnDeath = false
+		humanoid.RequiresNeck = false
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.PlatformStand = true
+	end
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+			descendant.CanTouch = false
+			descendant.AssemblyLinearVelocity = Vector3.zero
+			descendant.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+	model:PivotTo(pivot)
+	model.Parent = workspace
+	if humanoid then
+		humanoid.Health = 0
+		pcall(humanoid.ChangeState, humanoid, Enum.HumanoidStateType.Dead)
+	end
+
+	local integrity = {}
+	for _, descendant in model:GetDescendants() do
+		if
+			descendant:IsA("BasePart")
+			or descendant:IsA("Humanoid")
+			or descendant:IsA("Accessory")
+			or descendant:IsA("Motor6D")
+			or descendant:IsA("Weld")
+		then
+			integrity[descendant] = true
+		end
+	end
+	table.insert(state.Connections, model.DescendantRemoving:Connect(function(descendant)
+		if integrity[descendant] then
+			ScheduleFakeCharacterRebuild(player, state, model, generation)
+		end
+	end))
+	table.insert(state.Connections, model.AncestryChanged:Connect(function(_, parent)
+		if parent ~= workspace then
+			ScheduleFakeCharacterRebuild(player, state, model, generation)
+		end
+	end))
+end
+
+BuildFakeCharacter = function(player, state, userId, pivot)
+	state.Generation += 1
+	local generation = state.Generation
+	state.Replacing = true
+	DisconnectStateConnections(state)
+	if state.Character then
+		state.Character:Destroy()
+		state.Character = nil
+	end
+
+	local created, model = pcall(Players.CreateHumanoidModelFromUserIdAsync, Players, userId)
+	if not created or not model then
+		state.Replacing = false
+		return false, "avatar creation failed: " .. tostring(model)
+	end
+	if player.Parent ~= Players or state.Generation ~= generation then
+		model:Destroy()
+		state.Replacing = false
+		return false, "avatar creation was superseded"
+	end
+
+	state.UserId = userId
+	state.LastPivot = pivot
+	state.Character = model
+	PrepareFakeCharacter(player, state, model, pivot, generation)
+	state.Replacing = false
+	return true, model
+end
+
+local function RemoveFakeCharacter(player)
+	local state = PlayerStates[player]
+	if not state then
+		return
+	end
+	state.Generation += 1
+	state.Replacing = true
+	DisconnectStateConnections(state)
+	if state.Character then
+		state.Character:Destroy()
+		state.Character = nil
+	end
+	state.Replacing = false
+end
+
+local function ResolveRelativePath(root, path)
+	if type(path) ~= "table" or #path > MAX_PATH_DEPTH then
+		return nil
+	end
+	local current = root
+	for _, name in path do
+		if type(name) ~= "string" or #name > 100 then
+			return nil
+		end
+		current = current:FindFirstChild(name)
+		if not current then
+			return nil
+		end
+	end
+	return current
+end
+
+local function SyncFakeCharacter(player, payload)
+	if type(payload) ~= "table" then
+		return
+	end
+	local state = PlayerStates[player]
+	if not state or not state.Character or state.Replacing then
+		return
+	end
+	local now = os.clock()
+	if now - state.LastSync < SYNC_RATE then
+		return
+	end
+	state.LastSync = now
+
+	local rootCFrame = payload.Root
+	if not IsFiniteCFrame(rootCFrame) then
+		return
+	end
+	if (rootCFrame.Position - state.LastPivot.Position).Magnitude > MAX_ROOT_STEP then
+		return
+	end
+	state.LastPivot = rootCFrame
+	state.Character:PivotTo(rootCFrame)
+
+	local parts = payload.Parts
+	if type(parts) ~= "table" then
+		return
+	end
+	local count = 0
+	for _, record in parts do
+		count += 1
+		if count > MAX_SYNC_PARTS then
+			break
+		end
+		if type(record) == "table" and IsFiniteCFrame(record.Relative) then
+			local part = ResolveRelativePath(state.Character, record.Path)
+			if part and part:IsA("BasePart") then
+				if IsSafePartSize(record.Size) then
+					part.Size = record.Size
+				end
+				part.CFrame = rootCFrame * record.Relative
+				part.AssemblyLinearVelocity = Vector3.zero
+				part.AssemblyAngularVelocity = Vector3.zero
+			end
+		end
+	end
+end
+
+local function PatchNetworkOwnership(player, options)
+	local character = player.Character
+	if not character then
+		return false, "player character is missing"
+	end
+	local ownedParts = 0
+	for _, descendant in character:GetDescendants() do
+		if descendant:IsA("BasePart") and not descendant.Anchored then
+			local ok = pcall(descendant.SetNetworkOwner, descendant, player)
+			if ok then
+				ownedParts += 1
+			end
+		end
+	end
+	local method = options.ImproveGelatek and "Gelatek"
+		or options.ImproveHat and "Hat"
+		or options.ImproveLimb and "Limb"
+		or "Generic"
+	character:SetAttribute("UhhhhhhServerPatch", method)
+	return true, ownedParts, method
+end
+
+local function PrepareGelatek(player, options)
+	local character = player.Character
+	if not character then
+		return false, "player character is missing"
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local head = character:FindFirstChild("Head")
+	if not humanoid or not head or not head:IsA("BasePart") then
+		return false, "character is missing its Humanoid or Head"
+	end
+
+	pcall(function() humanoid.BreakJointsOnDeath = false end)
+	pcall(function() humanoid.RequiresNeck = false end)
+	pcall(humanoid.SetStateEnabled, humanoid, Enum.HumanoidStateType.Dead, false)
+	pcall(humanoid.ChangeState, humanoid, Enum.HumanoidStateType.Physics)
+
+	local neckJointsBroken = 0
+	if type(options) == "table" and options.PermanentDeath == true then
+		for _, descendant in character:GetDescendants() do
+			if descendant:IsA("Motor6D") then
+				local part0 = descendant.Part0
+				local part1 = descendant.Part1
+				if descendant.Name == "Neck" or part0 == head or part1 == head then
+					descendant:Destroy()
+					neckJointsBroken += 1
+				end
+			end
+		end
+		character:SetAttribute("UhhhhhhServerGelatekPD", true)
+	end
+
+	local ownershipOk, ownedParts = PatchNetworkOwnership(player, {
+		ImproveGelatek = true,
+	})
+	if not ownershipOk then
+		return false, ownedParts
+	end
+	return true, {
+		OwnedParts = ownedParts,
+		NeckJointsBroken = neckJointsBroken,
+		PermanentDeathPrepared = type(options) == "table" and options.PermanentDeath == true,
+	}
+end
+
+local function RequestAllowed(state, action)
+	local now = os.clock()
+	local minimumDelay = action == "Reanimate" and 3 or 0.25
+	local last = state.LastRequests[action] or -math.huge
+	if now - last < minimumDelay then
+		return false
+	end
+	state.LastRequests[action] = now
+	return true
+end
+
+RequestRemote.OnServerInvoke = function(player, action, options)
+	if type(action) ~= "string" then
+		return { Ok = false, Error = "action must be a string" }
+	end
+	local state = GetState(player)
+	if not RequestAllowed(state, action) then
+		return { Ok = false, Error = "request rate limited" }
+	end
+	if action == "Hello" then
+		return {
+			Ok = true,
+			ProtocolVersion = PROTOCOL_VERSION,
+			Capabilities = { "FakeChar", "PoseSync", "PatchNetworkOwnership", "PrepareGelatek" },
+		}
+	elseif action == "RemoveFakeChar" then
+		RemoveFakeCharacter(player)
+		return { Ok = true }
+	elseif action == "Reanimate" then
+		if type(options) ~= "table" or options.FakeChar ~= true then
+			return { Ok = false, Error = "FakeChar is disabled" }
+		end
+		local userId = tonumber(options.AvatarUserId)
+		if not userId or userId < 1 or userId > 9007199254740991 then
+			return { Ok = false, Error = "invalid avatar user ID" }
+		end
+		userId = math.floor(userId)
+		local ok, result = BuildFakeCharacter(player, state, userId, GetPlayerPivot(player))
+		return ok and {
+			Ok = true,
+			Character = result,
+			ProtocolVersion = PROTOCOL_VERSION,
+		} or {
+			Ok = false,
+			Error = result,
+		}
+	elseif action == "Patch" then
+		if type(options) ~= "table" then
+			return { Ok = false, Error = "options must be a table" }
+		end
+		local ok, ownedParts, method = PatchNetworkOwnership(player, options)
+		return ok and {
+			Ok = true,
+			OwnedParts = ownedParts,
+			Method = method,
+		} or {
+			Ok = false,
+			Error = ownedParts,
+		}
+	elseif action == "PrepareGelatek" then
+		local ok, result = PrepareGelatek(player, options)
+		return ok and {
+			Ok = true,
+			OwnedParts = result.OwnedParts,
+			NeckJointsBroken = result.NeckJointsBroken,
+			PermanentDeathPrepared = result.PermanentDeathPrepared,
+		} or {
+			Ok = false,
+			Error = result,
+		}
+	end
+	return { Ok = false, Error = "unknown action" }
+end
+
+SyncRemote.OnServerEvent:Connect(SyncFakeCharacter)
+Players.PlayerRemoving:Connect(function(player)
+	RemoveFakeCharacter(player)
+	PlayerStates[player] = nil
+end)
 
 ]=====],
 }
