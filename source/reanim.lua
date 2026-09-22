@@ -384,6 +384,7 @@ return function(Context)
     local originalCameraSubject
     local originalFace
     local cameraBridgeConnection
+    local gelatekVisibilityParts = setmetatable({}, { __mode = "k" })
     local scaleBridgeConnection
     local controllerCollisionConnection
     local ragdollCollisionFolder
@@ -1958,6 +1959,49 @@ return function(Context)
         if type(Reanimate.CharacterLTMs) == "table" then
             table.clear(Reanimate.CharacterLTMs)
         end
+        for part, before in pairs(gelatekVisibilityParts) do
+            if part and part.Parent then
+                pcall(function()
+                    part.LocalTransparencyModifier = before
+                end)
+            end
+        end
+        table.clear(gelatekVisibilityParts)
+    end
+
+    local function updateGelatekPhysicalVisibility()
+        local physical = backend.RealCharacter or originalCharacter
+        if not physical or not physical.Parent then
+            return
+        end
+        local camera = workspace.CurrentCamera
+        local firstPerson = camera
+            and type(Reanimate.Camera) == "table"
+            and type(Reanimate.Camera.IsFirstPerson) == "function"
+            and Reanimate.Camera:IsFirstPerson()
+        local cameraFade = tonumber(Reanimate.LocalTransparencyModifier) or 0
+        for _, part in ipairs(physical:GetDescendants()) do
+            if part:IsA("BasePart") and not part:FindFirstAncestorWhichIsA("Tool") then
+                if gelatekVisibilityParts[part] == nil then
+                    gelatekVisibilityParts[part] = part.LocalTransparencyModifier
+                end
+                local modifier = cameraFade
+                if firstPerson and Reanimate.FirstPersonBody then
+                    modifier = 0
+                    if part.Name == "Head" then
+                        modifier = cameraFade
+                    else
+                        local weld = part:FindFirstChild("AccessoryWeld")
+                        if weld and weld:IsA("JointInstance") and weld.Part1
+                            and weld.Part1.Name == "Head"
+                        then
+                            modifier = cameraFade
+                        end
+                    end
+                end
+                part.LocalTransparencyModifier = modifier
+            end
+        end
     end
 
     local function attachCameraBridge(rig)
@@ -1991,6 +2035,9 @@ return function(Context)
             if not backend.Running or not rig.Parent then
                 return
             end
+            -- Player.Character is the invisible controller after handoff, so
+            -- Roblox's camera fade never reaches the visible physical shell.
+            updateGelatekPhysicalVisibility()
             local currentCamera = workspace.CurrentCamera
             if currentCamera and currentCamera.CameraSubject ~= humanoid then
                 pcall(function()
@@ -2411,14 +2458,21 @@ return function(Context)
 
         -- One active joint owns Head. A second channel must not solve the
         -- same Torso/Head pair with a different pose.
+        -- Limb reanimation succeeds by writing every available replication
+        -- channel for the mapped joint. Gelatek Head previously selected the
+        -- Avatar Joint Upgrade constraint and skipped its paired Motor6D,
+        -- which could look correct locally without reaching observers.
         local replicated = Util.SetCharacterJointOffset(reference, cf)
-        -- This helper is used only by the guarded non-PD head path. The
-        -- hidden writer alone does not guarantee the local Motor6D pose.
-        -- Set the same transform locally without changing the shared R6 writer.
-        if reference:IsA("Motor6D") then
-            local c0, c1 = Util.GetCharacterJointFrames(reference)
+        if motor and motor ~= reference then
+            replicated = Util.SetCharacterJointOffset(motor, cf) or replicated
+        end
+        -- The hidden writer does not guarantee the local pose. Keep the
+        -- Motor6D display channel in sync regardless of which joint was chosen.
+        local localMotor = motor or (reference:IsA("Motor6D") and reference or nil)
+        if localMotor then
+            local c0, c1 = Util.GetCharacterJointFrames(localMotor)
             if c0 and c1 then
-                reference.Transform = c0:Inverse() * cf * c1
+                localMotor.Transform = c0:Inverse() * cf * c1
             end
         end
         return replicated
@@ -12981,7 +13035,7 @@ HatReanimator.DontFireCharAddOnThisChar = nil
 function HatReanimator.Config(parent)
 	UI.CreateText(
 		parent,
-		"Legacy client techniques. Gelatek timed head-break PD is reported failed; it is not a working Hats PD option.",
+		"Legacy PD only works where Workspace.RejectCharacterDeletions is explicitly Disabled. Most modern experiences reject it.",
 		10,
 		Enum.TextXAlignment.Center
 	)
@@ -12992,7 +13046,7 @@ function HatReanimator.Config(parent)
 	UI.CreateDropdown(parent, "Permadeath Method", {
 		"Default (patched)",
 		"dolteddown state method",
-		"Gelatek timed head-break (FAILED)",
+		"RejectCharacterDeletions legacy (pre-2023)",
 	}, HatReanimator.PermadeathMethod).Changed:Connect(function(val)
 		HatReanimator.PermadeathMethod = val
 		SaveData.Reanimator.HatsPermadeathMethod = val
@@ -14397,79 +14451,6 @@ function HatReanimator.Start()
 		end,
 	}
 	local NumHats = 0
-	local function HandoffHatPermadeathCharacter(character, humanoid)
-		local controller = Reanimate.Character
-		local controllerHumanoid = controller and controller:FindFirstChildOfClass("Humanoid")
-		if not controller or not controller.Parent or not controllerHumanoid then
-			return false, "controller is not ready"
-		end
-		if not character or not character.Parent or not humanoid then
-			return false, "real character is not ready"
-		end
-
-		-- Gelatek's full ending process is more than its delayed head break:
-		-- the physical shell lives below the controller, Player.Character points
-		-- at the controller, and the camera follows the controller Humanoid.
-		pcall(function()
-			humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-		end)
-		pcall(function()
-			controllerHumanoid.BreakJointsOnDeath = false
-			controllerHumanoid.RequiresNeck = false
-		end)
-		-- Gelatek leaves the Neck intact until its delayed head break but removes
-		-- the remaining body motors and accessory welds before assignment.
-		for _, joint in character:GetDescendants() do
-			if joint:IsA("Motor6D") and joint.Name ~= "Neck" then
-				pcall(function()
-					joint:Destroy()
-				end)
-			elseif joint.Name == "AccessoryWeld" then
-				pcall(function()
-					joint:Destroy()
-				end)
-			end
-		end
-		local cameraCFrame = Camera and Camera.CFrame
-		local cameraFocus = Camera and Camera.Focus
-		local parented = pcall(function()
-			character.Parent = controller
-		end)
-		if not parented then
-			return false, "real character could not be parented under the controller"
-		end
-
-		HatReanimator.DontFireCharAddOnThisChar = controller
-		local global = (getgenv and getgenv()) or shared or _G
-		global.RealChar = character
-		local assigned = pcall(function()
-			Player.Character = controller
-		end)
-		if not assigned then
-			pcall(function()
-				character.Parent = workspace
-			end)
-			HatReanimator.DontFireCharAddOnThisChar = nil
-			if global.RealChar == character then
-				global.RealChar = nil
-			end
-			return false, "Player.Character rejected the controller"
-		end
-		if Camera then
-			pcall(function()
-				Camera.CameraType = Enum.CameraType.Custom
-				Camera.CameraSubject = controllerHumanoid
-				if typeof(cameraCFrame) == "CFrame" then
-					Camera.CFrame = cameraCFrame
-				end
-				if typeof(cameraFocus) == "CFrame" then
-					Camera.Focus = cameraFocus
-				end
-			end)
-		end
-		return true
-	end
-
 	local function OnCharacter(character)
 		if HatReanimator.DontFireCharAddOnThisChar == character then
 			return
@@ -14503,9 +14484,20 @@ function HatReanimator.Start()
 		HatReanimator.Status.RespawnFling = "Respawn detected."
 		local hatcols = HatReanimator.HatCollide
 		local perma = HatReanimator.Permadeath
+		local permaUnavailableReason = nil
 		local hatcolmeth = HatReanimator.HatCollideMethod
-		if not replicatesignal or HatReanimator.PermadeathMethod == 3 then
+		if HatReanimator.PermadeathMethod == 3 then
+			-- Before Roblox enabled RejectCharacterDeletions, client removal of
+			-- character joints could reach the server and produce the old PD state.
+			-- The method is unavailable when the experience rejects those deletions.
+			if not RejectCharacterDeletionsDisabled then
+				perma = false
+				permaUnavailableReason =
+					"RejectCharacterDeletions is enabled; legacy PD is unavailable."
+			end
+		elseif not replicatesignal then
 			perma = false
+			permaUnavailableReason = "replicatesignal is unavailable; selected PD method cannot start."
 		end
 		HatReanimator.HasPermadeath, HatReanimator.HasHatCollide = perma, hatcols
 		if not hatcols then
@@ -14605,12 +14597,21 @@ function HatReanimator.Start()
 		else
 			HatReanimator.Status.HatCollide = "Disabled, nothing to do!"
 		end
-		local cdsbeffect = os.clock()
-		local cdsbtime = os.clock()
 		if perma then
-			--replicatesignal(Player.ConnectDiedSignalBackend)
-			HatReanimator.Status.Permadeath = "Fired CDSB Signal."
-			cdsbeffect += Players.RespawnTime
+			if HatReanimator.PermadeathMethod == 3 then
+				HatReanimator.Status.Permadeath =
+					"Using legacy RejectCharacterDeletions-disabled joint deletion."
+			else
+				local fired = pcall(function()
+					replicatesignal(Player.ConnectDiedSignalBackend)
+				end)
+				HatReanimator.Status.Permadeath = fired
+					and "Fired ConnectDiedSignalBackend."
+					or "ConnectDiedSignalBackend failed."
+			end
+		end
+		if permaUnavailableReason then
+			HatReanimator.Status.Permadeath = permaUnavailableReason
 		end
 		HatReanimator.Status.RespawnFling = "Flinging targets..."
 		if LimbReanimator.UseNaNFling and HatReanimator.FlingTargets[1] then
@@ -14704,7 +14705,8 @@ function HatReanimator.Start()
 		if perma then
 			HatReanimator.Status.Permadeath = "no."
 		else
-			HatReanimator.Status.Permadeath = "Disabled, nothing to do."
+			HatReanimator.Status.Permadeath =
+				permaUnavailableReason or "Disabled, nothing to do."
 		end
 		if not character:IsDescendantOf(workspace) then
 			lgloop:Disconnect()
@@ -14769,7 +14771,9 @@ function HatReanimator.Start()
 		end
 		AvatarEditorService:BustAvatarFetchCache()
 			if not (perma and HatReanimator.PermadeathMethod == 3) then
-				pcall(replicatesignal, Humanoid.ServerBreakJoints)
+				pcall(function()
+					replicatesignal(Humanoid.ServerBreakJoints)
+				end)
 			end
 			Humanoid.EvaluateStateMachine = true
 			Humanoid.BreakJointsOnDeath = true
@@ -14782,35 +14786,15 @@ function HatReanimator.Start()
 				Humanoid:ChangeState(Enum.HumanoidStateType.Climbing)
 				HatReanimator.Status.Permadeath = "Executed alternate state method."
 			elseif perma and HatReanimator.PermadeathMethod == 3 then
-				Humanoid.BreakJointsOnDeath = false
-				pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", false)
-				local handedOff, handoffReason = HandoffHatPermadeathCharacter(character, Humanoid)
-				if not handedOff then
-					pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", true)
-					HatReanimator.Status.Permadeath =
-						"Gelatek handoff unavailable; using timed head-break only: " .. tostring(handoffReason)
-					warn(HatReanimator.Status.Permadeath)
-				end
-				local networkDelay = 0
-				pcall(function()
-					networkDelay = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 750
-				end)
-				local gelatekDeadline = cdsbtime + Players.RespawnTime + networkDelay
-				repeat
-					task.wait()
-				until os.clock() >= gelatekDeadline or not character:IsDescendantOf(workspace)
-				local head = character:FindFirstChild("Head")
-				if head and head.Parent then
-					head:BreakJoints()
-				else
-					character:BreakJoints()
-				end
-				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-				Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-				pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", true)
-				HatReanimator.Status.Permadeath = handedOff
-					and "Executed Gelatek controller handoff + timed head-break."
-					or "Executed timed head-break; controller handoff was unavailable."
+				-- Historical pre-RejectCharacterDeletions reanimations initiated PD
+				-- by deleting/breaking the client character's joints. This only has
+				-- server effect when the experience explicitly leaves RCD disabled.
+				local broke, reason = pcall(character.BreakJoints, character)
+				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+				Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+				HatReanimator.Status.Permadeath = broke
+					and "Executed legacy RCD-disabled character joint deletion."
+					or "Legacy character joint deletion failed: " .. tostring(reason)
 			else
 			Humanoid.Health = 0
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
