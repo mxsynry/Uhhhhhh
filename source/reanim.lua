@@ -20,7 +20,6 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
--- Robert R6 IK adaptation, directional body poses and avatar rig mapping v22: 2026-10-06
 assert(not _G.UhhhhhhLoaded, "Rejoin before installing the update")
 local required = {"writefile", "readfile", "isfile", "isfolder", "makefolder", "loadstring"}
 for _, name in ipairs(required) do
