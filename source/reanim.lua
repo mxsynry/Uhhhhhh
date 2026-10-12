@@ -20,9 +20,6 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
--- v24 RootRef branch: finite-safe IK + coherent hat transport + native R15 startup, 2026-10-11
--- v24 frame smoothing retained; addon repairs/diagnostics retained; v27 untouched.
--- Authored-pose IK blending, lean reversal, community loading and asset recovery v24: 2026-10-06
 assert(not _G.UhhhhhhLoaded, "Rejoin before installing the update")
 local required = {"writefile", "readfile", "isfile", "isfolder", "makefolder", "loadstring"}
 for _, name in ipairs(required) do
