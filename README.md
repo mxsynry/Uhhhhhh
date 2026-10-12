@@ -32,8 +32,6 @@ local p = "Uhhhhhh_reanim_api.lua"
 local a, b, c, g = "/mxsynry/Uhhhhhh/", "/source/reanim.lua", ".github", "https://"
 local s = ""
 local fs = (writefile and readfile and isfile)
-
--- Thử lấy code mới từ API hoặc Link Raw [2]
 local ok, res = pcall(request, {
     Url = `{g}api{c}.com/repos{a}contents{b}`,
     Headers = {Accept = `application/vnd{c}.VERSION.raw`}
@@ -45,8 +43,6 @@ else
     local fb, body = pcall(game.HttpGet, game, `{g}raw{c}usercontent.com{a}main{b}`)
     if fb then s = body end
 end
-
--- Xử lý chạy code
 if s and s ~= "" then
     if writefile and readfile then
         writefile(p, s)
@@ -56,7 +52,6 @@ if s and s ~= "" then
         loadstring(s)()
     end
 elseif fs and isfile(p) then
-    -- Nếu mất mạng hoàn toàn nhưng có tệp cũ trong máy, chạy tệp cũ [2]
     local f = loadstring(readfile(p))
     if f then f() end
 end
