@@ -26,6 +26,42 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/mxsynry/Uhhhhhh/main/
 local a,b,c,g="/mxsynry/Uhhhhhh/","/source/reanim.lua",".github","https://"local d=request({Url=`{g}api{c}.com/repos{a}contents{b}`,Headers={Accept=`application/vnd{c}.VERSION.raw`}})if d.StatusCode~=200 then d.Body=game:HttpGet(`{g}raw{c}usercontent.com{a}main{b}`)end local e,f=loadstring(d.Body)if not e then warn(f)else e()end
 ```
 
+3. mine
+```lua
+local p = "Uhhhhhh_reanim_api.lua"
+local a, b, c, g = "/mxsynry/Uhhhhhh/", "/source/reanim.lua", ".github", "https://"
+local s = ""
+local fs = (writefile and readfile and isfile)
+
+-- Thử lấy code mới từ API hoặc Link Raw [2]
+local ok, res = pcall(request, {
+    Url = `{g}api{c}.com/repos{a}contents{b}`,
+    Headers = {Accept = `application/vnd{c}.VERSION.raw`}
+})
+
+if ok and res and res.StatusCode == 200 then
+    s = res.Body
+else
+    local fb, body = pcall(game.HttpGet, game, `{g}raw{c}usercontent.com{a}main{b}`)
+    if fb then s = body end
+end
+
+-- Xử lý chạy code
+if s and s ~= "" then
+    if writefile and readfile then
+        writefile(p, s)
+        local f = loadstring(readfile(p))
+        if f then f() else loadstring(s)() end
+    else
+        loadstring(s)()
+    end
+elseif fs and isfile(p) then
+    -- Nếu mất mạng hoàn toàn nhưng có tệp cũ trong máy, chạy tệp cũ [2]
+    local f = loadstring(readfile(p))
+    if f then f() end
+end
+```
+
 ## Features:
 1. ~Probably the most stable hatdrop~ (roblox patched permadeath which makes this useless 3:)
 
