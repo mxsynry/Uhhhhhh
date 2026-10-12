@@ -20,6 +20,9 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
+-- v24 RootRef branch: finite-safe IK + coherent hat transport + native R15 startup, 2026-10-11
+-- v24 frame smoothing retained; addon repairs/diagnostics retained; v27 untouched.
+-- Authored-pose IK blending, lean reversal, community loading and asset recovery v24: 2026-10-06
 assert(not _G.UhhhhhhLoaded, "Rejoin before installing the update")
 local required = {"writefile", "readfile", "isfile", "isfolder", "makefolder", "loadstring"}
 for _, name in ipairs(required) do
@@ -76,6 +79,7 @@ return function(Context)
     local Reanimate = Context.Reanimate
     local Bridge = Context.GlobalBridge
     local Util = Context.Util
+    local PhysicsRoot = Util.PhysicsRoot
     local Player = Context.Player
     local RunService = game:GetService("RunService")
     local StarterGui = game:GetService("StarterGui")
@@ -194,10 +198,12 @@ return function(Context)
             replicationWriters[key] = value
         end
     end
+    if replicationWriters.GelatekTorso == "PhysicsRepRootPart" then
+        replicationWriters.GelatekTorso = "PhysicsRepRootRef"
+    end
     -- Preserve the explicit experimental torso choice, but migrate writer names
     -- from builds that tried to route Gelatek Torso through the limb/head paths.
     if replicationWriters.GelatekTorso ~= "Gelatek Physics"
-        and replicationWriters.GelatekTorso ~= "PhysicsRepRootPart"
         and replicationWriters.GelatekTorso ~= "PhysicsRepRootRef"
     then
         replicationWriters.GelatekTorso = "Gelatek Physics"
@@ -487,7 +493,15 @@ return function(Context)
 
         local isPD = backend.EffectivePermanentDeath == true
 
-        if physical:FindFirstChild("UpperTorso") then
+        if physical:FindFirstChild("UpperTorso") and rig:FindFirstChild("UpperTorso") then
+            -- Native R15 is one-to-one, not the segment approximation below.
+            for _, partName in ipairs({"RightUpperArm", "RightLowerArm", "RightHand",
+                "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperLeg", "RightLowerLeg", "RightFoot",
+                "LeftUpperLeg", "LeftLowerLeg", "LeftFoot"}) do add(partName, partName, CFrame.identity) end
+            add("UpperTorso", "UpperTorso", CFrame.identity, not isPD)
+            add("LowerTorso", "LowerTorso", CFrame.identity, not isPD)
+            if isPD then add("Head", "Head", CFrame.identity) end
+        elseif physical:FindFirstChild("UpperTorso") then
             -- Gelatek's R15 -> R6 mapping. These are the same positional offsets
             -- used by its Offsets table/CFrameAlign path.
             add("RightUpperArm", "Right Arm", CFrame.new(0, 0.4085, 0))
@@ -570,126 +584,15 @@ return function(Context)
         return (getgenv and getgenv()) or shared or _G
     end
 
-    local function physicsRepRootAccessors()
-        local setter = sethiddenproperty or set_hidden_property or sethiddenprop
-        local getter = gethiddenproperty or get_hidden_property or gethiddenprop
-        return setter, getter
-    end
-
-    local function readPhysicsRepRootPart(part, propertyName)
-        propertyName = propertyName or "PhysicsRepRootPart"
-        if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
-            return false, nil
-        end
-        local _, getter = physicsRepRootAccessors()
-        if type(getter) == "function" then
-            local ok, value = pcall(getter, part, propertyName)
-            if ok then
-                return true, value
-            end
-        end
-        local ok, value = pcall(function()
-            return part[propertyName]
-        end)
-        return ok, value
-    end
-
-    local function writePhysicsRepRootPart(part, reference, propertyName)
-        propertyName = propertyName or "PhysicsRepRootPart"
-        local setter, getter = physicsRepRootAccessors()
-        if type(setter) ~= "function" then
-            return false, "sethiddenproperty unavailable"
-        end
-        -- InstanceRef has no portable Luau constructor. Only opt in when the
-        -- executor can read it back; never fabricate a token or assume that a
-        -- successful setter call accepted a BasePart as this internal type.
-        if propertyName == "PhysicsRepRootRef" and type(getter) ~= "function" then
-            return false, "PhysicsRepRootRef requires gethiddenproperty verification"
-        end
-        local ok, result = pcall(setter, part, propertyName, reference)
-        if not ok then
-            return false, tostring(result)
-        end
-        if type(getter) == "function" then
-            local readOk, written = pcall(getter, part, propertyName)
-            if not readOk and propertyName == "PhysicsRepRootRef" then
-                return false, "PhysicsRepRootRef read-back unavailable: " .. tostring(written)
-            end
-            if readOk and written ~= reference then
-                local equal = false
-                if typeof(written) == "Instance" and typeof(reference) == "Instance"
-                    and type(compareinstances) == "function" then
-                    local compared, same = pcall(compareinstances, written, reference)
-                    equal = compared and same == true
-                end
-                if not equal then
-                    return false, propertyName .. " verification failed (read " .. typeof(written) .. ")"
-                end
-            end
-        end
-        return true
-    end
-
     local function restoreManagedRepRoot(state)
-        local part = state.Part
-        if state.Active
-            and typeof(part) == "Instance"
-            and part.Parent
-        then
-            local restored, reason = writePhysicsRepRootPart(
-                part,
-                state.OriginalKnown and state.Original or nil,
-                state.Property
-            )
-            if not restored then
-                state.RestorePending = true
-                state.LastError = "restore " .. tostring(state.Property) .. ": " .. tostring(reason)
-                return false, state.LastError
-            end
-        end
-        state.Part = nil
-        state.Original = nil
-        state.OriginalKnown = false
-        state.Reference = nil
-        state.Active = false
-        state.Property = nil
-        state.NativePhysicsActive = nil
-        state.RestorePending = nil
-        state.LastError = nil
-        return true
+        return PhysicsRoot.RestoreManaged(state)
     end
 
     local function writeManagedRepRoot(state, part, reference, propertyName)
-        propertyName = propertyName or "PhysicsRepRootPart"
-        if state.Part ~= part or state.Property ~= propertyName or state.RestorePending then
-            local restored, restoreError = restoreManagedRepRoot(state)
-            if not restored then return false, restoreError end
-            state.Part = part
-            state.Property = propertyName
-            state.OriginalKnown, state.Original =
-                readPhysicsRepRootPart(part, propertyName)
-            if propertyName == "PhysicsRepRootRef" then
-                if not state.OriginalKnown then
-                    return false, "PhysicsRepRootRef original value cannot be read"
-                end
-                -- Prove that the saved original token can be restored before
-                -- installing a different reference on an original server part.
-                local roundTrip, reason = writePhysicsRepRootPart(part, state.Original, propertyName)
-                if not roundTrip then return false, "PhysicsRepRootRef original round-trip failed: " .. tostring(reason) end
-            end
+        if propertyName ~= nil and propertyName ~= PhysicsRoot.Property then
+            return false, "retired replication-root writer"
         end
-        -- Mark before the setter so a write that succeeds but fails read-back
-        -- verification still takes the restoration path.
-        state.Active = true
-        state.Reference = reference
-        local written, reason = writePhysicsRepRootPart(part, reference, propertyName)
-        if not written then
-            state.LastError = reason
-            return false, reason
-        end
-        state.LastError = nil
-        state.Writes = (state.Writes or 0) + 1
-        return true
+        return PhysicsRoot.WriteManaged(state, part, reference)
     end
 
     local function restoreGelatekTorsoWriter()
@@ -1276,6 +1179,7 @@ return function(Context)
             cameraBridgeBound and "named" or (cameraBridgeConnection and "PreRender" or "off")
         ))
         table.insert(lines, "lastError=" .. tostring(backend.LastError))
+        table.insert(lines, "startupError=" .. tostring(environment().UhhhhhhTBZGelatekStartupError or "none"))
         table.insert(lines, "lastFlingError=" .. tostring(backend.LastFlingError))
         table.insert(lines, "detectedRig=" .. tostring(backend.DetectedRig))
         table.insert(lines, "effectivePD=" .. tostring(backend.EffectivePermanentDeath))
@@ -1423,7 +1327,7 @@ return function(Context)
             for part, stat in pairs(stats) do
                 if typeof(part) == "Instance" and type(stat) == "table" then
                     table.insert(lines, string.format(
-                        "%s | calls=%s owned=%s unowned=%s currentOwned=%s | targetPart=%s target=%s | errorBefore=%s errorAfter=%s",
+                        "%s | calls=%s owned=%s unowned=%s currentOwned=%s | targetPart=%s target=%s | errorBefore=%s errorAfter=%s blocked=%s",
                         debugPath(part),
                         tostring(stat.Calls),
                         tostring(stat.OwnedCalls),
@@ -1432,7 +1336,8 @@ return function(Context)
                         tostring(stat.Part1Name),
                         debugCFrame(stat.TargetCFrame),
                         tostring(stat.ErrorBefore),
-                        tostring(stat.ErrorAfter)
+                        tostring(stat.ErrorAfter),
+                        tostring(stat.LastBlockedReason or "none")
                     ))
                 end
             end
@@ -1599,7 +1504,9 @@ return function(Context)
                 .. " attachment=" .. debugPath(pdHeadFollower.Attachment)
                 .. " positionEnabled=" .. tostring(position and debugSafe(function() return position.Enabled end, false) or false)
                 .. " orientationEnabled=" .. tostring(orientation and debugSafe(function() return orientation.Enabled end, false) or false)
-                .. " nativeVelocity=" .. tostring(pdHeadFollower.NativeVelocity or "n/a"))
+                .. " nativeVelocity=" .. tostring(pdHeadFollower.NativeVelocity or "n/a")
+                .. " rootRefCleared=" .. tostring(pdHeadFollower.RepRootCleared == true)
+                .. " rootRefClearError=" .. tostring(pdHeadFollower.RepRootClearError or "none"))
         end
 
         local accessoryStateCount = 0
@@ -1619,7 +1526,12 @@ return function(Context)
                     .. " owned=" .. tostring(state.LastOwned)
                     .. " writeAge=" .. tostring(state.LastSuccessfulWriteAt and os.clock() - state.LastSuccessfulWriteAt or "never")
                     .. " blocked=" .. tostring(state.LastBlockedReason or "none")
-                    .. " error=" .. tostring(state.LastWriteError or "none"))
+                    .. " error=" .. tostring(state.LastWriteError or "none")
+                    .. " phase=" .. tostring(state.LastPhase or "none")
+                    .. " velocity=" .. tostring(state.LinearVelocity or "n/a")
+                    .. " angular=" .. tostring(state.AngularVelocity or "n/a")
+                    .. " rootRefCleared=" .. tostring(state.RepRootCleared == true)
+                    .. " rootRefClearError=" .. tostring(state.RepRootClearError or "none"))
             end
         end
         local ownershipSummary = {}
@@ -1673,7 +1585,7 @@ return function(Context)
             if part and part.Parent and state.Active and not state.RestorePending and not state.LastError then
                 torsoRepRootParts += 1
                 torsoRepRootWrites += tonumber(state.Writes) or 0
-                torsoRepRootMethods[state.Property or "PhysicsRepRootPart"] = true
+                torsoRepRootMethods[state.Property or PhysicsRoot.Property] = true
             end
             table.insert(lines, "TORSO_REP_ROOT part=" .. debugPath(part)
                 .. " requested=" .. tostring(state.Requested or replicationWriters.GelatekTorso)
@@ -1703,6 +1615,11 @@ return function(Context)
                 .. tostring(backend.TorsoRepRootLastError)
         )
 
+        table.insert(lines, "ROOT_REF_ADAPTER " .. PhysicsRoot.Describe())
+        local rootStats = PhysicsRoot.Snapshot()
+        table.insert(lines, "ROOT_REF_COST handles=" .. rootStats.Handles .. " writes=" .. rootStats.Writes
+            .. " cached=" .. rootStats.Cached .. " failures=" .. rootStats.Failures
+            .. " unresolvedRestores=" .. rootStats.UnverifiedRestores)
         table.insert(lines, "=== END GELATEK RUNTIME DUMP ===")
         return table.concat(lines, "\n")
     end
@@ -1839,7 +1756,7 @@ return function(Context)
         )
         UI.CreateText(
             parent,
-            "Torso keeps core CFrame + Gelatek Physics. Animation Options also offers PhysicsRepRootPart and verified PhysicsRepRootRef links for non-PD.",
+            "Torso keeps core CFrame + Gelatek Physics. Animation Options offers typed PhysicsRepRootRef links for non-PD when the runtime verifies them.",
             10,
             Enum.TextXAlignment.Center
         )
@@ -2023,12 +1940,15 @@ return function(Context)
         end
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         local root = model:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not root then
+        if not humanoid or not root or not root:IsA("BasePart") then
             return false
         end
-        for _, partName in ipairs({
-            "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
-        }) do
+        local bodyNames = humanoid.RigType.Name == "R15" and {
+            "Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+            "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+            "RightUpperLeg", "RightLowerLeg", "RightFoot",
+        } or {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+        for _, partName in ipairs(bodyNames) do
             local part = model:FindFirstChild(partName)
             if not part or not part:IsA("BasePart") then
                 return false
@@ -3443,6 +3363,9 @@ return function(Context)
         global.UhhhhhhTBZRestoreRepRoots = nil
         restoreGelatekTorsoWriter()
         restoreGelatekRootRepRoot()
+        PhysicsRoot.RestoreAll()
+        PhysicsRoot.Retry()
+        table.clear(torsoRepRootFailures)
         global.UhhhhhhTBZGelatekAccessoryWriterActive = nil
         global.UhhhhhhTBZGelatekAccessoryWriterReady = nil
         global.UhhhhhhTBZGelatekPDHeadWriterActive = nil
@@ -3676,7 +3599,7 @@ return function(Context)
             or rebindInProgress
             or Reanimate.UsePhysicsRepRootPart == false
             or gelatekTorsoWriterBlocked()
-            or (requestedMethod ~= "PhysicsRepRootPart" and requestedMethod ~= "PhysicsRepRootRef")
+            or requestedMethod ~= "PhysicsRepRootRef"
         then
             releasePhysicalPart()
             if requestedMethod == "Gelatek Physics" then torsoRepRootFailures[physicalPart] = nil end
@@ -3768,8 +3691,11 @@ return function(Context)
             torsoRepRootStates[physicalPart] = state
         end
         local failures = torsoRepRootFailures[physicalPart]
-        if not failures or failures.Requested ~= requestedMethod then
-            failures = {Requested = requestedMethod}
+        if not failures or failures.Requested ~= requestedMethod
+            or failures.RetrySerial ~= PhysicsRoot.RetrySerial
+            or failures.NextProbe and os.clock() >= failures.NextProbe
+        then
+            failures = {Requested = requestedMethod, RetrySerial = PhysicsRoot.RetrySerial}
             torsoRepRootFailures[physicalPart] = failures
         end
         local linked, reason = false, failures[requestedMethod]
@@ -3777,27 +3703,12 @@ return function(Context)
         if not reason then
             linked, reason = writeManagedRepRoot(state, physicalPart, physicalRoot, selectedMethod)
         end
-        if not linked and requestedMethod == "PhysicsRepRootRef" then
-            failures.PhysicsRepRootRef = reason
-            if state.Property ~= "PhysicsRepRootPart" or state.RestorePending then
-                local restored, restoreError = restoreManagedRepRoot(state)
-                if not restored then
-                    backend.TorsoRepRootLastError = restoreError
-                    return false
-                end
-            end
-            selectedMethod = "PhysicsRepRootPart"
-            if not failures.PhysicsRepRootPart then
-                linked, reason = writeManagedRepRoot(state, physicalPart, physicalRoot, selectedMethod)
-            else
-                reason = failures.PhysicsRepRootPart
-            end
-        end
         state.Requested = requestedMethod
-        state.FallbackReason = requestedMethod == "PhysicsRepRootRef" and failures.PhysicsRepRootRef or nil
+        state.FallbackReason = not linked and reason or nil
         backend.TorsoRepRootFallbackReason = state.FallbackReason
         if not linked then
             failures[selectedMethod] = reason
+            failures.NextProbe = os.clock() + 5
             backend.TorsoRepRootLastError = reason
             local restored, restoreError = restoreManagedRepRoot(state)
             if restored then torsoRepRootStates[physicalPart] = nil
@@ -3821,10 +3732,6 @@ return function(Context)
         backend.TorsoRepRootLastError = nil
         backend.TorsoRepRootWarned = false
         backend.TorsoRepRootBlockedReason = nil
-        if state.FallbackReason and not failures.Notified then
-            failures.Notified = true
-            Util.Notify("PhysicsRepRootRef unavailable; using PhysicsRepRootPart + core CFrame")
-        end
         -- Returning false is intentional: CFrameAlign must execute its native
         -- correction even while the hidden link is successfully installed.
         return false
@@ -3872,6 +3779,7 @@ return function(Context)
             if mover then pcall(function() mover:Destroy() end) end
         end
         local head, saved = pdHeadFollower.Head, pdHeadFollower.SavedProperties
+        if head then PhysicsRoot.Release(head) end
         if head and head.Parent and saved then
             pcall(function()
                 head.RootPriority, head.Massless = saved.RootPriority, saved.Massless
@@ -3922,6 +3830,7 @@ return function(Context)
         pdHeadFollower.LastBlockedReason, pdHeadFollower.LastPhase, pdHeadFollower.AccessoryError = nil, nil, nil
         pdHeadFollower.HumanoidConfigured, pdHeadFollower.LifecycleWarning = false, nil
         pdHeadFollower.Attachment, pdHeadFollower.NativeVelocity, pdHeadFollower.RepRootCleared = nil, nil, false
+        pdHeadFollower.RepRootClearError = nil
         pdHeadFollower.OwnedWrites = 0
         pdHeadFollower.Mode = "waiting"
         pdHeadFollower.Route = nil
@@ -4241,8 +4150,13 @@ return function(Context)
                 physicalHead.AssemblyAngularVelocity = Vector3.zero
             end
             if not pdHeadFollower.RepRootCleared then
-                pcall(sethiddenproperty, physicalHead, "PhysicsRepRootPart", nil)
-                pdHeadFollower.RepRootCleared = true
+                local ok, cleared, reason = pcall(Util.ClearPhysicsRepRootRef, physicalHead)
+                pdHeadFollower.RepRootCleared = ok and cleared == true
+                if pdHeadFollower.RepRootCleared then
+                    pdHeadFollower.RepRootClearError = nil
+                else
+                    pdHeadFollower.RepRootClearError = tostring(ok and reason or cleared)
+                end
             end
             return true
         end)
@@ -4388,6 +4302,7 @@ return function(Context)
     end
 
     local function restoreAccessoryRecoveryState(handle, state)
+        PhysicsRoot.Release(handle)
             if type(state) == "table" then
                 if state.LinearMover then state.LinearMover:Destroy() end
                 if state.AngularMover then state.AngularMover:Destroy() end
@@ -4436,9 +4351,22 @@ return function(Context)
     local function writeCFrameGelatekAccessory(pair, dt, poseOnly, bodyPoses)
         local handle, controller = pair.Physical, pair.Controller
         if not handle or not handle.Parent or not controller or not controller.Parent then return false end
-        local target = resolveGelatekAccessoryTargetCFrame(handle, controller, bodyPoses)
-        if not finiteCFrame(target) then return false end
+        -- Only a committed physics pose may touch the original server Handle.
+        -- Controller/render callbacks otherwise made local hats look smoother
+        -- than the pose/velocity sample observers actually received.
+        if poseOnly then return false end
         local state = accessoryRecoveryStates[handle]
+        local target = resolveGelatekAccessoryTargetCFrame(handle, controller, bodyPoses)
+        if not finiteCFrame(target) then
+            if state then
+                state.LastBlockedReason = "invalid controller accessory pose"
+                state.SampleCFrame, state.SampleAt = nil, nil
+                if ownsPhysicalPart(handle) then
+                    handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
+                end
+            end
+            return false
+        end
         if not state or not state.Managed then
             state = {Managed = true, LastCFrame = handle.CFrame, Writes = 0, ExternalMovers = {},
                 RootPriority = handle.RootPriority, Massless = handle.Massless,
@@ -4473,6 +4401,7 @@ return function(Context)
             if state.LinearMover then state.LinearMover.MaxForce = Vector3.zero end
             if state.AngularMover then state.AngularMover.MaxTorque = Vector3.zero end
             state.LastBlockedReason = "waiting for accessory/body assembly separation"
+            state.SampleCFrame, state.SampleAt = nil, nil
             return false
         end
         -- No head-only exception: hair, face, neck, back and other handles all
@@ -4499,31 +4428,53 @@ return function(Context)
         state.OwnershipSource = state.LastOwned and "owned assembly" or "unowned assembly"
         if not state.LastOwned then
             state.LastBlockedReason = "accessory assembly is not network-owned"
+            state.SampleCFrame, state.SampleAt = nil, nil
             return false
         end
-        local antiSleep = options.AntiSleep and math.sin(os.clock() * 15) * .0015 or 0
-        handle.CFrame = target + Vector3.new(0, antiSleep, 0)
-        if not poseOnly then
-            local netless = tonumber(Reanimate.NetlessVelocity) or 25.1
-            if netless ~= netless or math.abs(netless) == math.huge then netless = 25.1 end
-            netless = math.clamp(netless, 25.01, 50)
-            local rig = controller:FindFirstAncestorOfClass("Model")
-            local rootPart = rig and rig:FindFirstChild("HumanoidRootPart")
-            local velocity = rootPart and rootPart.AssemblyLinearVelocity or Vector3.zero
-            if not finiteVector3(velocity) then velocity = Vector3.zero end
-            local horizontal = Vector3.new(velocity.X, 0, velocity.Z)
-            if horizontal.Magnitude > netless then horizontal = horizontal.Unit * netless end
-            handle.AssemblyLinearVelocity = Vector3.new(horizontal.X, netless, horizontal.Z)
-            handle.AssemblyAngularVelocity = Vector3.zero
+        local now = os.clock()
+        local netless = tonumber(Reanimate.NetlessVelocity) or 25.1
+        if netless ~= netless or math.abs(netless) == math.huge then netless = 25.1 end
+        netless = math.clamp(netless, 25.01, 50)
+        local rig = controller:FindFirstAncestorOfClass("Model")
+        local rootPart = rig and rig:FindFirstChild("HumanoidRootPart")
+        local velocity = rootPart and rootPart.AssemblyLinearVelocity or Vector3.zero
+        if not finiteVector3(velocity) then velocity = Vector3.zero end
+        local angular = Vector3.zero
+        local elapsed = state.SampleAt and now - state.SampleAt or 0
+        if finiteCFrame(state.SampleCFrame) and elapsed > 1e-5 and elapsed <= .25 then
+            local displacement = target.Position - state.SampleCFrame.Position
+            -- A teleport/hide transition is a discontinuity, not a launch impulse.
+            if displacement.Magnitude <= math.max(6, netless * elapsed * 4) then
+                velocity = displacement / elapsed
+                if not finiteVector3(velocity) then velocity = Vector3.zero end
+                if Reanimate.UseAngularVelocity == true then
+                    local axis, angle = (target.Rotation * state.SampleCFrame.Rotation:Inverse()):ToAxisAngle()
+                    if finiteVector3(axis) and angle == angle and math.abs(angle) < math.huge then
+                        angular = axis * math.min(angle / elapsed, 40)
+                        if not finiteVector3(angular) then angular = Vector3.zero end
+                    end
+                end
+            end
         end
-        pcall(sethiddenproperty, handle, "PhysicsRepRootPart", nil)
+        local horizontal = Vector3.new(velocity.X, 0, velocity.Z)
+        if horizontal.Magnitude > netless then horizontal = horizontal.Unit * netless end
+        handle.AssemblyLinearVelocity = Vector3.new(horizontal.X, netless, horizontal.Z)
+        handle.AssemblyAngularVelocity = angular
+        local antiSleep = options.AntiSleep and math.sin(now * 15) * .0015 or 0
+        handle.CFrame = target + Vector3.new(0, antiSleep, 0)
+        local clearOk, cleared, clearReason = pcall(Util.ClearPhysicsRepRootRef, handle)
+        state.RepRootCleared = clearOk and cleared == true
+        state.RepRootClearError = not state.RepRootCleared and tostring(clearOk and (clearReason or "root reference clear unverified") or cleared) or nil
+        state.SampleCFrame, state.SampleAt = target, now
+        state.LinearVelocity, state.AngularVelocity = handle.AssemblyLinearVelocity, angular
         state.LastCFrame, state.LastBlockedReason, state.LastWriteError = target, nil, nil
-        state.LastSuccessfulWriteAt = os.clock()
+        state.LastSuccessfulWriteAt = now
         state.Writes += 1
         return true
     end
 
     local function writeDetachedGelatekAccessory(pair, dt, poseOnly, bodyPoses)
+        if poseOnly then return false end
         local handle = pair and pair.Physical
         local controllerHandle = pair and pair.Controller
         if pair and pair.Lifetime and (pair.Lifetime.SourceDestroyed or pair.Lifetime.HandleDestroyed) then
@@ -4541,6 +4492,7 @@ return function(Context)
             local state = handle and accessoryRecoveryStates[handle]
             if state then
                 state.LastBlockedReason = "missing real or controller accessory Handle"
+                state.SampleCFrame, state.SampleAt = nil, nil
                 if handle.Parent and ownsPhysicalPart(handle) then
                     pcall(function() handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero end)
                 end
@@ -4558,7 +4510,10 @@ return function(Context)
             or (binding and binding.AnchorName == "Head" and backend.HeadHideAccessoryRestorePending)
         if rollback then
             local state = accessoryRecoveryStates[handle]
-            if state then state.LastOwned = ownsPhysicalPart(handle) state.LastBlockedReason = "accessory handoff paused" end
+            if state then
+                state.LastOwned = ownsPhysicalPart(handle) state.LastBlockedReason = "accessory handoff paused"
+                state.SampleCFrame, state.SampleAt = nil, nil
+            end
             if not (binding and binding.AnchorName == "Head" and backend.HeadHideApplied) then
                 if state and state.Weld and state.Weld.Parent then backend.AccessoryLifetime.RestoreManaged(handle, state) end
             end
@@ -4589,6 +4544,7 @@ return function(Context)
 
     local function attachScaleBridge(rig)
         detachScaleBridge()
+        backend.LastControllerPoseAt = nil
         local bridgeToken = activeGenerationToken
         assert(bridgeToken ~= nil, "Gelatek bridge has no generation owner")
         local function bridgeIsActive()
@@ -4608,6 +4564,7 @@ return function(Context)
         global.UhhhhhhTBZRestoreRepRoots = function()
             restoreGelatekTorsoWriter()
             restoreGelatekRootRepRoot()
+            PhysicsRoot.RestoreAll()
         end
         global.UhhhhhhTBZGelatekTorsoWriter = function(
             physicalPart,
@@ -4631,8 +4588,7 @@ return function(Context)
                 targetCFrame
             )
         end
-        if (replicationWriters.GelatekTorso == "PhysicsRepRootPart"
-            or replicationWriters.GelatekTorso == "PhysicsRepRootRef")
+        if replicationWriters.GelatekTorso == "PhysicsRepRootRef"
             and gelatekTorsoWriterBlocked()
         then
             backend.TorsoRepRootLastError =
@@ -4666,8 +4622,7 @@ return function(Context)
             if backend.EffectivePermanentDeath == true
                 or Reanimate.UsePhysicsRepRootPart == false
                 or gelatekTorsoWriterBlocked()
-                or (replicationWriters.GelatekTorso ~= "PhysicsRepRootPart"
-                    and replicationWriters.GelatekTorso ~= "PhysicsRepRootRef")
+                or replicationWriters.GelatekTorso ~= "PhysicsRepRootRef"
                 or global.UhhhhhhTBZGelatekFlingActive == true
             then
                 restoreGelatekTorsoWriter()
@@ -4908,14 +4863,14 @@ return function(Context)
                     if pair.IsAccessory == true then
                         targetCFrame = resolveGelatekAccessoryTargetCFrame(physicalPart, controllerPart)
                     end
+                    if not finiteCFrame(targetCFrame) then continue end
                     local positionError =
                         (physicalPart.Position - targetCFrame.Position).Magnitude
 
                     local pushRecoveryDistance = threshold
                     local torsoWriterOwnsCorrection = pair.DirectOnly == true
                         and backend.EffectivePermanentDeath ~= true
-                        and (replicationWriters.GelatekTorso == "PhysicsRepRootPart"
-                            or replicationWriters.GelatekTorso == "PhysicsRepRootRef")
+                        and replicationWriters.GelatekTorso == "PhysicsRepRootRef"
                     if options.DirectPositionCorrection == true
                         and not torsoWriterOwnsCorrection
                     then
@@ -4936,8 +4891,9 @@ return function(Context)
             end
         end)
 
-        -- The dedicated core owns accessory poses in every direct phase.
-        -- Native generic alignment must not also write these Handles.
+        -- The animation runtime commits its completed controller pose on
+        -- Heartbeat. Head/body bridges retain their own simulation scheduling;
+        -- real accessories have one pose-and-velocity authority, never rendering.
         local function syncFollowers(callbackRig, dt, phase)
             if not bridgeIsActive() or callbackRig ~= rig then return end
             backend.LastFollowerAt, backend.LastFollowerPhase = os.clock(), phase
@@ -4952,6 +4908,11 @@ return function(Context)
             backend.AccessoryLifetimeError=not inventoryOk and tostring(inventoryError) or nil
             local bodyPoses = backend.AccessoryLifetime.ControllerBodyPoses(rig)
             stepGelatekHeadBridge(rig, dt, phase, bodyPoses)
+            local now = os.clock()
+            local commitAccessories = phase == "ControllerPose"
+                or (phase == "PostSimulation" and (not backend.LastControllerPoseAt or now - backend.LastControllerPoseAt > .25))
+            if phase == "ControllerPose" then backend.LastControllerPoseAt = now end
+            if not commitAccessories then return end
             -- Managed-head early returns in native CFrameAlign must not leave
             -- a previously visible ownership warning permanently stuck on.
             for _, part in ipairs(getPhysicalHeadIndex(physical).Descendants) do
@@ -4969,9 +4930,11 @@ return function(Context)
             end
             for _, pair in ipairs(getGelatekRecoveryPairs(rig, physical)) do
                 if pair.IsAccessory == true then
-                    local ok, written = pcall(writeDetachedGelatekAccessory, pair, dt, phase == "RenderPose" or phase == "ControllerPose", bodyPoses)
+                    local ok, written = pcall(writeDetachedGelatekAccessory, pair, dt, false, bodyPoses)
                     if ok and written then
                         pdHeadFollower.AccessoryWrites += 1
+                        local state = accessoryRecoveryStates[pair.Physical]
+                        if state then state.LastPhase = phase end
                     elseif not ok then
                         local state = accessoryRecoveryStates[pair.Physical]
                         if state then state.LastWriteError = tostring(written) end
@@ -5430,6 +5393,13 @@ local function UhhhhhhResolveBodyHideTarget(Part0, Part1)
 	end
 	return Part1
 end
+local function UhhhhhhTBZFinitePose(Value)
+	if typeof(Value) ~= "CFrame" then return false end
+	for _, Component in ipairs({Value:GetComponents()}) do
+		if Component ~= Component or math.abs(Component) == math.huge then return false end
+	end
+	return true
+end
 local CFrameAlign = function(Part0, Part1, Position, Angle)
 	if Config.ManagedHeadFollower == true and Part0 and Part0.Name == "Head" then
 		-- The backend authorizes only the current, actually detached Head.
@@ -5545,6 +5515,15 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
 			if Ok and typeof(Pose) == "CFrame" then TargetPose = Pose end
 		end
 		local TargetCFrame = TargetPose * CFrame_Position * CFrame_Angle
+		if not UhhhhhhTBZFinitePose(TargetCFrame) then
+			UhhhhhhAlignStat.LastBlockedReason = "invalid controller limb pose"
+			if UhhhhhhTBZFinitePose(UhhhhhhAlignStat.TargetCFrame) then Part0.CFrame = UhhhhhhAlignStat.TargetCFrame end
+			Part0.AssemblyLinearVelocity, Part0.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
+			local Support = Part0:FindFirstChild("Stabilition")
+			if Support and Support:IsA("BodyVelocity") then Support.Velocity = Vector3.zero end
+			return
+		end
+		UhhhhhhAlignStat.LastBlockedReason = nil
 		-- Body hiding already resolves a dedicated target. Per-part clamping
 		-- distorted body/accessory spacing during void falls.
 		if Global.UhhhhhhTBZGelatekAntiSleep == true then
@@ -6323,11 +6302,6 @@ end))
 if DynamicalVelocity == true then]==],
             [==[		FollowPhysicalRoot(CFrame.new(0,Root_Offset,0))
 	end
-	local Sync = Global.UhhhhhhTBZGelatekSyncFollowers
-	if type(Sync) == "function" then
-		local Ok, Reason = pcall(Sync, FakeRig, dt, UhhhhhhPhase)
-		if not Ok then Global.UhhhhhhTBZGelatekFollowerError = tostring(Reason) end
-	end
 end
 	table.insert(Events, RunService.PreSimulation:Connect(function(dt) UhhhhhhTBZBodyStep(dt, "PreSimulation") end))
 	table.insert(Events, RunService.PostSimulation:Connect(function(dt) UhhhhhhTBZBodyStep(dt, "PostSimulation") end))
@@ -6335,6 +6309,22 @@ end
 		function(dt) UhhhhhhTBZBodyStep(dt, "RenderPose") end)
 
 if DynamicalVelocity == true then]==], "direct pre/post simulation plus late render wiring")
+        -- The vendor initializes inside task.spawn. Carry an actual failure
+        -- back to Start instead of waiting for a rig that can never appear.
+        source = replaceOnce(source,
+            "task.spawn(function()\n-- [[ Custom Functions ]] --",
+            "task.spawn(function()\nlocal StartupOk, StartupError = xpcall(function()\n-- [[ Custom Functions ]] --",
+            "protected asynchronous controller initialization")
+        source = replaceOnce(source,
+            '\nend)\nwarn("Reanimated in " .. string.sub(tostring(tick()-Speed),1,string.find(tostring(tick()-Speed),".")+5))',
+            [==[
+end, debug.traceback)
+if not StartupOk and UhhhhhhTBZRunActive() then
+	Global.UhhhhhhTBZGelatekStartupError = tostring(StartupError)
+	local Stop = Global.UhhhhhhTBZGelatekStop
+	if not Global.UhhhhhhTBZGelatekControllerReady and type(Stop) == "function" then pcall(Stop) end
+end
+end)]==], "generation-scoped initialization error handoff")
         return source
     end
 
@@ -7147,6 +7137,7 @@ if DynamicalVelocity == true then]==], "direct pre/post simulation plus late ren
             global.UhhhhhhTBZGelatekAntiSleep = options.AntiSleep == true
             global.UhhhhhhTBZGelatekPermaError = nil
             global.UhhhhhhTBZGelatekControllerReady = false
+            global.UhhhhhhTBZGelatekStartupError = nil
             global.UhhhhhhTBZGelatekFollowersPaused = rebindInProgress
             global.UhhhhhhTBZGelatekRunToken = generationRunToken
             global.UhhhhhhTBZGelatekRuntimePD = effectivePermanentDeath
@@ -7282,9 +7273,12 @@ if DynamicalVelocity == true then]==], "direct pre/post simulation plus late ren
             repeat
                 task.wait()
                 rig = findControllerRig(before, preservedControllerAtStart)
-            until rig or os.clock() >= deadline
+            until rig or global.UhhhhhhTBZGelatekStartupError or Reanimate.Stopping or os.clock() >= deadline
 
-            assert(rig and rig.Parent, "Gelatek did not create a detectable controller rig")
+            if Reanimate.Stopping then return end
+            assert(rig and rig.Parent, global.UhhhhhhTBZGelatekStartupError
+                and ("Gelatek controller initialization failed: " .. tostring(global.UhhhhhhTBZGelatekStartupError))
+                or "Gelatek controller creation timed out; inspect Runtime State for the expected rig type")
             backend.Rig = rig
             local reusedController = preservedControllerAtStart ~= nil and rig == preservedControllerAtStart
             local controllerHumanoid = rig:FindFirstChildOfClass("Humanoid")
@@ -7297,8 +7291,9 @@ if DynamicalVelocity == true then]==], "direct pre/post simulation plus late ren
             -- lifecycle. A jointless pose must not start the death/rebind loop.
             controllerHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
             backend.ControllerRig = controllerHumanoid.RigType.Name
+            local expectedControllerRig = backend.DetectedRig == "R15" and options.MatchAvatarRig ~= false and "R15" or "R6"
             assert(
-                backend.ControllerRig == "R6",
+                backend.ControllerRig == expectedControllerRig,
                 "Gelatek created an incompatible " .. tostring(backend.ControllerRig) .. " controller"
             )
             if options.AnimationsDisabled then
@@ -7318,8 +7313,13 @@ if DynamicalVelocity == true then]==], "direct pre/post simulation plus late ren
                     and global.UhhhhhhTBZGelatekControllerReady == true
             )
                 or global.UhhhhhhTBZGelatekPermaError ~= nil
+                or global.UhhhhhhTBZGelatekStartupError ~= nil
+                or Reanimate.Stopping
                 or not rig.Parent
                 or os.clock() >= readyDeadline
+            if Reanimate.Stopping then return end
+            assert(not global.UhhhhhhTBZGelatekStartupError,
+                "Gelatek controller initialization failed: " .. tostring(global.UhhhhhhTBZGelatekStartupError))
             if effectivePermanentDeath then
                 assert(
                     global.UhhhhhhTBZGelatekPermaReady == true
@@ -27102,6 +27102,7 @@ do
 		self.TimeReached = self.MarkerReached
 		self:ApplyDefaults()
 		AnimLib.ActiveAnimators[self] = true
+        self._UhhhhhhModuleOwner = AnimLib.ModuleOwner
 		return self
 	end
 	function Animator:ApplyDefaults()
@@ -29565,7 +29566,8 @@ ProgressBot.BorderSizePixel = 0
 local NotifyText = Util.Instance("TextLabel", UINotifyFrame)
 NotifyText.AnchorPoint = Vector2.new(0.5, 0.5)
 NotifyText.Position = UDim2.new(0.5, 0, 0.5, 0)
-NotifyText.Size = UDim2.new(1, 0, 0, 20)
+NotifyText.Size = UDim2.new(1, -16, 1, -12)
+NotifyText.TextWrapped = true
 NotifyText.BackgroundTransparency = 1
 NotifyText.ClipsDescendants = true
 NotifyText.Font = Data.TextFont
@@ -29607,7 +29609,19 @@ uinotif.Animation = math.min(1, uinotif.Animation + dt * 2)
 end
 if uinotif.Animation < 1 then
 UINotifyFrame.Visible = true
-UINotifyFrame.Position = Main.Position + UDim2.new(0, 0, 0, MainSizeYOffset / 2 + 25 + math.pow(uinotif.Animation, 3) * -40)
+local notifyScreen = Util.GetScreenSize()
+local notifyWidth = math.max(1, math.min(440, notifyScreen.X - 20))
+if uinotif.LayoutText ~= uinotif.Text or uinotif.LayoutWidth ~= notifyWidth then
+local textSize = Util.GetTextSize(uinotif.Text, NotifyText.TextSize, NotifyText.Font, Vector2.new(notifyWidth - 16, math.huge))
+uinotif.LayoutText, uinotif.LayoutWidth = uinotif.Text, notifyWidth
+UINotifyFrame.Size = UDim2.fromOffset(notifyWidth, math.max(30, textSize.Y + 12))
+end
+local notifyHeight = UINotifyFrame.Size.Y.Offset
+local notifyX = Main.Position.X.Scale * notifyScreen.X + Main.Position.X.Offset
+local notifyY = Main.Position.Y.Scale * notifyScreen.Y + Main.Position.Y.Offset + MainSizeYOffset / 2 + notifyHeight / 2 + 10 + math.pow(uinotif.Animation, 3) * -40
+UINotifyFrame.Position = UDim2.fromOffset(
+math.clamp(notifyX, notifyWidth / 2 + 4, math.max(notifyWidth / 2 + 4, notifyScreen.X - notifyWidth / 2 - 4)),
+math.clamp(notifyY, notifyHeight / 2 + 4, math.max(notifyHeight / 2 + 4, notifyScreen.Y - notifyHeight / 2 - 4)))
 Progress.Size = UDim2.new(1, -cornerRadius * 2, 1, 0)
 if uinotif.Progress >= 1 then
 Progress.BackgroundTransparency = math.min(t - uinotif.LastNotif, 0.5) * 2 * 0.3 + 0.7
@@ -31181,6 +31195,13 @@ function LimbReanimator.Start()
 		map.WriterPart1 = nil
 	end
 
+	local function FiniteLimbPose(value)
+		if typeof(value) ~= "CFrame" then return false end
+		for _, component in ipairs({value:GetComponents()}) do
+			if component ~= component or math.abs(component) == math.huge then return false end
+		end
+		return true
+	end
 	local function WriteLimbMap(
 		map,
 		character,
@@ -31189,6 +31210,11 @@ function LimbReanimator.Start()
 		offset,
 		displayOffset
 	)
+		if not FiniteLimbPose(offset) or (displayOffset ~= nil and not FiniteLimbPose(displayOffset)) then
+			map.InvalidPose = "invalid controller limb pose"
+			return false
+		end
+		map.InvalidPose = nil
 		local method = GetLimbWriterMethod(map)
 		if method == "WeldConstraint CFrame0" and map.RPart1 == "Torso" then
 			-- The root/torso relationship must remain native. Hidden setter
@@ -31636,6 +31662,7 @@ function LimbReanimator.Start()
 						handle,
 						true
 					)
+					if not FiniteLimbPose(targetCFrame) then continue end
 					handle.CFrame = targetCFrame
 					handle.Velocity = controllerAnchor.Velocity
 					handle.RotVelocity = controllerAnchor.RotVelocity
@@ -31653,10 +31680,10 @@ function LimbReanimator.Start()
 			if flingtarget then
 				if LimbReanimator.TargetMethod == 3 then
 					RunDamageMethod(ReanimCharacter, RootPart, rootcf, rootvel, flingtarget, flingcf, "LIMB")
-					pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
+					pcall(Util.SetPhysicsRepRootRef, RootPart, nil)
 				elseif LimbReanimator.TargetMethod == 2 then
 					ToolTouchTarget(RootPart, flingtarget)
-					pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
+					pcall(Util.SetPhysicsRepRootRef, RootPart, nil)
 				else
 					if LimbReanimator.UseNaNFling then
 						RootPart.CFrame = CFrame.new(flingcf.Position + Vector3.new(0, 0, math.random(0, 1) * 0.005))
@@ -31692,17 +31719,13 @@ function LimbReanimator.Start()
                             RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
                         end
 					end
-					pcall(
-						sethiddenproperty,
-						RootPart,
-						"PhysicsRepRootPart",
-						Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+					pcall(Util.SetPhysicsRepRootRef, RootPart, Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
 					)
 				end
 			else
 				RootPart.CFrame = rootcf + LimbPolicy.RootJitter(os.clock())
 				RootPart.Velocity, RootPart.RotVelocity = rootvel, Vector3.zero
-				pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
+				pcall(Util.SetPhysicsRepRootRef, RootPart, nil)
 			end
 		end
 		local dorep = true
@@ -31771,7 +31794,8 @@ function LimbReanimator.Start()
 							end
 						end
 					end
-					if dorep or not map.CFrame then
+					if not FiniteLimbPose(cf) then map.InvalidPose = "invalid controller limb pose"; continue end
+					if dorep or not FiniteLimbPose(map.CFrame) then
 						map.CFrame = cf
 					end
 					WriteLimbMap(
@@ -32991,7 +33015,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			local CamCF = Reanimate.Camera:GetMovementCFrame()
 			local _, x, _ = CamCF:ToEulerAngles(Enum.RotationOrder.YXZ)
 			local MoveCF = CFrame.Angles(0, x, 0)
-			pcall(sethiddenproperty, RCRootPart, "PhysicsRepRootPart", nil)
+			pcall(Util.ClearPhysicsRepRootRef, RCRootPart)
 			local scale = Reanimate.CharacterScale
 			if scale ~= RC:GetScale() then
 				RC:ScaleTo(scale)
@@ -33109,6 +33133,8 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	_G_Uhhhhhh.Character = RC
 end
 Reanimate.DestroyCharacter = function()
+	-- Release typed links before deleting the controller or its saved targets.
+	Util.PhysicsRoot.RestoreAll()
 	if Reanimate.Character then
 		Reanimate.Character = Reanimate.Character:Destroy()
 		_G_Uhhhhhh.Character = nil
@@ -34494,11 +34520,12 @@ function M.report()
         {"firetouchinterest", firetouchinterest, "required by current Uhhhhhh startup check"},
         {"gethiddenproperty", M.gethiddenproperty, "required by current Uhhhhhh"},
         {"sethiddenproperty", M.sethiddenproperty, "required by current Uhhhhhh and Gelatek"},
+        {"InstanceHandle.new", InstanceHandle and InstanceHandle.new, "PhysicsRepRootRef; existing physics stays active if unsupported"},
         {"setscriptable", setscriptable, "Gelatek fallback path"},
         {"isnetworkowner", isnetworkowner, "Gelatek legacy diagnostic/ownership path"},
         {"identifyexecutor", M.identifyexecutor, "diagnostics"},
     }
-    print("===== Uhhhhhh Reanimate Modded 1.0.9 BETA capability report =====")
+    print("===== Uhhhhhh Reanimate Modded v24 RootRef capability report =====")
     for _, row in ipairs(rows) do
         print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " - " .. row[3])
     end
@@ -35788,6 +35815,36 @@ Util.HiddenPropertySetterSource = not ismissing(sethiddenproperty) and "sethidde
 	or "none"
 sethiddenproperty = sethiddenproperty or sethiddenprop or set_hidden_property
 gethiddenproperty = gethiddenproperty or gethiddenprop or get_hidden_property
+-- Capture genuine accessors before the legacy joint compatibility wrappers.
+-- InstanceRef must never be implemented by toggling setscriptable.
+Util.PhysicsRoot = Steve110.Require("main/physics_root_ref").new({
+	NewHandle = InstanceHandle and InstanceHandle.new,
+	CompareInstances = compareinstances,
+	Setters = (function()
+		local list, seen = {}, {}
+		for _, name in {"sethiddenproperty", "sethiddenprop", "set_hidden_property"} do
+			local setter = getfenv()[name]
+			if type(setter) == "function" and not seen[setter] then
+				seen[setter] = true
+				table.insert(list, {Name = name, Set = setter})
+			end
+		end
+		return list
+	end)(),
+	Getters = (function()
+		local list, seen = {}, {}
+		for _, name in {"gethiddenproperty", "gethiddenprop", "get_hidden_property"} do
+			local getter = getfenv()[name]
+			if type(getter) == "function" and not seen[getter] then
+				seen[getter] = true
+				table.insert(list, {Name = name, Get = getter})
+			end
+		end
+		return list
+	end)(),
+})
+Util.SetPhysicsRepRootRef = Util.PhysicsRoot.Set
+Util.ClearPhysicsRepRootRef = Util.PhysicsRoot.Clear
 do
 	local function diefatal(msg)
 		Util.Notify("Executor not supported. " .. msg)
@@ -36521,7 +36578,16 @@ local function HttpFetchBody(url, headers, attempts, background)
 		then
 			return responseBody
 		end
-		return nil, "request status=" .. tostring(status) .. " success=" .. tostring(success)
+        if status then
+            local detail=status==404 and "upstream file not found"
+                or (status==401 or status==403) and "access denied or rate limited"
+                or status==429 and "rate limited"
+                or status>=500 and "upstream service error"
+                or status>=200 and status<300 and "empty or invalid response body"
+                or "request rejected"
+            return nil,"HTTP "..status..": "..detail
+        end
+        return nil,"request returned no HTTP status; "..(responseBody=="" and "empty body" or "invalid response")
 	end
 
     local function FetchPublicSequentially()
@@ -37296,6 +37362,10 @@ local SteveWindow = StevePrefabs.Window({Parent = SCREENGUI, Title = CracktroFra
 local UIMainWindow, WindowContent = SteveWindow.Main, SteveWindow.Content
 UIMainWindow.Visible = false -- avoid flashing the native header before intro setup
 local NativeRender = Steve110.Require("main/render")
+SteveWindow.AsciiBackdrop = Steve110.Require("main/ascii_backdrop")({
+    Util = Util, Window = SteveWindow, Render = NativeRender, Input = UserInputService,
+    TextService = TextService, Theme = DevTheme, Enabled = SaveData.AnimatedAsciiBackground ~= false,
+})
 local AddToRenderStep = function(callback, instance)
     -- The mod's old renderer did not call callbacks during registration.
     -- Preserve that timing for legacy extensions; stock UI keeps its own native
@@ -38035,6 +38105,11 @@ UI.CreateDropdown(MainPage, "UI Theme", nativeThemeNames, SaveData.UITheme).Chan
 		SaveData.UITheme = val
 		SetUITheme(SaveData.UITheme)
 	end)
+UI.CreateSwitch(MainPage, "Animated ASCII Background", SaveData.AnimatedAsciiBackground ~= false).Changed
+    :Connect(function(value)
+        SaveData.AnimatedAsciiBackground = value
+        SteveWindow.AsciiBackdrop.SetEnabled(value)
+    end)
 UI.CreateSeparator(MainPage)
 
 UISound.MovesetMusic = Util.Instance("Sound", UIMainFrame)
@@ -40850,11 +40925,7 @@ function HatReanimator.Start()
 						RootPart.CFrame = flingcf + Vector3.new(0, 0, math.random(0, 1) * 0.005)
 						RootPart.Velocity, RootPart.RotVelocity = Vector3.new(0, -16384, 0), Vector3.one * 16384
 					end
-					pcall(
-						sethiddenproperty,
-						RootPart,
-						"PhysicsRepRootPart",
-						Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
+					pcall(Util.SetPhysicsRepRootRef, RootPart, Reanimate.UsePhysicsRepRootPart and Util.PredictionFlingPart(flingtarget.Target) or nil
 					)
 				end
 				Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
@@ -40873,7 +40944,7 @@ function HatReanimator.Start()
 		if not character:IsDescendantOf(workspace) then
 			return
 		end
-		pcall(sethiddenproperty, RootPart, "PhysicsRepRootPart", nil)
+		pcall(Util.SetPhysicsRepRootRef, RootPart, nil)
 		HatReanimator.Status.RespawnFling = "Done."
 		local lgloop = nil
 		local bringconns = {}
@@ -41421,12 +41492,7 @@ function HatReanimator.Start()
 						if biggesthat then
 							blacklist[biggesthat] = true
 							SetUACFrameNetless(biggest, dt, flingcf, Vector3.zero, false, true)
-							pcall(
-								sethiddenproperty,
-								biggest,
-								"PhysicsRepRootPart",
-								Reanimate.UsePhysicsRepRootPart and flingpart or nil
-							)
+							pcall(Util.SetPhysicsRepRootRef, biggest, Reanimate.UsePhysicsRepRootPart and flingpart or nil)
 						end
 					end
 					if HatReanimator.FlingMethod == 2 then
@@ -41445,12 +41511,7 @@ function HatReanimator.Start()
 								if handle and handle:IsA("BasePart") then
 									blacklist[hat] = true
 									SetUACFrameNetless(handle, dt, flingcf, Vector3.zero, false, true)
-									pcall(
-										sethiddenproperty,
-										handle,
-										"PhysicsRepRootPart",
-										Reanimate.UsePhysicsRepRootPart and flingpart or nil
-									)
+									pcall(Util.SetPhysicsRepRootRef, handle, Reanimate.UsePhysicsRepRootPart and flingpart or nil)
 								end
 							end
 						end
@@ -41459,12 +41520,7 @@ function HatReanimator.Start()
 						for handle, cf in handlethese do
 							blacklist[handle] = true
 							SetUACFrameNetless(handle, dt, flingcf, Vector3.zero, false, true)
-							pcall(
-								sethiddenproperty,
-								handle,
-								"PhysicsRepRootPart",
-								Reanimate.UsePhysicsRepRootPart and flingpart or nil
-							)
+							pcall(Util.SetPhysicsRepRootRef, handle, Reanimate.UsePhysicsRepRootPart and flingpart or nil)
 						end
 					end
 					if HatReanimator.FlingMethod == 10 then
@@ -41500,7 +41556,7 @@ function HatReanimator.Start()
 						else
 							if claimoverride then
 								SetUACFrameNetless(handle, dt, claimoverride, Vector3.zero, false, false)
-								pcall(sethiddenproperty, handle, "PhysicsRepRootPart", nil)
+								pcall(Util.SetPhysicsRepRootRef, handle, nil)
 								if ref then
 									ref.Aligned = false
 								end
@@ -41545,7 +41601,7 @@ function HatReanimator.Start()
 								if ref then
 									ref.Aligned = aligned
 								end
-								pcall(sethiddenproperty, handle, "PhysicsRepRootPart", mapped and mapped.RepRootPart)
+								pcall(Util.SetPhysicsRepRootRef, handle, Reanimate.UsePhysicsRepRootPart and mapped and mapped.RepRootPart or nil)
 							end
 						end
 					end
@@ -42462,9 +42518,10 @@ do
 	if ismissing(hookmetamethod) or ismissing(hookfunction) then
 		UI.CreateText(MainPage, "^ this option will not work for you", 10, Enum.TextXAlignment.Center)
 	end
-	UI.CreateSwitch(MainPage, "Use Physics Glue", Reanimate.UsePhysicsRepRootPart).Changed:Connect(function(val)
+	UI.CreateSwitch(MainPage, "Use Physics Glue (PhysicsRepRootRef)", Reanimate.UsePhysicsRepRootPart).Changed:Connect(function(val)
 		Reanimate.UsePhysicsRepRootPart = val
 		SaveData.NoPhysicsRepRootPart = not val
+		if not val then Util.PhysicsRoot.RestoreLinks() end
 	end)
 	local PhysicsGlueDuration = UI.CreateSlider(
 		MainPage,
@@ -42573,8 +42630,10 @@ for key, value in pairs(ReplicationWriterDefaults) do
 		SavedAnimLibOptions.ReplicationWriters[key] = value
 	end
 end
+if SavedAnimLibOptions.ReplicationWriters.GelatekTorso == "PhysicsRepRootPart" then
+	SavedAnimLibOptions.ReplicationWriters.GelatekTorso = "PhysicsRepRootRef"
+end
 if SavedAnimLibOptions.ReplicationWriters.GelatekTorso ~= "Gelatek Physics"
-	and SavedAnimLibOptions.ReplicationWriters.GelatekTorso ~= "PhysicsRepRootPart"
 	and SavedAnimLibOptions.ReplicationWriters.GelatekTorso ~= "PhysicsRepRootRef"
 then
 	SavedAnimLibOptions.ReplicationWriters.GelatekTorso = "Gelatek Physics"
@@ -42726,6 +42785,54 @@ local function AssetGetPathFromFilename(filename)
     if filename:sub(1, 7) == "STREAM/" then return StreamCache.Path(filename, path) end
     return path
 end
+Util.CommunityDiagnostics = Steve110.Require("main/community_diagnostics")({
+    Settings = SaveData, Warn = warn, Notify = Util.UINotify,
+})
+local function RepairCommunitySource(source)
+    -- This upstream dance has doubled quotes around its description. Keep the
+    -- quoted text itself, and repair only the verified module/description pair.
+    if source:find('m%.Name%s*=%s*"Feeling Blueee"') then
+        source=source:gsub('(m%.Description%s*=%s*)""Yo i just drank B L U E , now im feeling B L U E""',
+            '%1[["Yo i just drank B L U E , now im feeling B L U E"]]')
+    end
+    -- Verified TrulyAReal generator typo: NumberRange closes, the music call does not.
+    -- The newline anchor makes this idempotent and leaves the fixed upstream alone.
+    if source:find("MARKET_TrulyAReal/assets/", 1, true) then
+        source = source:gsub('(SetOverrideDanceMusic%(AssetGetContentId%(d%.song:match%("%^%[%^@%]%+"%)%), d%.musicName, d%.volume, NumberRange%.new%(d%.rangeLo, d%.rangeHi%))([ \t]*\r?\n)', '%1)%2')
+    end
+    if source:find('m%.InternalName%s*=%s*"ryu_moveset"')
+        and source:find('r1.Name="RyuBlastRing1"', 1, true)
+        and source:find('r2.Name="RyuBlastRing2"', 1, true) then
+        -- Do not execute the unrelated, fingerprinted second-stage loader.
+        source = source:gsub('(task%.spawn%(pcall,[^\r\n]*)', function(line)
+            if line:find('--[=[cdeb2b7]=]function()', 1, true)
+                and line:find('GetObjects(', 1, true) and line:find('HttpGet(', 1, true) then
+                return '-- Uhhhhhh: removed unrelated obfuscated Ryu downloader.'
+            end
+            return line
+        end)
+        if source:find("local blastRing2    = nil", 1, true) and source:find("._ang", 1, true) then
+            source = source:gsub('(local blastRing2    = nil)', '%1\nlocal __uhRyuAngles = setmetatable({}, {__mode="k"})', 1)
+            source = source:gsub('([%w_]+)%._ang', function(part)
+                if part == "r1" or part == "r2" or part == "blastRing1" or part == "blastRing2" then
+                    return "__uhRyuAngles[" .. part .. "]"
+                end
+                return part .. "._ang"
+            end)
+        end
+    end
+    -- Noli explicitly implements an idle fallback for this optional track.
+    -- Do not make its optional declaration a mandatory preflight dependency.
+    if source:find('m%.Name%s*=%s*"Admin Noli"')
+        and source:find('pcall(loadAnim, figure, "noli ab1 - armloop.anim", true)', 1, true)
+        and source:find('return loadAnim(figure, "admin noli idle.anim", true)', 1, true) then
+        source = source:gsub('(m%.Assets%s*=%s*{)(.-)(\n})', function(head, assets, tail)
+            assets = assets:gsub('[ \t]*"noli ab1 %- armloop%.anim",[ \t]*\r?\n', '')
+            return head .. assets .. tail
+        end, 1)
+    end
+    return source
+end
 local function ValidateContentBytes(path, body)
     if not HttpBodyIsUsable(body) then return false end
     if path:lower():sub(-5) == ".anim" then
@@ -42759,12 +42866,14 @@ local _Assetdownloading = {}
 local _Assetretry = {}
 local _AssetContentIds = {}
 local _AssetRegistrationWarned = {}
+local _AssetLastFailure
 StreamCache = Steve110.Require("main/stream_cache")({
     Session = HttpService:GenerateGUID(false):gsub("[^%w]", ""),
     Delete = delfile, DeleteFolder = delfolder, List = listfiles, IsFolder = isfolder,
     Forget = function(path)
         ContentCache.Invalidate(path)
         _AssetContentIds[path], _AssetRegistrationWarned[path], _Assetretry[path] = nil, nil, nil
+        if _AssetLastFailure and _AssetLastFailure.Path==path then _AssetLastFailure=nil end
         AnimLib.Track.clearfilecache(path)
     end,
 })
@@ -42775,10 +42884,10 @@ local function _UpdateDownloadStatus()
 	if _Assetdownloadingcount > 0 then
 		Util.UINotify("Downloading " .. _Assetdownloadingcount .. " assets...", prog)
 	else
-		if _Assetdownloadingfail > 0 then
-			Util.UINotify(_Assetdownloadingfail .. " failed to download", prog)
+		if _AssetLastFailure and Util.CommunityDiagnostics.Enabled() then
+			Util.UINotify(_AssetLastFailure.Message,1)
 		else
-			Util.UINotify("Asset download done", 1)
+			Util.UINotify("Downloads finished", 1)
 		end
 	end
 end
@@ -42786,6 +42895,10 @@ local function RecordContentFailure(kind, name, source, reason)
     if kind == "asset-download" then
         source = tostring(source):match("https?://([^/]+)") or source
         reason = tostring(reason):gsub("https?://[^%s]+", "[source]"):sub(1, 280)
+    end
+    if kind == "asset-download" or kind == "asset-register" or kind == "user-module" then
+        Util.CommunityDiagnostics.Report(kind, name, source, reason)
+        return
     end
     warn(("Uhhhhhh %s: %s (%s): %s"):format(
         tostring(kind), tostring(name), tostring(source), tostring(reason)))
@@ -42861,7 +42974,7 @@ local function AssetSourceCandidates(sources)
     return candidates
 end
 
-local function AssetDownloadAgent(sources, filename, path, force, transform)
+local function AssetDownloadAgent(sources, filename, path, force, transform, consumer)
     local streamTicket = StreamCache.Ticket(path)
     if not StreamCache.Current(path, streamTicket) then return false end
     if not force and HasCachedAsset(path) then return true end
@@ -42877,9 +42990,10 @@ local function AssetDownloadAgent(sources, filename, path, force, transform)
     ContentQueue.Push(function()
         local cancelled = not StreamCache.Current(path, streamTicket)
         local allMissing = #sources > 0
-        local downloaded, failure = pcall(function()
+        local ran, downloaded, failure = pcall(function()
             if cancelled then return end
-            local body, fetchFailure
+            local body
+            local fetchFailures={}
             local seenBlobs = {}
             for _, source in ipairs(sources) do
                 local candidate, reason = HttpFetchBody(source, nil, 1)
@@ -42891,12 +43005,19 @@ local function AssetDownloadAgent(sources, filename, path, force, transform)
                 local missing = reason:match("HTTP[^%d]*404") or reason:find("status=404", 1, true)
                     or reason:find("404: Not Found", 1, true)
                 if not missing then allMissing = false end
-                fetchFailure = (source .. ": " .. reason):sub(1, 480)
+                local location=source:match("https?://[^/]+/(.+)") or source
+                table.insert(fetchFailures,location..": "..reason:sub(1,280))
             end
             if not StreamCache.Current(path, streamTicket) then cancelled = true; return end
-            assert(body, tostring(fetchFailure or "no valid source"))
+            -- Put the cause before the route details; do not report an
+            -- arbitrary executor line number as the asset failure itself.
+            if not body then
+                return false,(allMissing and "HTTP 404: upstream file not found" or "All asset sources failed")
+                    .. " ("..table.concat(fetchFailures," | ")..")"
+            end
             if transform then body = transform(body) end
             if path:match("%.lua$") or path:match("%.luau$") or path:match("%.lua%.txt$") then
+                body=RepairCommunitySource(body)
                 local compiled, compileError = loadstring(body, "@market/" .. filename)
                 assert(compiled, "Module compile failed: " .. tostring(compileError))
             end
@@ -42917,7 +43038,9 @@ local function AssetDownloadAgent(sources, filename, path, force, transform)
             end
             ContentCache.Verified(path)
             _AssetContentIds[path], _AssetRegistrationWarned[path] = nil, nil
+            return true
         end)
+        if not ran then failure,downloaded=downloaded,false end
         -- Always release dedupe, counters and worker capacity, including a thrown
         -- filesystem/URL/transport error. A failed job must not block the queue.
         _Assetdownloading[path] = nil
@@ -42925,14 +43048,16 @@ local function AssetDownloadAgent(sources, filename, path, force, transform)
         CONTENT_DOWNLOAD_ACTIVE = math.max(0, CONTENT_DOWNLOAD_ACTIVE - 1)
         if downloaded or cancelled then
             _Assetretry[path] = nil
+            if _AssetLastFailure and _AssetLastFailure.Path==path then _AssetLastFailure=nil end
         else
             ContentCache.Invalidate(path)
             local failures = (retry and retry.Failures or 0) + 1
             -- Repeated 404s cannot be fixed by re-downloading every few frames.
-            -- Keep them retryable, but back off and emit one concise warning.
+            -- Keep them retryable, but back off and retain quiet diagnostics.
             local delay = allMissing and 300 or math.min(3 * 2 ^ math.min(failures - 1, 4), 45)
-            _Assetretry[path] = {Failures = failures, NextAttempt = os.clock() + delay, LastError = tostring(failure)}
-            if not retry or retry.LastError ~= tostring(failure) then
+            _Assetretry[path] = {Failures = failures, NextAttempt = os.clock() + delay, LastError = tostring(failure), Missing=allMissing}
+            _AssetLastFailure={Path=path,Message=(filename:match("([^/]+)$") or filename)..": "..tostring(failure):sub(1,210)}
+            if not consumer and (not retry or retry.LastError ~= tostring(failure)) then
                 RecordContentFailure("asset-download", path, table.concat(sources, " | "), tostring(failure))
             end
             _Assetdownloadingfail += 1
@@ -42946,7 +43071,7 @@ local function AssetDownloadAgent(sources, filename, path, force, transform)
     return false
 end
 
-local function AssetDownload(filename)
+local function AssetDownload(filename, consumer)
 	local cacheFilename = filename
 	filename = filename:gsub("^STREAM/[^/]+/", "")
 	local requested = filename
@@ -42961,7 +43086,7 @@ local function AssetDownload(filename)
 		return AssetDownloadAgent(
 			{ explicit },
 			filename,
-			AssetGetPathFromFilename(cacheFilename)
+			AssetGetPathFromFilename(cacheFilename),nil,nil,consumer
 		)
 	end
 
@@ -43002,7 +43127,7 @@ local function AssetDownload(filename)
 	return AssetDownloadAgent(
 		sources,
 		filename,
-		AssetGetPathFromFilename(cacheFilename)
+		AssetGetPathFromFilename(cacheFilename),nil,nil,consumer
 	)
 end
 
@@ -43033,14 +43158,21 @@ local function AssetGetContentId(filename)
 	end
 	return ""
 end
-local function AssetEnsure(list)
-	local ok = true
+local function AssetEnsure(list,consumer)
+	local ok,failedFile,failedReason,missing = true,nil,nil,false
 	for _, filename in list do
-		if not AssetDownload(filename) then
+		if not AssetDownload(filename,consumer) then
 			ok = false
+            local path=AssetGetPathFromFilename(filename)
+            local retry=_Assetretry[path]
+            if not failedFile and retry and not _Assetdownloading[path] then
+                failedFile=tostring(filename):match("([^/@]+)@") or tostring(filename):match("([^/]+)$") or filename
+                failedReason=retry.LastError
+                missing=retry.Missing==true
+            end
 		end
 	end
-	return ok
+	return ok,failedFile,failedReason,missing
 end
 local function ProtectedChat(content)
 	pcall(function()
@@ -44954,7 +45086,7 @@ UI.CreateText(
 )
 UI.CreateText(
 	ReplicationWritersPage,
-	"Root links use Physics Glue and the owned real HRP. PhysicsRepRootRef requires verified runtime support and falls back to PhysicsRepRootPart, then core CFrame. Links release on PD, hiding, fling, separation, ownership loss or cleanup.",
+	"PhysicsRepRootRef uses InstanceHandle and the owned real HRP. Local read-back must verify its target. Unsupported runtimes keep core CFrame + Gelatek Physics. Links release on PD, hiding, fling, separation, ownership loss or cleanup.",
 	10,
 	Enum.TextXAlignment.Left
 )
@@ -44962,7 +45094,7 @@ CreateReplicationWriterDropdown(
 	ReplicationWritersPage,
 	"Torso",
 	"GelatekTorso",
-	{ "Gelatek Physics", "PhysicsRepRootPart", "PhysicsRepRootRef" }
+	{ "Gelatek Physics", "PhysicsRepRootRef" }
 )
 CreateReplicationWriterDropdown(
 	ReplicationWritersPage,
@@ -44977,6 +45109,15 @@ UI.CreateText(
 	Enum.TextXAlignment.Left
 )
 
+UI.CreateButton(ReplicationWritersPage, "Physics Root Ref Status", 14).Activated:Connect(function()
+	local message = Util.PhysicsRoot.Describe()
+	print(message)
+	Util.Notify(message)
+end)
+UI.CreateButton(ReplicationWritersPage, "Retry Physics Root Ref", 14).Activated:Connect(function()
+	Util.PhysicsRoot.Retry()
+	Util.Notify("PhysicsRepRootRef retry requested. Check status after the next physics step.")
+end)
 UI.CreateSeparator(ReplicationWritersPage)
 UI.CreateText(
 	ReplicationWritersPage,
@@ -46839,7 +46980,8 @@ local function ResolveModuleAsset(context, filename)
     if context and context.StreamScope then return StreamCache.Reference(context.StreamScope, filename) end
     return filename
 end
-local function ResolveModuleAssets(m, context)
+local function ResolveModuleAssets(m, context, sourceLabel)
+    m._UhhhhhhSource=sourceLabel or context and context.SourceLabel or m._UhhhhhhSource
     m._UhhhhhhMissingAssets = nil
     for i, filename in ipairs(m.Assets) do
         local mapped, missing = ResolveModuleAsset(context, filename)
@@ -46849,6 +46991,27 @@ local function ResolveModuleAssets(m, context)
         else m.Assets[i] = mapped end
     end
 end
+local function RetryAnimationAssets(m)
+    m._UhhhhhhAssetFailure,m._UhhhhhhAssetFailureNotice=nil,nil
+    m._UhhhhhhRuntimeFailure,m._UhhhhhhRandomUnavailable=nil,nil
+    for _,filename in ipairs(m.Assets) do
+        local retry=_Assetretry[AssetGetPathFromFilename(filename)]
+        if retry then retry.NextAttempt,retry.Failures=0,0 end
+    end
+end
+local function CompileAnimationModule(source, name)
+    source=RepairCommunitySource(source)
+    -- Moveset Creator V6 packs can omit their optional jump track while still
+    -- indexing it. Repair the generator pattern when loading, including cached
+    -- installs; keep other scripts and their asset choices unchanged.
+    if source:find("Created with Moveset Creator V6",1,true)
+        and source:find("animJump = baseAnims.jump",1,true) then
+        source=source:gsub('currentBase%s*=%s*"idle"','currentBase = nil')
+        source=source:gsub('animJump%.weight%s*=%s*([01])','if animJump then animJump.weight = %1 end')
+        source=source:gsub('actionStart%[animJump%]%s*=%s*os%.clock%(%)','if animJump then actionStart[animJump] = os.clock() end')
+    end
+    return loadstring(source,name)
+end
 local function ReadMarketContext(source)
     local key=source:match("^%-%- UHH_MARKET_CONTEXT ([^\r\n]+)")
     if not key or not MarketCatalog.SafePath(key) then return nil end
@@ -46856,11 +47019,30 @@ local function ReadMarketContext(source)
         return HttpService:JSONDecode(readfile("UhhhhhhReanim/MarketContexts/"..key..".json"))
     end)
     assert(ok and type(context)=="table" and type(context.Assets)=="table", "Missing pack asset context; redownload this pack")
+    context.SourceLabel="Installed: "..key
     return context
 end
 local function GiveFunctionsToFunction(func, marketContext)
 	local env = setmetatable({}, {__index = b_getfenv(func)})
+    local moduleOwner
+    local created=setmetatable({}, {__mode="k"})
+    local declared=marketContext and {} or nil
     setfenv(func, env) -- each module keeps its own asset context when another pack loads
+	env.warn = function(...)
+        local parts = {}
+        for i = 1, select("#", ...) do parts[i] = tostring(select(i, ...)) end
+        Util.CommunityDiagnostics.Report("addon-warning", moduleOwner and moduleOwner.Name or "Addon",
+            moduleOwner and moduleOwner._UhhhhhhSource or marketContext and marketContext.SourceLabel or "User module",
+            table.concat(parts, " "))
+    end
+    -- Nested helper chunks (e.g. an installed ToolDance audio loader) must
+    -- inherit this addon's asset context and quiet diagnostic sink too.
+    -- The application/executor's global warn/loadstring are never changed.
+    env.loadstring = function(source, name)
+        local chunk, reason = loadstring(source, name)
+        if chunk then setfenv(chunk, env) end
+        return chunk, reason
+    end
 	env.RandomString = Util.RandomString
 	-- Keep community modules on the same replicated joint writer as the core.
 	-- These aliases preserve the BlaaBlaa module API without duplicating writers.
@@ -46888,13 +47070,21 @@ local function GiveFunctionsToFunction(func, marketContext)
 	env.GetOverrideDanceMusicTime = GetOverrideDanceMusicTime
 	env.SetOverrideDanceMusicTime = SetOverrideDanceMusicTime
 	env.SetOverrideDanceMusicSpeed = SetOverrideDanceMusicSpeed
-	env.AnimLib = AnimLib
+    -- Remember the factory's owner for delayed callbacks as well as Init/Update.
+    -- fromfile/fromjson helpers still use the protected runtime owner context.
+    env.AnimLib=setmetatable({Animator=setmetatable({new=function(...)
+        local animator=AnimLib.Animator.new(...)
+        created[animator]=true
+        if moduleOwner then animator._UhhhhhhModuleOwner=moduleOwner end
+        return animator
+    end},{__index=AnimLib.Animator})},{__index=AnimLib})
 	env.ContextActions = ContextActions
 	env.AssetGetPathFromFilename = AssetGetPathFromFilename
 	env.AssetGetContentId = AssetGetContentId
     if marketContext then
         local function resolve(filename)
-            local mapped, missing = ResolveModuleAsset(marketContext, filename)
+            assert(declared[filename]~=false,"Ambiguous declared asset: "..tostring(filename))
+            local mapped, missing = ResolveModuleAsset(marketContext, declared[filename] or filename)
             assert(not missing, "Asset absent from " .. tostring(marketContext.Provider) .. " pack: " .. tostring(filename))
             return mapped
         end
@@ -46906,6 +47096,21 @@ local function GiveFunctionsToFunction(func, marketContext)
 	env.HiddenGui = SCREENGUI
 	env.FallenPartsDestroyHeight = FallenPartsDestroyHeight
 	env.RegisterServerReanimAdapter = _G_Uhhhhhh.RegisterServerReanimAdapter
+    return function(owner)
+        moduleOwner=owner
+        if declared then
+            for _,reference in ipairs(owner.Assets) do
+                local name=reference:match("^([^@]+)@https?://")
+                if name then
+                    for _,alias in ipairs({name,name:match("([^/]+)$")}) do
+                        if declared[alias]~=nil and declared[alias]~=reference then declared[alias]=false
+                        else declared[alias]=reference end
+                    end
+                end
+            end
+        end
+        for animator in pairs(created) do animator._UhhhhhhModuleOwner=owner end
+    end
 end
 local function ClearModules()
     if StreamRuntime then StreamRuntime.Clear() end
@@ -47021,19 +47226,22 @@ local function IsHidden(m)
 end
 
 FavoriteSystem.IsHidden = IsHidden
-FavoriteSystem.PlayRandomDance = function()
+FavoriteSystem.PlayRandomDance = function(automatic)
 	local selected
 	local count = 0
 	for _, m in ipairs(DanceableDances) do
-		if not IsHidden(m) then
+		if not IsHidden(m) and not m._UhhhhhhMissingAssets and not m._UhhhhhhAssetFailure
+            and not m._UhhhhhhRuntimeFailure and not m._UhhhhhhRandomUnavailable then
 			count += 1
 			if math.random(1, count) == 1 then selected = m end
 		end
 	end
 	if selected then
+		selected._UhhhhhhRandomSelection = true
 		CurrentDance = selected
 	else
-		Util.UINotify("No unhidden dances available for random play")
+        if automatic then CurrentDance = nil
+        else Util.UINotify("No available unhidden dances for random play; check addon details or retry an entry") end
 	end
 end
 
@@ -47183,6 +47391,21 @@ OpenModuleDetails = function(m, parentPage)
 	UI.CreateSeparator(page)
 	UI.CreateText(page, m.Name, 20, Enum.TextXAlignment.Left)
 	UI.CreateText(page, m.Description, 15, Enum.TextXAlignment.Left)
+    if m._UhhhhhhSource then UI.CreateText(page,"Source: "..m._UhhhhhhSource,12,Enum.TextXAlignment.Left) end
+    if m._UhhhhhhRuntimeFailure then
+        local failureText = UI.CreateText(page, m._UhhhhhhRuntimeFailure:sub(1,1200),12,Enum.TextXAlignment.Left)
+        failureText.RichText = false
+    end
+    if m._UhhhhhhMissingAssets then
+        UI.CreateText(page,"Missing upstream files: "..table.concat(m._UhhhhhhMissingAssets,", "),12,Enum.TextXAlignment.Left)
+    end
+    if #m.Assets>0 then
+        if m._UhhhhhhAssetFailureNotice then UI.CreateText(page,m._UhhhhhhAssetFailureNotice:sub(1,240),12,Enum.TextXAlignment.Left) end
+        UI.CreateButton(page,"Retry asset download",18).Activated:Connect(function()
+            RetryAnimationAssets(m)
+			Util.UINotify("Retrying "..m.Name.." when selected")
+        end)
+    end
 
 	if m.ModuleType == "MOVESET" then
 		local equip, equiptext = UI.CreateButton(page, "Use Moveset", 20)
@@ -47199,6 +47422,7 @@ OpenModuleDetails = function(m, parentPage)
 			equiptext.Text = "Stop Dance"
 		end
 		equip.Activated:Connect(function()
+			m._UhhhhhhRandomSelection = nil
 			if CurrentDance == m then
 				equiptext.Text = "Play Dance"
 				CurrentDance = nil
@@ -47351,11 +47575,11 @@ local function ValidateModuleObject(m)
 	return true
 end
 
-local function AddModule(func, marketContext)
+local function AddModule(func, marketContext, sourceLabel)
 	if type(func) ~= "function" then
 		return nil, "Module entry is not a function. Got " .. typeof(func) .. " instead."
 	end
-	GiveFunctionsToFunction(func, marketContext)
+	local bindOwner=GiveFunctionsToFunction(func, marketContext)
 	local ran, m = xpcall(func, debug.traceback)
 	if not ran then
 		return nil, "Module execution failed: " .. tostring(m)
@@ -47364,10 +47588,9 @@ local function AddModule(func, marketContext)
 	if not valid then
 		return nil, validationError
 	end
+    bindOwner(m)
 
-    if marketContext then
-        ResolveModuleAssets(m, marketContext)
-    end
+    ResolveModuleAssets(m, marketContext, sourceLabel)
 	local moduleKey = m.ModuleType .. ":" .. GetModuleHash(m)
 	local existing = RegisteredModuleKeys[moduleKey]
 	if existing then
@@ -47385,12 +47608,12 @@ local function AddModule(func, marketContext)
 	end
 	return name
 end
-local function AddModules(list, marketContext)
+local function AddModules(list, marketContext, sourceLabel)
 	local names = {}
 	local logging = ""
 	if type(list) == "table" then
 		for i = 1, #list do
-			local name, logging2, note = AddModule(list[i], marketContext)
+			local name, logging2, note = AddModule(list[i], marketContext, sourceLabel)
 			if name then
 				table.insert(names, name)
 			end
@@ -47445,14 +47668,10 @@ local function __TheoClearGelatekPoseCache()
 	__TheoGelatekPoseSerial += 1
 end
 
-local function __TheoCaptureGelatekControllerPose(character)
+local function __TheoCaptureGelatekControllerPose(character, dt)
 	if not __TheoIsExternal()
 		or typeof(character) ~= "Instance"
 		or not character.Parent
-		or (
-			character:GetAttribute("MovementInit") ~= true
-			and character:GetAttribute("IsDancing") ~= true
-		)
 	then
 		__TheoClearGelatekPoseCache()
 		return
@@ -47463,14 +47682,18 @@ local function __TheoCaptureGelatekControllerPose(character)
 		__TheoGelatekPoseCharacter = character
 	end
 
-	for _, descendant in character:GetDescendants() do
-		if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
-			__TheoGelatekPoseCache[descendant] = Reanimate.CharacterMotion.BaseTransform(descendant)
-		end
-	end
-	__TheoGelatekPoseSerial += 1
+    if character:GetAttribute("MovementInit") == true or character:GetAttribute("IsDancing") == true then
+        for _, descendant in character:GetDescendants() do
+            if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
+                __TheoGelatekPoseCache[descendant] = Reanimate.CharacterMotion.BaseTransform(descendant)
+            end
+        end
+        __TheoGelatekPoseSerial += 1
+    else
+        __TheoClearGelatekPoseCache()
+    end
     local sync = ((getgenv and getgenv()) or shared or _G).UhhhhhhTBZGelatekSyncFollowers
-    if type(sync) == "function" then pcall(sync, character, 0, "ControllerPose") end
+    if type(sync) == "function" then pcall(sync, character, dt or 1/60, "ControllerPose") end
 end
 
 local function __TheoHasPlayingRobloxTrack(character)
@@ -47559,6 +47782,8 @@ local function TeardownAnimationRuntime(character, keepSelectedDance)
     StopControllerAnimations(character)
     if oldStyle then pcall(oldStyle.Destroy, Reanimate.ControllerRigAdapter.ModuleRig(character,oldStyle,false)) end
     if oldDance then pcall(oldDance.Destroy, Reanimate.ControllerRigAdapter.ModuleRig(character,oldDance,false)) end
+    if oldStyle then oldStyle._UhhhhhhPoseBaseline=nil end
+    if oldDance then oldDance._UhhhhhhPoseBaseline=nil end
     StopControllerAnimations(character)
     if character then
         ResetDancePose(character, true)
@@ -47590,43 +47815,156 @@ local function RefreshAnimationCharacter(character)
     return refreshed
 end
 
+local function StopModuleAnimations(m)
+    local owned={}
+    for animator in pairs(AnimLib.ActiveAnimators or {}) do
+        if animator._UhhhhhhModuleOwner==m then table.insert(owned,animator) end
+    end
+    for _,animator in ipairs(owned) do
+        pcall(function() animator:Stop(false) end)
+        pcall(function() animator:Unbind() end)
+        pcall(function() animator:Destroy(false) end)
+    end
+end
+
+local function RestoreModulePose(m,character)
+    local baseline=m._UhhhhhhPoseBaseline
+    m._UhhhhhhPoseBaseline=nil
+    if not baseline then ResetDancePose(character,true) return end
+    for joint,pose in pairs(baseline.Joints) do
+        if joint.Parent then
+            joint.C0,joint.C1,joint.Enabled,joint.Transform=pose.C0,pose.C1,pose.Enabled,pose.Transform
+        end
+    end
+    local h=character and character:FindFirstChildOfClass("Humanoid")
+    if h and baseline.WalkSpeed then h.WalkSpeed=baseline.WalkSpeed end
+end
+
 local function FailAnimationModule(m, character, reason)
     if m._UhhhhhhRuntimeFailure then return end
     m._UhhhhhhRuntimeFailure = tostring(reason)
+    Reanimate.CharacterMotion.BeforePose(character)
+    __TheoClearGelatekPoseCache()
     pcall(m.Destroy, Reanimate.ControllerRigAdapter.ModuleRig(character,m,false))
+    StopModuleAnimations(m)
+    RestoreModulePose(m,character)
     if m.ModuleType == "MOVESET" then
-        StopControllerAnimations(character)
         character:SetAttribute("MovementInit", nil)
+        character:SetAttribute("MovesetInternalName", nil)
         SetOverrideMovesetMusic(nil)
     else
-        ResetDancePose(character)
         character:SetAttribute("IsDancing", nil)
+        character:SetAttribute("DanceInternalName", nil)
         SetOverrideDanceMusic(nil)
     end
-    warn("Uhhhhhh paused " .. m.Name .. ": " .. tostring(reason))
-    Util.UINotify(m.Name .. " paused; select another entry or refresh to retry")
+    m._UhhhhhhRandomUnavailable = true
+    local detail=tostring(reason):match("^[^\r\n]+") or tostring(reason)
+    local phase=detail:match("^(%w+): ")
+    if phase then detail=detail:sub(#phase+3) end
+    detail=detail:gsub('^.-%]:%d+: ', ''):gsub('^.-:%d+: ', '')
+    Util.CommunityDiagnostics.Report("module-failed", m.Name, m._UhhhhhhSource or "User module", reason,
+        m.Name .. (phase and " "..phase or "") .. " failed: " .. detail:sub(1,180)
+        .. ". Select another entry to continue.")
+    if m.ModuleType == "DANCE" and m._UhhhhhhRandomSelection and CurrentDance == m then
+        m._UhhhhhhRandomSelection = nil
+        FavoriteSystem.PlayRandomDance(true)
+    end
 end
 
 local function EnsureAnimationModule(m, character)
     if m._UhhhhhhRuntimeFailure then return false end
+    if m._UhhhhhhAssetFailure then return false end
     if m._UhhhhhhMissingAssets then
         FailAnimationModule(m, character, "Files absent from upstream pack: " .. table.concat(m._UhhhhhhMissingAssets, ", "))
         return false
     end
-    return AssetEnsure(m.Assets)
+    local ready,filename,reason,missing=AssetEnsure(m.Assets,m)
+    if ready then m._UhhhhhhAssetFailureNotice=nil
+    elseif filename then
+        local notice=tostring(filename)..": "..tostring(reason)
+        if missing then m._UhhhhhhAssetFailure=notice end
+        if m._UhhhhhhAssetFailureNotice~=notice then
+            m._UhhhhhhAssetFailureNotice=notice
+            local label=m.Name..(m._UhhhhhhSource and " ["..m._UhhhhhhSource.."]" or "")
+            Util.CommunityDiagnostics.Report("asset-failed", m.Name, m._UhhhhhhSource or "User module", notice,
+                label.." needs "..notice:sub(1,160)
+                ..(missing and (m._UhhhhhhSource and m._UhhhhhhSource:sub(1,7)=="Stream:"
+                    and ". Use Retry streamed assets, or select another entry."
+                    or ". Open its details to retry the download, or select another entry.")
+                    or ". Download will retry after the backoff; you can select another entry."))
+            if m.ModuleType == "DANCE" and m._UhhhhhhRandomSelection and CurrentDance == m then
+                m._UhhhhhhRandomUnavailable, m._UhhhhhhRandomSelection = true, nil
+                FavoriteSystem.PlayRandomDance(true)
+            end
+        end
+    end
+    return ready
 end
 
 local function RunAnimationModule(m, callback, character, dt)
     if m._UhhhhhhRuntimeFailure then return false end
+    local oldOwner=AnimLib.ModuleOwner
+    AnimLib.ModuleOwner=m
     local ok, reason = xpcall(function()
         local target=Reanimate.ControllerRigAdapter.ModuleRig(character,m)
         Reanimate.CharacterMotion.BeforePose(character)
         Reanimate.ControllerRigAdapter.Prepare(target)
+        if callback=="Init" then
+            local h=character:FindFirstChildOfClass("Humanoid")
+            local baseline={Joints={},WalkSpeed=h and h.WalkSpeed}
+            for _,joint in ipairs(character:GetDescendants()) do
+                if joint:IsA("Motor6D") then
+                    baseline.Joints[joint]={C0=joint.C0,C1=joint.C1,Enabled=joint.Enabled,Transform=joint.Transform}
+                end
+            end
+            m._UhhhhhhPoseBaseline=baseline
+        end
         if callback == "Update" then m.Update(dt, target) else m.Init(target) end
         Reanimate.ControllerRigAdapter.Apply(target)
     end, debug.traceback)
+    AnimLib.ModuleOwner=oldOwner
     if not ok then FailAnimationModule(m, character, callback .. ": " .. tostring(reason)) end
     return ok
+end
+
+local function StepAnimationRuntime(character,dt)
+    if CurrentMovementStyle then
+        if character:GetAttribute("MovementInit") then
+            RunAnimationModule(CurrentMovementStyle,"Update",character,dt)
+        elseif EnsureAnimationModule(CurrentMovementStyle,character) then
+            HatReanimator.HatWeldOverride={}
+            table.clear(HatReanimator.HatCFrameOverride)
+            character:SetAttribute("MovementInit",true)
+            character:SetAttribute("MovesetInternalName",CurrentMovementStyle.InternalName)
+            RunAnimationModule(CurrentMovementStyle,"Init",character)
+        else SetOverrideMovesetMusic(nil) end
+    else
+        character:SetAttribute("MovementInit",nil)
+        _MovementStyleIndex=nil
+    end
+    -- Dance selection must work even while a moveset has failed or is loading.
+    if CurrentDance~=_CurrentDance then
+        if _CurrentDance then
+            pcall(_CurrentDance.Destroy,Reanimate.ControllerRigAdapter.ModuleRig(character,_CurrentDance,false))
+            StopModuleAnimations(_CurrentDance)
+            _CurrentDance._UhhhhhhPoseBaseline=nil
+            ResetDancePose(character)
+        end
+        _CurrentDance=CurrentDance
+        if _CurrentDance then _CurrentDance._UhhhhhhRuntimeFailure=nil end
+        character:SetAttribute("IsDancing",nil)
+        character:SetAttribute("DanceInternalName",nil)
+        SetOverrideDanceMusic(nil)
+    end
+    if _CurrentDance then
+        if character:GetAttribute("IsDancing") then
+            RunAnimationModule(_CurrentDance,"Update",character,dt)
+        elseif EnsureAnimationModule(_CurrentDance,character) then
+            character:SetAttribute("IsDancing",true)
+            character:SetAttribute("DanceInternalName",_CurrentDance.InternalName)
+            RunAnimationModule(_CurrentDance,"Init",character)
+        else SetOverrideDanceMusic(nil) end
+    end
 end
 
 -- This connection is created before moveset-specific AnimLib bindings. On
@@ -47709,52 +48047,11 @@ task.spawn(function()
                     if CurrentMovementStyle then CurrentMovementStyle._UhhhhhhRuntimeFailure = nil end
 					SetOverrideMovesetMusic(nil)
 				end
-				if CurrentMovementStyle then
-					if ReanimCharacter:GetAttribute("MovementInit") then
-						RunAnimationModule(CurrentMovementStyle, "Update", ReanimCharacter, dt)
-						if CurrentDance ~= _CurrentDance then
-							if _CurrentDance then
-								pcall(_CurrentDance.Destroy, Reanimate.ControllerRigAdapter.ModuleRig(ReanimCharacter,_CurrentDance,false))
-								ResetDancePose(ReanimCharacter)
-							end
-							_CurrentDance = CurrentDance
-                            if _CurrentDance then _CurrentDance._UhhhhhhRuntimeFailure = nil end
-							ReanimCharacter:SetAttribute("IsDancing", nil)
-							ReanimCharacter:SetAttribute("DanceInternalName", nil)
-							SetOverrideDanceMusic(nil)
-						end
-						if _CurrentDance then
-							if ReanimCharacter:GetAttribute("IsDancing") then
-								RunAnimationModule(_CurrentDance, "Update", ReanimCharacter, dt)
-							else
-								if EnsureAnimationModule(_CurrentDance, ReanimCharacter) then
-									ReanimCharacter:SetAttribute("IsDancing", true)
-									ReanimCharacter:SetAttribute("DanceInternalName", _CurrentDance.InternalName)
-									RunAnimationModule(_CurrentDance, "Init", ReanimCharacter)
-								else
-									SetOverrideDanceMusic(nil)
-								end
-							end
-						end
-					else
-						HatReanimator.HatWeldOverride = {}
-						if EnsureAnimationModule(CurrentMovementStyle, ReanimCharacter) then
-							ReanimCharacter:SetAttribute("MovementInit", true)
-							ReanimCharacter:SetAttribute("MovesetInternalName", CurrentMovementStyle.InternalName)
-							table.clear(HatReanimator.HatCFrameOverride)
-							RunAnimationModule(CurrentMovementStyle, "Init", ReanimCharacter)
-						else
-							SetOverrideMovesetMusic(nil)
-						end
-					end
-				else
-					ReanimCharacter:SetAttribute("MovementInit", nil)
-					_MovementStyleIndex = nil
-				end
+                StepAnimationRuntime(ReanimCharacter,dt)
 				EnforceWalkSpeedOverride(ReanimCharacter)
                 Reanimate.CharacterMotion.BeforePose(ReanimCharacter)
                 Reanimate.CharacterMotion.ApplyIK(ReanimCharacter)
-				__TheoCaptureGelatekControllerPose(ReanimCharacter)
+				__TheoCaptureGelatekControllerPose(ReanimCharacter, dt)
 			else
 				__TheoClearGelatekPoseCache()
 				CurrentDance = nil
@@ -48470,11 +48767,11 @@ local function ForceModuleReload(force)
 				InitLogsText.Text ..= "\n[LOG] Reading local USER " .. x .. "..."
 				local data = readfile(path)
 				InitLogsText.Text ..= "\n[LOG] Loadstringing USER " .. x .. "..."
-				local func, comperr = loadstring(data, "Uhhhhhh :: " .. x)
+				local func, comperr = CompileAnimationModule(data, "Uhhhhhh :: " .. x)
 				if func then
                     local context = ReadMarketContext(data)
                     GiveFunctionsToFunction(func, context)
-					local names, logging = AddModules(func(), context)
+					local names, logging = AddModules(func(), context,"Installed: "..x)
 					UserModulesListor[x] = names
 					InitLogsText.Text ..= logging
 				elseif comperr then
@@ -48623,10 +48920,44 @@ end]]
 -- runtime chunk.  Some executor Luau builds enforce the 200-register limit
 -- while compiling this embedded source, even though syntax-only checks pass.
 ;(function()
+(function()
+    local page = UI.CreatePage()
+    page.ZIndex, page.Position = 2, UDim2.new(0.5, 360, 0.5, 0)
+    page.Interactable, page.Visible = false, false
+    UI.CreateButton(page, "&lt; Back", 20).Activated:Connect(function()
+        UI.Workspace.Back(page, MarketPage)
+    end)
+    UI.CreateText(page, "Addon error details", 20, Enum.TextXAlignment.Left)
+    UI.CreateText(page, "Addon failures are quiet by default. Broken random dances are skipped; core errors are not hidden.", 12, Enum.TextXAlignment.Left)
+    local debugSwitch = UI.CreateSwitch(page, "Show addon errors (debug)", Util.CommunityDiagnostics.Enabled())
+    debugSwitch.Changed:Connect(function(value)
+        SaveData.CommunityDiagnosticsEnabled = value == true
+        SaveSettingsNow()
+    end)
+    local text = UI.CreateText(page, "", 12, Enum.TextXAlignment.Left)
+    text.RichText = false
+    local function refresh() text.Text = Util.CommunityDiagnostics.Describe() end
+    UI.CreateButton(page, "Refresh details", 16).Activated:Connect(refresh)
+    UI.CreateButton(page, "Copy error log", 16).Activated:Connect(function()
+        local copied = pcall(setclipboard, Util.CommunityDiagnostics.Describe())
+        Util.UINotify(copied and "Copied addon error log" or "Clipboard unavailable; read the details below")
+    end)
+    UI.CreateButton(page, "Clear error log", 16).Activated:Connect(function()
+        Util.CommunityDiagnostics.Clear()
+        refresh()
+    end)
+    UI.CreateButton(MarketPage, "Addon error details &gt;", 18).Activated:Connect(function()
+        refresh()
+        UI.Workspace.Open(page, MarketPage)
+    end)
+end)()
 StreamRuntime = Steve110.Require("main/market_stream")({
-    UI = UI, Cache = StreamCache, Task = task, Fetch = HttpFetchBody, Compile = loadstring,
-    Bind = GiveFunctionsToFunction, Folder = MarketCatalog.Folder,
+    UI = UI, Cache = StreamCache, Task = task, Fetch = HttpFetchBody, Compile = CompileAnimationModule,
+    Bind = GiveFunctionsToFunction, Folder = MarketCatalog.Folder, RetryAssets=RetryAnimationAssets,
     ClearRows = Util.ClearAllChildrenGui, Notify = Util.UINotify,
+    Report = function(kind, name, source, reason)
+        Util.CommunityDiagnostics.Report(kind, name, source, reason)
+    end,
     DeferInstalled = function(item)
         SaveData.MarketPackModes = SaveData.MarketPackModes or {}
         SaveData.MarketPackModes[item.File:gsub("/*$", "") .. "/"] = "stream"
@@ -48634,10 +48965,11 @@ StreamRuntime = Steve110.Require("main/market_stream")({
     end,
     Build = function(factory, context)
         assert(type(factory) == "function", "Entry is not a function")
-        GiveFunctionsToFunction(factory, context)
+        local bindOwner=GiveFunctionsToFunction(factory, context)
         local m = factory()
         local valid, reason = ValidateModuleObject(m)
         if not valid then return nil, reason end
+        bindOwner(m)
         ResolveModuleAssets(m, context)
         GetModuleHash(m)
         if m.LoadConfig and SaveData.ModuleConfigs[m.Hash] then pcall(m.LoadConfig, SaveData.ModuleConfigs[m.Hash]) end
@@ -48696,7 +49028,8 @@ local function InstallMarketItem(item, force, targetPath)
         end
         Util.UINotify("Queued "..#modules.." modules from "..item.Name..". Reload modules when downloads finish.")
     end)
-    if not ok then Util.UINotify("Pack download failed: "..tostring(failure)) end
+    if not ok then Util.CommunityDiagnostics.Report("pack-download", item.Name, item.Source or item.File, failure,
+        "Pack download failed: "..tostring(failure):sub(1,180)) end
     return ok
 end
 local LocalPage = UI.CreateItemListPage()
@@ -50124,13 +50457,24 @@ return function(ctx)
     saved.SmoothFacing = saved.SmoothFacing ~= false
     saved.R6IKMethod = saved.R6IKMethod == "Rigid leg" and saved.R6IKMethod or "Virtual knee"
     saved.ContactResponse = number(saved.ContactResponse,14,1,30)
+    saved.IKBlendTime = number(saved.IKBlendTime,.14,.03,.4)
+    saved.IKMaxTilt = number(saved.IKMaxTilt,25,5,60)
     saved.LeanAngle = number(saved.LeanAngle,15,0,35)
     saved.LegAngle = number(saved.LegAngle,25,0,60)
     api.Settings = saved
     local adapter=ctx.RigAdapter
     local function owner(rig) return adapter and adapter.Owner(rig) or rig end
     local clock = ctx.Clock or os.clock
-    local state = {Corrections = {}, Connections = {}, Joints = {}, Contacts={}, Direction=Vector3.zero, Dt=1/60}
+    local state = {Corrections = {}, Connections = {}, Joints = {}, Contacts={}, Rest={}, Blends={}, Direction=Vector3.zero, Dt=1/60}
+    local function finiteNumber(value) return type(value)=="number" and value==value and math.abs(value)<math.huge end
+    local function finiteVector(value)
+        return typeof(value)=="Vector3" and finiteNumber(value.X) and finiteNumber(value.Y) and finiteNumber(value.Z)
+    end
+    local function finitePose(value)
+        if typeof(value)~="CFrame" then return false end
+        for _,component in ipairs({value:GetComponents()}) do if not finiteNumber(component) then return false end end
+        return true
+    end
     local stunStates = {Dead=true, Physics=true, PlatformStanding=true, Ragdoll=true, FallingDown=true}
     function api.IsStunned(rig, humanoid)
         if not rig or not humanoid then return true end
@@ -50167,7 +50511,7 @@ return function(ctx)
             releaseTurn()
             for _, c in ipairs(state.Connections) do c:Disconnect() end
             state.Rig, state.Dirty, state.Connections, state.Joints = rig, true, {}, {}
-            state.Contacts,state.Direction={},Vector3.zero
+            state.Contacts,state.Rest,state.Blends,state.Direction={},{},{},Vector3.zero
             if rig then
                 for _, event in ipairs({"DescendantAdded", "DescendantRemoving"}) do
                     table.insert(state.Connections, rig[event]:Connect(function() state.Dirty = true end))
@@ -50176,8 +50520,19 @@ return function(ctx)
         end
         if rig and state.Dirty then
             state.Joints = {}
+            local live={}
             for _, joint in ipairs(rig:GetDescendants()) do
-                if joint:IsA("Motor6D") then table.insert(state.Joints, joint) end
+                if joint:IsA("Motor6D") then
+                    table.insert(state.Joints, joint)
+                    live[joint]=true
+                    local rest=state.Rest[joint]
+                    if not rest or rest.Part0~=joint.Part0 or rest.Part1~=joint.Part1 then
+                        state.Rest[joint]={Part0=joint.Part0,Part1=joint.Part1,C0=joint.C0,C1=joint.C1}
+                    end
+                end
+            end
+            for joint in pairs(state.Rest) do
+                if not live[joint] then state.Rest[joint],state.Blends[joint]=nil,nil end
             end
             state.Dirty = false
         end
@@ -50186,7 +50541,7 @@ return function(ctx)
         bindRig(rig)
         local poses, incoming = {}, {}
         local root = rig and rig:FindFirstChild("HumanoidRootPart")
-        if not root then return poses, incoming end
+        if not root or not finitePose(root.CFrame) then return poses, incoming end
         poses[root] = root.CFrame
         for _ = 1, 16 do
             local changed = false
@@ -50194,9 +50549,9 @@ return function(ctx)
                 local p0, p1 = joint.Part0, joint.Part1
                 if joint.Parent and joint.Enabled ~= false and p0 and p1 and p0 ~= p1 and p0.Parent == rig and p1.Parent == rig then
                     incoming[p1] = joint
-                    if poses[p0] and not poses[p1] then
-                        poses[p1] = poses[p0] * joint.C0 * joint.Transform * joint.C1:Inverse()
-                        changed = true
+                    if poses[p0] and not poses[p1] and finitePose(joint.C0) and finitePose(joint.C1) and finitePose(joint.Transform) then
+                        local pose=poses[p0] * joint.C0 * joint.Transform * joint.C1:Inverse()
+                        if finitePose(pose) then poses[p1],changed=pose,true end
                     end
                 end
             end
@@ -50205,7 +50560,7 @@ return function(ctx)
         return poses, incoming
     end
     local function rotationBetween(a, b)
-        if a.Magnitude < 1e-6 or b.Magnitude < 1e-6 then return CFrame.identity end
+        if not finiteVector(a) or not finiteVector(b) or a.Magnitude < 1e-6 or b.Magnitude < 1e-6 then return CFrame.identity end
         a, b = a.Unit, b.Unit
         local dot = math.clamp(a:Dot(b), -1, 1)
         local cross = a:Cross(b)
@@ -50219,32 +50574,71 @@ return function(ctx)
         return CFrame.new(destination or origin) * rotation * CFrame.new(-origin) * pose
     end
     local function writeTransform(joint,written)
+        if not finitePose(written) then state.Blends[joint]=nil return false end
         local old=state.Corrections[joint]
         state.Corrections[joint]={Base=old and old.Base or joint.Transform,Written=written}
         joint.Transform=written
+        return true
     end
-    local function writeJoint(joint, parentPose, childPose)
+    local function writeJoint(joint, parentPose, childPose, confidence, length, now)
         local base = joint.Transform
+        if not finitePose(base) or not finitePose(parentPose) or not finitePose(childPose)
+            or not finitePose(joint.C0) or not finitePose(joint.C1)
+            or not finiteNumber(confidence) or not finiteNumber(length) or length<=0 or not finiteNumber(now) then
+            state.Blends[joint]=nil return nil
+        end
+        if confidence<=0 then
+            state.Blends[joint]=nil
+            return parentPose * joint.C0 * base * joint.C1:Inverse()
+        end
         local solved = joint.C0:Inverse() * parentPose:ToObjectSpace(childPose) * joint.C1
-        local written = base:Lerp(solved, saved.IKStrength)
-        writeTransform(joint,written)
+        -- Filter only the terrain offset. The animation's own snapping, timing,
+        -- C0/C1 changes and Transform remain the baseline on every call.
+        local delta=base:ToObjectSpace(solved)
+        if not finitePose(delta) then state.Blends[joint]=nil return nil end
+        local axis,angle=delta:ToAxisAngle()
+        if not finiteVector(axis) or not finiteNumber(angle) then state.Blends[joint]=nil return nil end
+        local limit=math.rad(saved.IKMaxTilt)
+        local position=delta.Position
+        if position.Magnitude>length*.2 then position=position.Unit*length*.2 end
+        delta=CFrame.new(position)*CFrame.fromAxisAngle(axis,math.min(angle,limit))
+        local prior=state.Blends[joint]
+        if prior and (not finitePose(prior.Delta) or not finiteNumber(prior.At)) then prior=nil state.Blends[joint]=nil end
+        local elapsed=prior and math.clamp(now-prior.At,0,.1) or state.Dt
+        local filtered=(prior and prior.Delta or CFrame.identity):Lerp(delta,1-math.exp(-elapsed/saved.IKBlendTime))
+        local written = base*CFrame.identity:Lerp(filtered,saved.IKStrength*confidence)
+        if not finitePose(filtered) or not writeTransform(joint,written) then state.Blends[joint]=nil return nil end
+        state.Blends[joint]={Delta=filtered,At=now}
         return parentPose * joint.C0 * written * joint.C1:Inverse()
     end
+    local function restPose(joint,parentPose)
+        local rest=state.Rest[joint]
+        return parentPose*rest.C0*rest.C1:Inverse()
+    end
+    local function swingWeight(lift,length)
+        local t=math.clamp((lift/length-.025)/.15,0,1)
+        return 1-t*t*(3-2*t)
+    end
     api.SolveTwoBone = function(hip, knee, endPoint, target, pole)
+        if not finiteVector(hip) or not finiteVector(knee) or not finiteVector(endPoint)
+            or not finiteVector(target) or not finiteVector(pole) then return nil end
         local l1, l2 = (knee-hip).Magnitude, (endPoint-knee).Magnitude
         local delta = target-hip
-        if l1 < 1e-5 or l2 < 1e-5 or delta.Magnitude < 1e-5 then return nil end
+        if not finiteNumber(l1) or not finiteNumber(l2) or not finiteNumber(delta.Magnitude)
+            or l1 < 1e-5 or l2 < 1e-5 or delta.Magnitude < 1e-5 then return nil end
         local direction = delta.Unit
         local distance = math.clamp(delta.Magnitude, math.abs(l1-l2)+1e-5, l1+l2-1e-5)
         local along = (l1*l1-l2*l2+distance*distance)/(2*distance)
         local bend = pole-direction*pole:Dot(direction)
         if bend.Magnitude < 1e-5 then bend = direction:Cross(Vector3.new(1,0,0)) end
         if bend.Magnitude < 1e-5 then bend = direction:Cross(Vector3.new(0,0,1)) end
-        return hip+direction*along+bend.Unit*math.sqrt(math.max(0,l1*l1-along*along)), hip+direction*distance
+        local solvedKnee,solvedEnd=hip+direction*along+bend.Unit*math.sqrt(math.max(0,l1*l1-along*along)), hip+direction*distance
+        if finiteVector(solvedKnee) and finiteVector(solvedEnd) then return solvedKnee,solvedEnd end
     end
     -- Robert's uploaded R6IK models an imaginary upper limb, then displays
     -- the lower segment. This analytic adaptation writes Transform, not C0.
     function api.SolveR6Virtual(pose,hip,bottom,target,pole)
+        if not finitePose(pose) or not finiteVector(hip) or not finiteVector(bottom) or not finiteVector(target) then return pose end
         local length=(bottom-hip).Magnitude
         if length<1e-5 then return pose end
         local knee=hip+(bottom-hip)*.5
@@ -50273,18 +50667,20 @@ return function(ctx)
         local motor=torso and incoming[torso]
         if motor and selected(torso.Name) and poses[torso] and poses[motor.Part0] then
             local pivot=(poses[torso]*motor.C1).Position
-            local tilt=root.CFrame.Rotation*CFrame.Angles(math.rad(-direction.Z*5),0,math.rad(-direction.X*saved.LeanAngle))*root.CFrame.Rotation:Inverse()
+            local tilt=root.CFrame.Rotation*CFrame.Angles(math.rad(direction.Z*5),0,math.rad(-direction.X*saved.LeanAngle))*root.CFrame.Rotation:Inverse()
             local target=rotateAt(poses[torso],pivot,tilt)
             writeTransform(motor,motor.C0:Inverse()*poses[motor.Part0]:ToObjectSpace(target)*motor.C1)
         end
         poses,incoming=api.BodyPoses(rig)
-        local angle=math.rad(direction.X*saved.LegAngle)*(direction.Z>0 and -1 or 1)
+        -- Positive Y yaw turns the visible forward vector toward the left.
+        -- Keep the lateral sign while backing up, including diagonal steps.
+        local angle=math.rad(-direction.X*saved.LegAngle)
         for _,side in ipairs({"Left","Right"}) do
             local limb=rig:FindFirstChild(side.."UpperLeg") or rig:FindFirstChild(side.." Leg")
             local m=limb and incoming[limb]
             if m and selected(limb.Name) and poses[limb] and poses[m.Part0] then
                 local pivot=(poses[limb]*m.C1).Position
-                local target=rotateAt(poses[limb],pivot,CFrame.fromAxisAngle(Vector3.new(0,1,0),angle))
+                local target=rotateAt(poses[limb],pivot,CFrame.fromAxisAngle(root.CFrame.UpVector,angle))
                 writeTransform(m,m.C0:Inverse()*poses[m.Part0]:ToObjectSpace(target)*m.C1)
             end
         end
@@ -50310,7 +50706,8 @@ return function(ctx)
         for _,offset in ipairs({Vector3.zero,Vector3.new(radius,0,0),Vector3.new(-radius,0,0),Vector3.new(0,0,radius),Vector3.new(0,0,-radius)}) do
             local origin=Vector3.new(bottom.X,hip.Y-.01,bottom.Z)+offset
             local hit=ctx.World:Raycast(origin,Vector3.new(0,-reach,0),state.Raycast)
-            if hit and hit.Position.Y<hip.Y-.01 and hit.Normal.Y>=.5 then table.insert(hits,hit)
+            if hit and finiteVector(hit.Position) and finiteVector(hit.Normal)
+                and hit.Position.Y<hip.Y-.01 and hit.Normal.Y>=.5 then table.insert(hits,hit)
             elseif offset==Vector3.zero then state.Contacts[side]=nil return nil end
         end
         local center=hits[1]
@@ -50343,11 +50740,11 @@ return function(ctx)
         if adapter then adapter.Apply(source) end
         if not rig or not rig.Parent or ctx.Reanimate.Character~=rig then return end
         local humanoid=rig:FindFirstChildOfClass("Humanoid")
-        if api.IsStunned(rig,humanoid) or humanoid.Sit then state.Contacts={} return end
+        if api.IsStunned(rig,humanoid) or humanoid.Sit then state.Contacts,state.Blends={},{} return end
         applyDirection(rig,humanoid)
-        if not saved.InverseKinematics or saved.IKStrength<=0 then return end
+        if not saved.InverseKinematics or saved.IKStrength<=0 then state.Blends={} return end
         local name=humanoid:GetState().Name
-        if name=="Jumping" or name=="Freefall" or name=="Climbing" or name=="Swimming" then state.Contacts={} return end
+        if name=="Jumping" or name=="Freefall" or name=="Climbing" or name=="Swimming" then state.Contacts,state.Blends={},{} return end
         local poses,incoming=api.BodyPoses(rig)
         if not state.Raycast then
             state.Raycast=RaycastParams.new() state.Raycast.FilterType=Enum.RaycastFilterType.Exclude
@@ -50366,7 +50763,9 @@ return function(ctx)
         end
         -- Leave both authored legs alone on level ground. The overlay is for
         -- terrain correction, not a replacement walking/dance cycle.
-        if contacts.Left and contacts.Right and math.abs(contacts.Left.GroundHeight-contacts.Right.GroundHeight)<.05 then return end
+        local level=contacts.Left and contacts.Right and math.abs(contacts.Left.GroundHeight-contacts.Right.GroundHeight)<.05
+            and contacts.Left.Normal.Y>.995 and contacts.Right.Normal.Y>.995
+        local now=clock()
         for _, side in ipairs({"Left", "Right"}) do
             local upper = rig:FindFirstChild(side .. "UpperLeg") or rig:FindFirstChild(side .. " Leg")
             local lower, foot = rig:FindFirstChild(side .. "LowerLeg"), rig:FindFirstChild(side .. "Foot")
@@ -50379,36 +50778,68 @@ return function(ctx)
             local endPose = poses[endPart]
             if not endPose then continue end
             local bottom = (endPose * CFrame.new(0,-endPart.Size.Y/2,0)).Position
-            -- A kick above the hip is not a ground-contact request.
-            if bottom.Y >= hip.Y then continue end
             local hit=contacts[side]
-            if not hit then continue end
             local kneeJoint, ankleJoint = lower and incoming[lower], foot and incoming[foot]
+            if not hit or bottom.Y>=hip.Y then
+                for _,joint in ipairs({hipJoint,kneeJoint,ankleJoint}) do state.Blends[joint]=nil end
+                continue
+            end
+            local resting=restPose(hipJoint,parentPose)
+            local restingHip=(resting*state.Rest[hipJoint].C1).Position
+            if kneeJoint and ankleJoint then
+                resting=restPose(ankleJoint,restPose(kneeJoint,resting))
+            end
+            local restBottom=(resting*CFrame.new(0,-endPart.Size.Y/2,0)).Position
+            local length=math.max((restBottom-restingHip).Magnitude,.01)
+            -- Lift is authored clearance, measured against the neutral leg
+            -- below the current torso. Preserve it instead of planting a kick.
+            local lift=math.max(0,bottom.Y-restBottom.Y)
+            local confidence=swingWeight(lift,length)
+            if level then
+                writeJoint(hipJoint,parentPose,upperPose,confidence,length,now)
+                if kneeJoint and ankleJoint then
+                    writeJoint(kneeJoint,upperPose,poses[lower],confidence,length,now)
+                    writeJoint(ankleJoint,poses[lower],endPose,confidence,length,now)
+                end
+                continue
+            end
+            local height=bottom.Y+math.clamp(hit.Position.Y+lift-bottom.Y,-length*.2,length*.2)
+            local target=Vector3.new(bottom.X,math.min(height,hip.Y-.01),bottom.Z)
             if kneeJoint and ankleJoint and kneeJoint.Part0 == upper and ankleJoint.Part0 == lower and poses[lower] then
                 local footRotation = rotationBetween(endPose.UpVector, hit.Normal) * endPose.Rotation
-                local footPose = CFrame.new(hit.Position + footRotation.UpVector*endPart.Size.Y/2) * footRotation
+                local footPose = CFrame.new(target + footRotation.UpVector*endPart.Size.Y/2) * footRotation
                 local ankle = (footPose*ankleJoint.C1).Position
                 if ankle.Y >= hip.Y then continue end
                 local knee = (poses[lower]*kneeJoint.C1).Position
                 local oldAnkle = (endPose*ankleJoint.C1).Position
-                local pole = knee-(hip+oldAnkle)*.5
-                if pole.Magnitude < .001 then pole = parentPose.LookVector end
+                local axis=oldAnkle-hip
+                if not finiteVector(axis) or axis.Magnitude<1e-5 then
+                    -- Fully folded/custom legs have no bend axis. Keep their
+                    -- authored pose and discard terrain history, not NaN joints.
+                    state.Blends[hipJoint],state.Blends[kneeJoint],state.Blends[ankleJoint]=nil,nil,nil
+                    continue
+                end
+                local legAxis=axis.Unit
+                local pole = knee-hip-legAxis*(knee-hip):Dot(legAxis)
+                -- A straight leg has no authored bend plane. Use its facing
+                -- after directional rotation, rather than the torso's facing.
+                if pole.Magnitude < .001 then pole = upperPose.LookVector
+                elseif pole:Dot(upperPose.LookVector)<0 then pole=-pole end
                 local newKnee, newAnkle = api.SolveTwoBone(hip,knee,oldAnkle,ankle,pole)
                 if not newKnee then continue end
                 local upperTarget = rotateAt(upperPose,hip,rotationBetween(knee-hip,newKnee-hip))
                 local lowerTarget = rotateAt(poses[lower],knee,rotationBetween(oldAnkle-knee,newAnkle-newKnee),newKnee)
-                writeJoint(hipJoint,parentPose,upperTarget)
-                writeJoint(kneeJoint,upperTarget,lowerTarget)
+                writeJoint(hipJoint,parentPose,upperTarget,confidence,length,now)
+                writeJoint(kneeJoint,upperTarget,lowerTarget,confidence,length,now)
                 footPose = footPose + (newAnkle-ankle)
-                writeJoint(ankleJoint,lowerTarget,footPose)
+                writeJoint(ankleJoint,lowerTarget,footPose,confidence,length,now)
             else
                 -- Both R6 methods preserve visible leg size. Virtual knee can
                 -- translate its motor; rigid leg keeps the hip pivot fixed.
-                local target = Vector3.new(hit.Position.X, math.min(hit.Position.Y,hip.Y-.01), hit.Position.Z)
                 local corrected = saved.R6IKMethod=="Virtual knee"
-                    and api.SolveR6Virtual(upperPose,hip,bottom,target,parentPose.LookVector)
+                    and api.SolveR6Virtual(upperPose,hip,bottom,target,upperPose.LookVector)
                     or rotateAt(upperPose,hip,rotationBetween(bottom-hip,target-hip))
-                writeJoint(hipJoint,parentPose,corrected)
+                writeJoint(hipJoint,parentPose,corrected,confidence,length,now)
             end
         end
     end
@@ -50424,6 +50855,8 @@ return function(ctx)
             local name=h:GetState().Name
             if name=="Running" or name=="RunningNoPhysics" or name=="Landed" then direction=root.CFrame:VectorToObjectSpace(h.MoveDirection) end
         end
+        if not finiteVector(direction) then direction=Vector3.zero end
+        if not finiteVector(state.Direction) then state.Direction=Vector3.zero end
         state.Direction=state.Direction:Lerp(direction,1-math.exp(-saved.TurnResponse*state.Dt))
         local humanoid = rig and rig:FindFirstChildOfClass("Humanoid")
         local root = rig and rig:FindFirstChild("HumanoidRootPart")
@@ -50442,7 +50875,7 @@ return function(ctx)
             direction = camera and camera.CFrame.LookVector or direction
         end
         direction = Vector3.new(direction.X,0,direction.Z)
-        if direction.Magnitude < .001 then return end
+        if not finiteVector(direction) or not finitePose(root.CFrame) or direction.Magnitude < .001 then return end
         local target = CFrame.lookAt(root.Position,root.Position+direction.Unit,Vector3.new(0,1,0))
         local alpha = 1-math.exp(-saved.TurnResponse*number(dt,0,0,.1))
         root.CFrame = CFrame.new(root.Position) * root.CFrame.Rotation:Lerp(target.Rotation,alpha)
@@ -50577,9 +51010,11 @@ return function(ctx)
         end
         local methods={"Virtual knee","Rigid leg"}
         UI.CreateDropdown(parent,"R6 IK Method",methods,table.find(methods,saved.R6IKMethod)).Changed:Connect(function(i)
-            saved.R6IKMethod=methods[i] or methods[1] api.BeforePose(state.Rig) save()
+            saved.R6IKMethod=methods[i] or methods[1] api.BeforePose(state.Rig) state.Blends={} save()
         end)
         slider("Ground Contact Response","ContactResponse",1,30,.5)
+        slider("IK Blend Time (seconds)","IKBlendTime",.03,.4,.01)
+        slider("Maximum IK Tilt (degrees)","IKMaxTilt",5,60,1)
         slider("Directional Lean (degrees)","LeanAngle",0,35,1)
         slider("Directional Leg Angle (degrees)","LegAngle",0,60,1)
         slider("IK Strength","IKStrength",0,1,.05)
@@ -50594,6 +51029,7 @@ return function(ctx)
         releaseTurn()
         for _, connection in ipairs(state.Connections) do connection:Disconnect() end
         if api.FrameCache then api.FrameCache.Clear() end
+        state.Rest,state.Contacts,state.Blends={},{},{}
         state.Rig=nil
     end
     return api
@@ -51250,7 +51686,10 @@ return function(deps)
         if active then
             local ok, reason = pcall(deps.Stop, active.Module)
             cache.Release(active.Scope)
-            if not ok then (deps.Warn or warn)("Stream stop: " .. tostring(reason)) end
+            if not ok then
+                if deps.Report then deps.Report("stream-stop", active.Module.Name, active.Module._UhhhhhhSource, reason)
+                else (deps.Warn or warn)("Stream stop: " .. tostring(reason)) end
+            end
         end
     end
     function stream.Tick()
@@ -51286,7 +51725,7 @@ return function(deps)
                 local chunk, compileError = deps.Compile(body, "@stream/" .. record.File)
                 assert(chunk, "Module compile failed: " .. tostring(compileError))
                 local scoped = {Assets = context.Assets, Provider = context.Provider, Revision = context.Revision,
-                    Directory = (record.Relative or ""):match("^(.*)/[^/]+$")}
+                    Directory = (record.Relative or ""):match("^(.*)/[^/]+$"),SourceLabel="Stream: "..record.File}
                 scoped.StreamScope = cache.NewScope()
                 preview = {Modules = {}, Scope = scoped.StreamScope}
                 deps.Bind(chunk, scoped)
@@ -51304,7 +51743,12 @@ return function(deps)
             end)
             if serial ~= stream.Serial then dispose(preview); return end
             stream.Loading = nil
-            if not ok then dispose(preview); completed(nil, tostring(failure):sub(1, 800)); return end
+            if not ok then
+                dispose(preview)
+                if deps.Report then deps.Report("stream-load", record.File, record.Source, failure) end
+                completed(nil, tostring(failure):sub(1, 800))
+                return
+            end
             dispose(stream.Preview)
             stream.Preview = preview
             completed(preview)
@@ -51363,7 +51807,11 @@ return function(deps)
     end
     function stream.Open(item, parent)
         local ok, records, context = pcall(deps.Folder, item)
-        if not ok then deps.Notify("Could not load pack index: " .. tostring(records):sub(1, 300)); return end
+        if not ok then
+            if deps.Report then deps.Report("pack-index", item.Name, item.Source or item.File, records)
+            else deps.Notify("Could not load pack index: " .. tostring(records):sub(1, 300)) end
+            return
+        end
         deps.DeferInstalled(item)
         local page = pageFor(parent)
         local requestSerial
@@ -51382,6 +51830,12 @@ return function(deps)
             requestSerial = stream.Serial
         end)
         UI.CreateButton(page, "Stop Streaming", 18).Activated:Connect(function() stream.Stop(); deps.Notify("Stream stopped; temporary assets released") end)
+        if deps.RetryAssets then
+            UI.CreateButton(page,"Retry streamed assets",18).Activated:Connect(function()
+                if stream.Active then deps.RetryAssets(stream.Active.Module); deps.Notify("Retrying streamed assets")
+                else deps.Notify("Choose an entry to stream first") end
+            end)
+        end
         UI.CreateButton(page, "&lt; Back", 20).Activated:Connect(function()
             stream.Serial += 1; stream.Loading = nil
             dispose(stream.Preview); stream.Preview = nil
@@ -52573,6 +53027,632 @@ function Tabs.new(context)
 end
 
 return Tabs
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/ascii_backdrop.lua"] = [=====[
+-- Background-only adaptation of the ASCII halo in the user-supplied source:
+-- https://loadstring.net/raw/Va8W0lE1PS (source credits @vaehz).
+-- No loader, purchase hooks, HTTP, assets, or character/physics code is imported.
+-- Three plain text layers; a bounded grid; no Instances allocated while drawing.
+return function(context)
+    local Util, Window, Input = context.Util, context.Window, context.Input
+    local main = assert(Window.Main, "ASCII background requires the native window")
+    local root = assert(main.Parent, "ASCII background requires a mounted window")
+    local enabled, destroyed = context.Enabled ~= false, false
+    local padding = math.clamp(tonumber(context.Padding) or 80, 0, 160)
+    local baseSize = math.clamp(tonumber(context.TextSize) or 13, 8, 24)
+    local fps = math.clamp(tonumber(context.FPS) or 30, 1, 30)
+    local maximum = math.clamp(math.floor(tonumber(context.MaximumCells) or 4096), 64, 4096)
+    local holder = Util.Instance("Frame", root)
+    holder.Name = "AnimatedAsciiBackdrop"
+    holder.AnchorPoint = Vector2.new(0.5, 0.5)
+    holder.BackgroundTransparency, holder.BorderSizePixel = 1, 0
+    holder.ClipsDescendants, holder.Active, holder.Interactable = true, false, false
+    holder.Visible, holder.ZIndex = false, (main.ZIndex or 1) - 1
+    local transparency = {0.84, 0.62, 0.3}
+    local labels, connections = {}, {}
+    for i = 1, 3 do
+        local label = Util.Instance("TextLabel", holder)
+        label.Name = "AsciiBrightness" .. i
+        label.BackgroundTransparency, label.BorderSizePixel = 1, 0
+        label.Font, label.TextSize = Enum.Font.Code, baseSize
+        label.TextColor3, label.TextTransparency = Color3.new(1, 1, 1), 1
+        label.TextXAlignment, label.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
+        label.TextWrapped, label.RichText, label.TextScaled = false, false, false
+        label.Active, label.Interactable, label.Text, label.ZIndex = false, false, "", 1
+        labels[i] = label
+    end
+    local ramp = " .,:;-=+*x#%@"
+    local glyphs = table.create(#ramp)
+    for i = 1, #ramp do glyphs[i] = ramp:sub(i, i) end
+    local metrics = {}
+    local function measure(size)
+        if metrics[size] then return metrics[size][1], metrics[size][2] end
+        local width, height = size * 0.6, size
+        if context.TextService then
+            local ok, w, h = pcall(function()
+                local bounds = Vector2.new(100000, 100000)
+                local service = context.TextService
+                local w = service:GetTextSize(string.rep("M", 40), size, Enum.Font.Code, bounds).X / 40
+                local one = service:GetTextSize("M", size, Enum.Font.Code, bounds).Y
+                local multi = service:GetTextSize(string.rep("M\n", 10) .. "M", size, Enum.Font.Code, bounds).Y
+                return w, (multi - one) / 10
+            end)
+            if ok then
+                if w == w and w > 0 and w < 1000 then width = w end
+                if h == h and h > 0 and h < 1000 then height = h end
+            end
+        end
+        -- Cache only the base measurement. Adaptive spacing is a scalar multiple,
+        -- so resize storms cannot create an unbounded text-metrics cache.
+        metrics[size] = {width, height}
+        return width, height
+    end
+    local baseWidth, baseHeight = measure(baseSize)
+    local cols, rows, cw, ch, offX, offY = 0, 0, baseWidth, baseHeight, 0, 0
+    local rowData, waveX, strings = {}, {}, {{}, {}, {}}
+    local elapsed, activeAge, accumulator = 0, 0, 0
+    local builds, draws, activeCells = 0, 0, 0
+    local lastWidth, lastHeight, lastX, lastY, lastZ
+    local touch
+    local api = {Holder = holder, Labels = labels}
+    local function visibility(value)
+        if holder.Visible ~= value then holder.Visible = value end
+    end
+    local function rebuild(width, height)
+        local areaWidth, areaHeight = width + padding * 2, height + padding * 2
+        local spacing = math.max(1, math.sqrt(areaWidth * areaHeight / (baseWidth * baseHeight * maximum)))
+        -- TextSize uses integer pixels; keep the grid's advance in sync with
+        -- the actual glyph size after adapting the bounded grid to a resize.
+        spacing = math.ceil(baseSize * spacing) / baseSize
+        cw, ch = baseWidth * spacing, baseHeight * spacing
+        cols, rows = math.max(1, math.floor(areaWidth / cw)), math.max(1, math.floor(areaHeight / ch))
+        -- Extremely thin/wide windows still obey the cap, including a one-cell axis.
+        if cols * rows > maximum then
+            if cols >= rows then cols = math.max(1, math.floor(maximum / rows))
+            else rows = math.max(1, math.floor(maximum / cols)) end
+        end
+        offX, offY = (areaWidth - cols * cw) / 2, (areaHeight - rows * ch) / 2
+        holder.Size = UDim2.fromOffset(areaWidth, areaHeight)
+        for _, label in ipairs(labels) do
+            label.Position = UDim2.fromOffset(offX, offY)
+            label.Size = UDim2.fromOffset(cols * cw + 4, rows * ch + 4)
+            label.TextSize = baseSize * spacing
+        end
+        table.clear(rowData)
+        table.clear(waveX)
+        for _, lines in ipairs(strings) do table.clear(lines) end
+        activeCells = 0
+        local centerX, centerY = areaWidth / 2, areaHeight / 2
+        for y = 0, rows - 1 do
+            local buffers = {table.create(cols, " "), table.create(cols, " "), table.create(cols, " ")}
+            local active, weights = {}, {}
+            local dy = math.max(math.abs(offY + (y + 0.5) * ch - centerY) - height / 2, 0)
+            for x = 0, cols - 1 do
+                local dx = math.max(math.abs(offX + (x + 0.5) * cw - centerX) - width / 2, 0)
+                -- Leave the entire opaque panel empty: this is an exterior halo.
+                if padding > 0 and (dx > 0 or dy > 0) then
+                    local weight = math.clamp(1 - math.sqrt(dx * dx + dy * dy) / padding, 0, 1)
+                    weight = weight * weight * (3 - 2 * weight)
+                    if weight > 0 then
+                        active[#active + 1], weights[#weights + 1] = x, weight
+                        activeCells += 1
+                    end
+                end
+            end
+            rowData[y + 1] = {Buffers = buffers, Columns = active, Weights = weights}
+        end
+        builds += 1
+    end
+    local function draw(alpha, mx, my)
+        local pointerX, pointerY
+        if mx then pointerX, pointerY = (mx - offX) / cw, (my - offY) / ch end
+        for x = 0, cols - 1 do waveX[x + 1] = math.sin(x * 0.12 + elapsed * 1.1) end
+        for y = 0, rows - 1 do
+            local data = rowData[y + 1]
+            local buffers = data.Buffers
+            local drift, waveY = y * 0.11 - elapsed * 0.35, math.cos(y * 0.21 - elapsed * 0.7)
+            for i, x in ipairs(data.Columns) do
+                local column = x + 1
+                buffers[1][column], buffers[2][column], buffers[3][column] = " ", " ", " "
+                local value = 0.45 + math.noise(x * 0.055, drift, elapsed * 0.12) * 1.3
+                    + waveX[column] * waveY * 0.18
+                if pointerX then
+                    local dx, dy = x - pointerX, (y - pointerY) * ch / cw
+                    local distance = math.sqrt(dx * dx + dy * dy)
+                    value += math.sin(distance * 0.45 - elapsed * 7) * math.exp(-distance * 0.09) * 0.45
+                end
+                value *= data.Weights[i] * alpha
+                if value >= 0.1 then
+                    local layer = value >= 0.7 and 3 or (value >= 0.4 and 2 or 1)
+                    local index = math.clamp(math.floor(value * #glyphs) + 1, 2, #glyphs)
+                    buffers[layer][column] = glyphs[index]
+                end
+            end
+            for i = 1, 3 do strings[i][y + 1] = table.concat(buffers[i], "", 1, cols) end
+        end
+        for i, label in ipairs(labels) do
+            local text = table.concat(strings[i], "\n", 1, rows)
+            local amount = 1 - (1 - transparency[i]) * alpha
+            if label.Text ~= text then label.Text = text end
+            if label.TextTransparency ~= amount then label.TextTransparency = amount end
+        end
+        draws += 1
+    end
+    function api.SetEnabled(value)
+        if destroyed then return end
+        enabled = value == true
+        if not enabled then visibility(false) activeAge, accumulator = 0, 0 end
+    end
+    function api.Snapshot()
+        return {Enabled = enabled, Destroyed = destroyed, Columns = cols, Rows = rows,
+            Cells = cols * rows, ActiveCells = activeCells, Builds = builds, Draws = draws}
+    end
+    local function cleanup()
+        if destroyed then return end
+        destroyed = true
+        for _, connection in ipairs(connections) do connection:Disconnect() end
+        table.clear(connections)
+        table.clear(rowData)
+        table.clear(waveX)
+        table.clear(metrics)
+        for _, lines in ipairs(strings) do table.clear(lines) end
+        touch = nil
+    end
+    function api.Destroy()
+        if destroyed then return end
+        holder:Destroy()
+        cleanup()
+    end
+    connections[#connections + 1] = holder.Destroying:Once(cleanup)
+    connections[#connections + 1] = main.Destroying:Once(api.Destroy)
+    if context.Theme then
+        connections[#connections + 1] = context.Theme.OnChanged("TextColor", function(color)
+            if destroyed then return end
+            for _, label in ipairs(labels) do label.TextColor3 = color or Color3.new(1, 1, 1) end
+        end)
+    end
+    if Input and Input.InputChanged then
+        connections[#connections + 1] = Input.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then touch = input end
+        end)
+    end
+    if Input and Input.InputEnded then
+        connections[#connections + 1] = Input.InputEnded:Connect(function(input)
+            if input == touch then touch = nil end
+        end)
+    end
+    context.Render(function(_, dt)
+        if destroyed then return end
+        if not enabled or main.Parent ~= root or main.Visible == false or Window.Minimized
+            or root.Enabled == false or (Util.IsGuiVisible and not Util.IsGuiVisible(main)) then
+            visibility(false)
+            activeAge, accumulator = 0, 0
+            return
+        end
+        local position, size = main.AbsolutePosition, main.AbsoluteSize
+        local screen = Util.GetScreenSize and Util.GetScreenSize() or root.AbsoluteSize
+        if size.X <= 0 or size.Y <= 0 or (screen and (position.X + size.X + padding <= 0
+            or position.Y + size.Y + padding <= 0 or position.X - padding >= screen.X or position.Y - padding >= screen.Y)) then
+            visibility(false)
+            activeAge, accumulator = 0, 0
+            return
+        end
+        -- Follow the window at native frame rate without rebuilding its text grid.
+        local origin = root.AbsolutePosition or Vector2.new(0, 0)
+        local x, y = position.X + size.X / 2 - origin.X, position.Y + size.Y / 2 - origin.Y
+        if lastX ~= x or lastY ~= y then
+            holder.Position = UDim2.fromOffset(x, y)
+            lastX, lastY = x, y
+        end
+        if lastZ ~= main.ZIndex then
+            holder.ZIndex = (main.ZIndex or 1) - 1
+            lastZ = main.ZIndex
+        end
+        visibility(true)
+        -- Freeze only the expensive text during dragging; the halo still follows.
+        if Util.DraggedWindow == main then return end
+        dt = math.clamp(tonumber(dt) or 0, 0, 0.1)
+        elapsed, activeAge, accumulator = elapsed + dt, math.min(1, activeAge + dt), accumulator + dt
+        if accumulator < 1 / fps then return end
+        accumulator %= 1 / fps
+        local width, height = math.floor(size.X + 0.5), math.floor(size.Y + 0.5)
+        if lastWidth ~= width or lastHeight ~= height then
+            rebuild(width, height)
+            lastWidth, lastHeight = width, height
+        end
+        local mx, my
+        if Input then
+            local point
+            if touch then point = touch.Position
+            elseif Input.GetMouseLocation and Input.MouseEnabled ~= false then point = Input:GetMouseLocation() end
+            if point then
+                local left, top = position.X - padding, position.Y - padding
+                mx, my = point.X - left, point.Y - top
+                if mx < 0 or my < 0 or mx > width + padding * 2 or my > height + padding * 2 then mx, my = nil, nil end
+            end
+        end
+        draw(math.sin(activeAge * math.pi / 2), mx, my)
+    end, holder, true)
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/community_diagnostics.lua"] = [=====[
+-- Addon errors are inspectable, bounded and quiet unless explicitly enabled.
+-- This is not a global warn hook: core, ownership and filesystem warnings stay visible.
+return function(deps)
+    local records, keys = {}, {}
+    local api = {}
+    local function clipped(value, maximum)
+        local text = tostring(value or "")
+        if #text <= maximum then return text end
+        local stop = maximum
+        while stop > 0 and text:byte(stop + 1) >= 128 and text:byte(stop + 1) < 192 do stop -= 1 end
+        return text:sub(1, stop) .. "…"
+    end
+    function api.Enabled() return deps.Settings.CommunityDiagnosticsEnabled == true end
+    function api.Report(kind, name, source, reason, notification)
+        kind, name, source, reason = clipped(kind, 64), clipped(name, 256), clipped(source, 256), clipped(reason, 2048)
+        local key = kind .. "\0" .. name .. "\0" .. source
+        local entry = keys[key]
+        if entry and entry.Reason == reason then entry.Count += 1; return entry end
+        if entry then
+            entry.Reason, entry.Count = reason, entry.Count + 1
+        else
+            if #records == 24 then keys[table.remove(records, 1).Key] = nil end
+            entry = {Key = key, Kind = kind, Name = name, Source = source, Reason = reason, Count = 1}
+            table.insert(records, entry)
+            keys[key] = entry
+        end
+        if api.Enabled() then
+            deps.Warn(("Uhhhhhh %s [%s] (%s): %s"):format(kind, name, source, reason))
+            if notification and deps.Notify then deps.Notify(notification) end
+        end
+        return entry
+    end
+    function api.Describe()
+        if #records == 0 then return "No addon errors recorded this session." end
+        local rows = {"Addon errors (most recent 24; quiet by default):"}
+        for i = #records, 1, -1 do
+            local entry = records[i]
+            table.insert(rows, ("\n[%s] %s\nSource: %s\n%s\nOccurrences: %d"):format(
+                entry.Kind, entry.Name, entry.Source, entry.Reason, entry.Count))
+        end
+        return table.concat(rows, "\n")
+    end
+    function api.Clear() table.clear(records); table.clear(keys) end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/physics_root_ref.lua"] = [=====[
+-- Typed replication-root transport. Never writes the retired PhysicsRepRootPart.
+-- Roblox API: BasePart.PhysicsRepRootRef (InstanceRef), InstanceHandle.new/Get.
+-- sUNC accessor booleans describe hidden visibility, not assignment success.
+local RootRef = {Property = "PhysicsRepRootRef"}
+
+function RootRef.new(env)
+    env = env or {}
+    local property = RootRef.Property
+    local setters, getters = env.Setters or {}, env.Getters or {}
+    local now = env.Clock or os.clock
+    local automatic = setmetatable({}, {__mode = "k"})
+    local active = {}
+    local failures = setmetatable({}, {__mode = "k"})
+    local handles = setmetatable({}, {__mode = "kv"})
+    local emptyHandle
+    local constructorError
+    local stats = {Writes = 0, Checks = 0, Cached = 0, Handles = 0, Failures = 0,
+        Restores = 0, UnverifiedRestores = 0}
+    local api = {Property = property, RetrySerial = 0}
+
+    local function validPart(part)
+        return typeof(part) == "Instance" and part:IsA("BasePart")
+    end
+
+    local function resolve(handle)
+        if handle == nil then return true, nil end
+        -- Use Get, never the yielding Wait, even for a streamed-out reference.
+        local ok, value = pcall(function() return handle:Get() end)
+        if ok and (value == nil or typeof(value) == "Instance") then return true, value end
+        return false, "accessor did not return an InstanceHandle"
+    end
+
+    local function samePart(a, b)
+        if a == b then return true end
+        if a == nil or b == nil or type(env.CompareInstances) ~= "function" then return false end
+        local ok, same = pcall(env.CompareInstances, a, b)
+        return ok and same == true
+    end
+
+    local function makeHandle(reference)
+        if constructorError then return false, constructorError end
+        if type(env.NewHandle) ~= "function" then
+            stats.LastError = "InstanceHandle.new unavailable"
+            return false, stats.LastError
+        end
+        if reference == nil and emptyHandle then return true, emptyHandle end
+        if reference ~= nil and handles[reference] then return true, handles[reference] end
+        local ok, handle = pcall(env.NewHandle, reference)
+        if not ok then
+            constructorError = "InstanceHandle.new: " .. tostring(handle)
+            stats.LastError = constructorError
+            return false, constructorError
+        end
+        local readable, resolved = resolve(handle)
+        if handle == nil or not readable or not samePart(resolved, reference) then
+            constructorError = "InstanceHandle.new did not wrap the requested target"
+            stats.LastError = constructorError
+            return false, constructorError
+        end
+        stats.Handles += 1
+        if reference == nil then emptyHandle = handle else handles[reference] = handle end
+        return true, handle
+    end
+
+    function api.Read(part)
+        if not validPart(part) then return false, "expected BasePart" end
+        local lastError = "native gethiddenproperty unavailable"
+        for _, candidate in ipairs(getters) do
+            local ok, value = pcall(candidate.Get, part, property)
+            if ok then
+                local readable = resolve(value)
+                if readable then return true, value end
+                lastError = "invalid InstanceHandle from " .. tostring(candidate.Name)
+            else lastError = tostring(value) end
+        end
+        return false, lastError
+    end
+
+    local function matches(actual, handle, reference, restoring)
+        if actual == handle then return true, true end
+        local readOk, resolved = resolve(actual)
+        if not readOk then return false, false end
+        if reference ~= nil then return samePart(resolved, reference), true end
+        if resolved ~= nil then return false, true end
+        -- Sending the exact saved unresolved handle preserves its identifier,
+        -- but Get() cannot prove equality between two unresolved identifiers.
+        if restoring and handle ~= emptyHandle and handle ~= nil then return false, false end
+        return true, true  -- an explicitly constructed empty handle resolves nil
+    end
+
+    local function writeRaw(part, handle, reference, restoring, preferred)
+        local lastError = "native sethiddenproperty unavailable"
+        local function try(candidate)
+            local ok, result = pcall(candidate.Set, part, property, handle)
+            if not ok then lastError = tostring(result) return false end
+            local readOk, actual = api.Read(part)
+            if not readOk then lastError = "read-back failed: " .. tostring(actual) return false end
+            local equal, verified = matches(actual, handle, reference, restoring)
+            if equal then
+                stats.Writes += 1
+                return true, candidate, verified
+            end
+            lastError = tostring(candidate.Name) .. " did not retain the requested root reference"
+            return false
+        end
+        if preferred then
+            local ok, used, verified = try(preferred)
+            if ok then return true, used, verified end
+        end
+        for _, candidate in ipairs(setters) do
+            if candidate ~= preferred then
+                local ok, used, verified = try(candidate)
+                if ok then return true, used, verified end
+            end
+        end
+        return false, lastError
+    end
+
+    local function forget(state)
+        local part = state.Part
+        if automatic[part] == state then automatic[part] = nil end
+        active[state] = nil
+        if state.DestroyConnection then state.DestroyConnection:Disconnect() end
+        state.DestroyConnection = nil
+        state.Part, state.Original, state.Reference, state.Handle, state.Setter = nil, nil, nil, nil, nil
+        state.OriginalKnown, state.Active = false, false
+        state.Property, state.RestorePending, state.NextRestore, state.LastError, state.LastCheck, state.NativePhysicsActive = nil, nil, nil, nil, nil, nil
+    end
+
+    function api.RestoreManaged(state)
+        if state.RestorePending and state.NextRestore and now() < state.NextRestore then
+            return false, state.LastError
+        end
+        if state.Active and validPart(state.Part) then
+            local handle = state.Original
+            if handle == nil then
+                local ok, result = makeHandle(nil)
+                if not ok then state.RestorePending, state.LastError = true, result return false, result end
+                handle = result
+            end
+            local readable, reference = resolve(handle)
+            local restored, reason, verified = false, "saved handle is unreadable", false
+            if readable then
+                local readOk, current = api.Read(state.Part)
+                if readOk then
+                    local equal, proven = matches(current, handle, reference, true)
+                    restored, verified = equal and proven, proven
+                end
+                if not restored then restored, reason, verified = writeRaw(state.Part, handle, reference, true, state.Setter) end
+            end
+            if not restored then
+                state.RestorePending, state.LastError = true, "restore: " .. tostring(reason)
+                if readable and reference == nil and handle ~= emptyHandle and not verified then
+                    state.LastError = "restore: saved unresolved root token could not be verified"
+                    stats.UnverifiedRestores += 1
+                end
+                state.NextRestore = now() + 5
+                stats.LastError = state.LastError
+                return false, state.LastError
+            end
+            stats.Restores += 1
+            if not verified then stats.UnverifiedRestores += 1 end
+        end
+        forget(state)
+        return true
+    end
+
+    function api.WriteManaged(state, part, reference)
+        if not validPart(part) then return false, "expected BasePart" end
+        if samePart(part, reference) then
+            api.RestoreManaged(state)
+            return false, "a part cannot reference itself as its replication root"
+        end
+        if reference ~= nil and (not validPart(reference) or not reference.Parent) then
+            api.RestoreManaged(state)
+            return false, "target must be a live BasePart"
+        end
+        if #getters == 0 or #setters == 0 then return false, "native hidden-property accessors unavailable" end
+        local failed = failures[part]
+        if failed and now() < failed.NextProbe and not state.RestorePending then return false, failed.Reason end
+        if state.Part ~= part or state.RestorePending then
+            local restored, reason = api.RestoreManaged(state)
+            if not restored then return false, reason end
+        end
+        local ready, handle = makeHandle(reference)
+        if not ready then return false, handle end
+        if not state.OriginalKnown then
+            local readOk, original = api.Read(part)
+            if not readOk then
+                failures[part] = {Reason = tostring(original), NextProbe = now() + 5}
+                stats.LastError = tostring(original)
+                return false, original
+            end
+            state.Part, state.Original, state.OriginalKnown, state.Property = part, original, true, property
+        end
+        if state.Active and samePart(state.Reference, reference) and state.LastCheck then
+            if now() - state.LastCheck < 0.25 then stats.Cached += 1 return true end
+            local ok, actual = api.Read(part)
+            stats.Checks += 1
+            if ok and matches(actual, state.Handle, reference, false) then
+                state.LastCheck = now()
+                return true
+            end
+        end
+        -- Register before assignment: even a write followed by failed read-back
+        -- must restore the original token on release rather than losing it.
+        state.Active, state.Reference, state.Handle = true, reference, handle
+        active[state] = true
+        if not state.DestroyConnection then
+            state.DestroyConnection = part.Destroying:Once(function() forget(state) failures[part] = nil end)
+        end
+        local written, result, verified = writeRaw(part, handle, reference, false, state.Setter)
+        if not written then
+            failures[part] = {Reason = tostring(result), NextProbe = now() + 5}
+            stats.Failures += 1
+            stats.LastError, state.LastError = tostring(result), tostring(result)
+            return false, result
+        end
+        failures[part] = nil
+        state.Setter, state.Verified, state.LastCheck = result, verified, now()
+        state.LastError = nil
+        state.Writes = (state.Writes or 0) + 1
+        return true
+    end
+
+    function api.Set(part, reference)
+        if reference == nil then return api.Release(part) end
+        if not validPart(part) then return false, "expected BasePart" end
+        local unavailable = constructorError or (type(env.NewHandle) ~= "function" and "InstanceHandle.new unavailable")
+            or ((#getters == 0 or #setters == 0) and "native hidden-property accessors unavailable")
+        if unavailable then stats.LastError = unavailable return false, unavailable end
+        local failed = failures[part]
+        if failed and now() < failed.NextProbe then return false, failed.Reason end
+        local state = automatic[part] or {}
+        automatic[part] = state
+        local ok, reason = api.WriteManaged(state, part, reference)
+        if not ok then
+            stats.LastError = tostring(reason)
+            local restored, restoreError = api.RestoreManaged(state)
+            if not restored then return false, restoreError end
+            automatic[part] = nil
+        end
+        return ok, reason
+    end
+
+    function api.Clear(part)
+        if not validPart(part) then return false, "expected BasePart" end
+        local unavailable = constructorError or (type(env.NewHandle) ~= "function" and "InstanceHandle.new unavailable")
+            or ((#getters == 0 or #setters == 0) and "native hidden-property accessors unavailable")
+        if unavailable then stats.LastError = unavailable return false, unavailable end
+        local failed = failures[part]
+        if failed and now() < failed.NextProbe then return false, failed.Reason end
+        local state = automatic[part] or {}
+        automatic[part] = state
+        local ok, reason = api.WriteManaged(state, part, nil)
+        if not ok then
+            local restored = api.RestoreManaged(state)
+            if restored then automatic[part] = nil end
+        end
+        return ok, reason
+    end
+
+    function api.Release(part)
+        local state = automatic[part]
+        if not state then return true end
+        return api.RestoreManaged(state)
+    end
+
+    function api.RestoreAll()
+        local pending, errors = {}, {}
+        for state in pairs(active) do table.insert(pending, state) end
+        for _, state in ipairs(pending) do
+            state.NextRestore = nil  -- stopping gets one immediate final attempt
+            local ok, reason = api.RestoreManaged(state)
+            if not ok then table.insert(errors, tostring(reason)) end
+        end
+        return #errors == 0, table.concat(errors, "; ")
+    end
+
+    function api.RestoreLinks()
+        -- Disabling Physics Glue releases links, while the PD Head and local
+        -- controller still need their explicit empty reference until teardown.
+        local pending, errors = {}, {}
+        for state in pairs(active) do
+            if state.Reference ~= nil then table.insert(pending, state) end
+        end
+        for _, state in ipairs(pending) do
+            state.NextRestore = nil
+            local ok, reason = api.RestoreManaged(state)
+            if not ok then table.insert(errors, tostring(reason)) end
+        end
+        return #errors == 0, table.concat(errors, "; ")
+    end
+
+    function api.Retry()
+        table.clear(failures)
+        constructorError = nil
+        stats.LastError = nil
+        api.RetrySerial += 1
+        for state in pairs(active) do
+            if state.RestorePending then state.NextRestore = nil end
+        end
+    end
+
+    function api.Snapshot()
+        local result = table.clone(stats)
+        result.Property, result.Active, result.RestorePending = property, 0, 0
+        result.Links, result.Clears = 0, 0
+        result.Constructor = type(env.NewHandle) == "function" and constructorError == nil
+        result.NativeAccessors = #getters > 0 and #setters > 0
+        for state in pairs(active) do
+            result.Active += 1
+            if state.Reference ~= nil then result.Links += 1 else result.Clears += 1 end
+            if state.RestorePending then result.RestorePending += 1 end
+        end
+        return result
+    end
+
+    function api.Describe()
+        local s = api.Snapshot()
+        return property .. ": constructor=" .. tostring(s.Constructor) .. ", accessors=" .. tostring(s.NativeAccessors)
+            .. ", links=" .. s.Links .. ", clears=" .. s.Clears .. ", restore pending=" .. s.RestorePending
+            .. ", last error=" .. tostring(s.LastError or "none") .. ". Local read-back only; remote replication unverified."
+    end
+
+    return api
+end
+
+return RootRef
 ]=====],
 }
 for path, content in pairs(files) do
