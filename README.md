@@ -28,32 +28,84 @@ local a,b,c,g="/mxsynry/Uhhhhhh/","/source/reanim.lua",".github","https://"local
 
 3. mine
 ```lua
-local p = "Uhhhhhh_reanim_api.lua"
-local a, b, c, g = "/mxsynry/Uhhhhhh/", "/source/reanim.lua", ".github", "https://"
-local s = ""
-local fs = (writefile and readfile and isfile)
-local ok, res = pcall(request, {
-    Url = `{g}api{c}.com/repos{a}contents{b}`,
-    Headers = {Accept = `application/vnd{c}.VERSION.raw`}
+
+local FILE = "Uhhhhhh_reanim_api.lua"
+local BASE = "https://raw.githubusercontent.com/mxsynry/Uhhhhhh/main/source/reanim.lua"
+local API = "https://api.github.com/repos/mxsynry/Uhhhhhh/contents/source/reanim.lua"
+
+local function fetch(url, headers)
+    if type(request) == "function" then
+        local ok, res = pcall(request, {
+            Url = url,
+            Method = "GET",
+            Headers = headers or {}
+        })
+
+        if ok and res and res.StatusCode == 200
+            and type(res.Body) == "string"
+            and #res.Body > 0 then
+            return res.Body
+        end
+    end
+
+    if type(game.HttpGet) == "function" then
+        local ok, body = pcall(game.HttpGet, game, url)
+        if ok and type(body) == "string" and #body > 0 then
+            return body
+        end
+    end
+
+    return nil
+end
+
+local function execute(source)
+    if type(source) ~= "string" or source == "" then
+        return false
+    end
+
+    local fn, err = loadstring(source)
+    if not fn then
+        warn("[Uhhhhhh] Compile error:", err)
+        return false
+    end
+
+    local ok, result = pcall(fn)
+    if not ok then
+        warn("[Uhhhhhh] Runtime error:", result)
+    end
+
+    return ok
+end
+
+local source = fetch(API, {
+    Accept = "application/vnd.github.raw+json"
 })
 
-if ok and res and res.StatusCode == 200 then
-    s = res.Body
-else
-    local fb, body = pcall(game.HttpGet, game, `{g}raw{c}usercontent.com{a}main{b}`)
-    if fb then s = body end
+if not source or not loadstring(source) then
+    source = fetch(BASE)
 end
-if s and s ~= "" then
-    if writefile and readfile then
-        writefile(p, s)
-        local f = loadstring(readfile(p))
-        if f then f() else loadstring(s)() end
-    else
-        loadstring(s)()
+
+if source and loadstring(source) then
+    if type(writefile) == "function" then
+        pcall(writefile, FILE, source)
     end
-elseif fs and isfile(p) then
-    local f = loadstring(readfile(p))
-    if f then f() end
+
+    if execute(source) then
+        return
+    end
+end
+
+if type(isfile) == "function"
+    and type(readfile) == "function" then
+
+    local ok, exists = pcall(isfile, FILE)
+
+    if ok and exists then
+        local success, cached = pcall(readfile, FILE)
+        if success and execute(cached) then
+            return
+        end
+    end
 end
 ```
 
