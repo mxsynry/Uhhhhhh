@@ -288,13 +288,14 @@ return function(Context)
         end
         if physical and physicalIndex.Dirty then
             local cache = physicalIndex
-            cache.Children, cache.BodyParts, cache.Joints, cache.Movers = {}, {}, {}, {}
+            cache.Children, cache.BodyParts, cache.Joints, cache.Movers, cache.Parts = {}, {}, {}, {}, {}
             for _, child in ipairs(physical:GetChildren()) do
                 table.insert(cache.Children, child)
                 if child:IsA("BasePart") then table.insert(cache.BodyParts, child) end
             end
             cache.Descendants = physical:GetDescendants()
             for _, child in ipairs(cache.Descendants) do
+                if child:IsA("BasePart") then table.insert(cache.Parts, child) end
                 if child:IsA("JointInstance") or child:IsA("WeldConstraint")
                     or child.ClassName == "AnimationConstraint" or child.ClassName == "RigidConstraint" then
                     table.insert(cache.Joints, child)
@@ -765,7 +766,7 @@ return function(Context)
         if typeof(character) ~= "Instance" or not character:IsA("Model") or not character.Parent then
             return
         end
-        for _, instance in ipairs(character:GetDescendants()) do
+        for _, instance in ipairs(getPhysicalHeadIndex(character).Parts) do
             if instance:IsA("BasePart") then
                 if not isolatedPartStates[instance] then
                     isolatedPartStates[instance] = {
@@ -778,9 +779,9 @@ return function(Context)
                 -- The physical shell is only a replicated follower. It must never
                 -- participate in world contacts; otherwise an occluder/wall can shove
                 -- the real shell away while the invisible controller stays correct.
-                instance.CanCollide = false
-                instance.CanTouch = false
-                instance.CanQuery = false
+                if instance.CanCollide then instance.CanCollide = false end
+                if instance.CanTouch then instance.CanTouch = false end
+                if instance.CanQuery then instance.CanQuery = false end
             end
         end
     end
@@ -1436,6 +1437,14 @@ return function(Context)
                 .. " recoveryDistance="
                 .. tostring(backend.NonPDRecoveryDistance)
         )
+        table.insert(lines, "BODY_CHAIN retained=" .. tostring(backend.KeepBodyChain==true)
+            .. " reason=" .. tostring(backend.BodyChainReason or "waiting")
+            .. " root=" .. debugPath(backend.BodyChain and backend.BodyChain.Root)
+            .. " owned=" .. tostring(backend.BodyChain and backend.BodyChain.Owned)
+            .. " blocked=" .. tostring(backend.BodyChain and backend.BodyChain.LastError or "none"))
+        table.insert(lines,"BODY_STEP error=" .. tostring(environment().UhhhhhhTBZGelatekBodyStepError or "none")
+            .. " pdTransition=" .. tostring(environment().UhhhhhhTBZGelatekPDTransitionPending==true)
+            .. " maintenanceSeconds=.1 fontSizing=property-event")
 
         local headMoverNames = {}
         if pHead then
@@ -1487,6 +1496,8 @@ return function(Context)
                 .. " accessoryWrites=" .. tostring(pdHeadFollower and pdHeadFollower.AccessoryWrites or 0)
                 .. " lifecycleWarning=" .. tostring(pdHeadFollower and pdHeadFollower.LifecycleWarning or "none")
                 .. " route=" .. tostring(pdHeadFollower and pdHeadFollower.Route or "waiting")
+                .. " localDisplayError=" .. tostring(pdHeadFollower and pdHeadFollower.LocalDisplayError or "none")
+                .. " sampleAnchor=" .. debugPath(pdHeadFollower and pdHeadFollower.RelativeSample and pdHeadFollower.RelativeSample.Anchor)
         )
         if pdHeadFollower then
             local position, orientation = pdHeadFollower.LinearMover, pdHeadFollower.AngularMover
@@ -1753,7 +1764,7 @@ return function(Context)
         )
         UI.CreateText(
             parent,
-            "Torso keeps core CFrame + Gelatek Physics. Animation Options offers typed PhysicsRepRootRef links for non-PD when the runtime verifies them.",
+            "Non-PD keeps the original root and torso connected when their motors are available. PD and torso/bullet modes use detached followers.",
             10,
             Enum.TextXAlignment.Center
         )
@@ -1792,7 +1803,7 @@ return function(Context)
             parent,
             "Show me how I look!",
             "ShowMeHowILook",
-            "Preview the real Head at 20 FPS in PD or non-PD. Controller tracking and torso physics stay full-rate."
+            "Preview the committed physics Head pose at full rate. Keep this off for the latest local controller pose."
         )
 
         UI.CreateText(parent, "<b>Physical recovery</b>", 12, Enum.TextXAlignment.Left)
@@ -2348,11 +2359,11 @@ return function(Context)
                     end
                 end
                 pcall(function()
-                    part.LocalTransparencyModifier = modifier
+                    if part.LocalTransparencyModifier ~= modifier then part.LocalTransparencyModifier = modifier end
                 end)
                 if controllerPart and controllerPart:IsA("BasePart") then
                     pcall(function()
-                        controllerPart.LocalTransparencyModifier = modifier
+                        if controllerPart.LocalTransparencyModifier ~= modifier then controllerPart.LocalTransparencyModifier = modifier end
                     end)
                 end
             end
@@ -2672,6 +2683,50 @@ return function(Context)
         joint[key] = rig:FindFirstChild(visibilityR15ToR6[part.Name] or part.Name)
     end
 
+    function backend.AccessoryLifetime.RepairControllerBodyJoints(rig)
+        -- Repair the cloned controller only. Upgraded R15 already has a full
+        -- AnimationConstraint skeleton; a second Motor6D fights that skeleton.
+        local links={{"HumanoidRootPart","LowerTorso","Root"},{"LowerTorso","UpperTorso","Waist"},{"UpperTorso","Head","Neck"}}
+        for _,side in ipairs({"Left","Right"}) do
+            for _,entry in ipairs({{"UpperTorso",side.."UpperArm",side.."Shoulder"},{side.."UpperArm",side.."LowerArm",side.."Elbow"},
+                {side.."LowerArm",side.."Hand",side.."Wrist"},{"LowerTorso",side.."UpperLeg",side.."Hip"},
+                {side.."UpperLeg",side.."LowerLeg",side.."Knee"},{side.."LowerLeg",side.."Foot",side.."Ankle"}}) do table.insert(links,entry) end
+        end
+        local existing,upgraded={},false
+        for _,joint in ipairs(rig:GetDescendants()) do
+            if Util.IsCharacterJoint(joint) then
+                local p0,p1=Util.GetCharacterJointParts(joint)
+                if p0 and p1 and p0.Parent==rig and p1.Parent==rig then
+                    existing[p0]=existing[p0] or {}
+                    existing[p0][p1]=joint
+                    joint.Enabled=true
+                    if joint.ClassName=="AnimationConstraint" then joint.IsKinematic=true upgraded=true end
+                end
+            end
+        end
+        for _,entry in ipairs(links) do
+            local p0,p1=rig:FindFirstChild(entry[1]),rig:FindFirstChild(entry[2])
+            if p0 and p1 and not (existing[p0] and existing[p0][p1]) then
+                local a0=p0:FindFirstChild(entry[3].."RigAttachment")
+                local a1=p1:FindFirstChild(entry[3].."RigAttachment")
+                if a0 and a1 and a0:IsA("Attachment") and a1:IsA("Attachment") then
+                    local joint=Instance.new(upgraded and "AnimationConstraint" or "Motor6D")
+                    joint.Name=entry[3]
+                    if upgraded then
+                        joint.Attachment0,joint.Attachment1=a0,a1
+                        joint.IsKinematic=true
+                    else
+                        joint.Part0,joint.Part1=p0,p1
+                        joint.C0,joint.C1=a0.CFrame,a1.CFrame
+                    end
+                    joint.Parent=p1
+                    existing[p0]=existing[p0] or {}
+                    existing[p0][p1]=joint
+                end
+            end
+        end
+    end
+
     function backend.AccessoryLifetime.CloneController(character, template, nativeR6)
         -- Clone the whole graph once: Clone remaps even accessory motors parented
         -- under a body part, and duplicate accessory names are not identities.
@@ -2797,22 +2852,7 @@ return function(Context)
             if old then old:Destroy() end
             humanoid.Parent = rig
             if r15 then
-                local pairsToRepair={{"HumanoidRootPart","LowerTorso","Root"},{"LowerTorso","UpperTorso","Waist"},{"UpperTorso","Head","Neck"}}
-                for _,side in ipairs({"Left","Right"}) do
-                    for _,entry in ipairs({{"UpperTorso",side.."UpperArm",side.."Shoulder"},{side.."UpperArm",side.."LowerArm",side.."Elbow"},
-                        {side.."LowerArm",side.."Hand",side.."Wrist"},{"LowerTorso",side.."UpperLeg",side.."Hip"},
-                        {side.."UpperLeg",side.."LowerLeg",side.."Knee"},{side.."LowerLeg",side.."Foot",side.."Ankle"}}) do table.insert(pairsToRepair,entry) end
-                end
-                for _,entry in ipairs(pairsToRepair) do
-                    local p0,p1=rig:FindFirstChild(entry[1]),rig:FindFirstChild(entry[2])
-                    local a0=p0 and p0:FindFirstChild(entry[3].."RigAttachment")
-                    local a1=p1 and p1:FindFirstChild(entry[3].."RigAttachment")
-                    local found=false
-                    for _,m in ipairs(rig:GetDescendants()) do if m:IsA("Motor6D") and m.Part0==p0 and m.Part1==p1 then found=true break end end
-                    if p0 and p1 and a0 and a1 and not found then
-                        local m=Instance.new("Motor6D") m.Name=entry[3] m.Part0,m.Part1=p0,p1 m.C0,m.C1=a0.CFrame,a1.CFrame m.Parent=p0
-                    end
-                end
+                backend.AccessoryLifetime.RepairControllerBodyJoints(rig)
             end
             for _, joint in ipairs(r15 and {} or template:GetDescendants()) do
                 if joint:IsA("Motor6D") and joint.Part0 and joint.Part1 then
@@ -2869,46 +2909,94 @@ return function(Context)
             index = {Rig = rig, Dirty = true, Connections = {}}
             physicalIndex.ControllerJoints = index
             for _, name in ipairs({"DescendantAdded", "DescendantRemoving"}) do
-                if rig[name] then table.insert(index.Connections, rig[name]:Connect(function() index.Dirty = true end)) end
+                if rig[name] then table.insert(index.Connections, rig[name]:Connect(function(item)
+                    if item:IsA("JointInstance") or item.ClassName=="AnimationConstraint"
+                        or item:IsA("BasePart") and item.Parent==rig then index.Dirty = true end
+                end)) end
             end
         end
         if index.Dirty then
-            index.Joints = {}
+            index.Revision = (index.Revision or 0) + 1
+            index.Joints, index.BodyJoints, index.Motors, index.HandleJoints = {}, {}, {}, {}
             for _, joint in ipairs(rig:GetDescendants()) do
-                if joint:IsA("JointInstance") then table.insert(index.Joints, joint) end
+                if joint:IsA("JointInstance") or joint.ClassName=="AnimationConstraint" then
+                    table.insert(index.Joints, joint)
+                    if joint:IsA("Motor6D") then table.insert(index.Motors,joint) end
+                    local p0,p1 = Util.GetCharacterJointParts(joint)
+                    if p0 and p1 then
+                        if p0.Parent==rig and p1.Parent==rig then table.insert(index.BodyJoints,joint) end
+                        for _,part in ipairs({p0,p1}) do
+                            index.HandleJoints[part] = index.HandleJoints[part] or {}
+                            table.insert(index.HandleJoints[part],joint)
+                        end
+                    end
+                end
             end
             index.Dirty = false
         end
         return index
     end
 
-    function backend.AccessoryLifetime.ControllerBodyPoses(rig)
+    function backend.AccessoryLifetime.ControllerBodyPoses(rig, live)
         local poses = {}
         local root = rig and rig:FindFirstChild("HumanoidRootPart")
         local index = backend.AccessoryLifetime.ControllerIndex(rig)
         if not root or not index then return poses end
+        local committed = backend.ControllerPoseSample
+        if not live and committed and committed.Rig == rig and committed.Root == root
+            and os.clock() >= committed.At and os.clock() - committed.At < .25
+            and committed.Revision == index.Revision then
+            if committed.RootFrame == root.CFrame and committed.Poses then return committed.Poses end
+            -- Every physics/render reader consumes the same completed animation
+            -- pose. Rebase it onto the moving root, never pin it in world space.
+            for part, offset in pairs(committed.Offsets) do
+                if part.Parent == rig then poses[part] = root.CFrame * offset end
+            end
+            committed.RootFrame,committed.Poses = root.CFrame,poses
+            return poses
+        end
+        local phase=environment().UhhhhhhTBZGelatekPosePhaseId
+        local batch=backend.FallbackBodyPoseBatch
+        if not live and phase and batch and batch.Phase==phase and batch.Rig==rig
+            and batch.RootFrame==root.CFrame and batch.Revision==index.Revision then return batch.Poses end
         poses[root] = root.CFrame
         -- Transform is applied by Roblox in a later batch. Read the live joint
         -- graph now, rather than combining a fresh hat motor with an old Head.
         for _ = 1, 16 do
             local changed = false
-            for _, joint in ipairs(index.Joints) do
-                local p0, p1 = joint.Part0, joint.Part1
+            for _, joint in ipairs(index.BodyJoints) do
+                local p0, p1 = Util.GetCharacterJointParts(joint)
                 if joint.Parent and joint.Enabled ~= false and p0 and p1 and p0 ~= p1
                     and p0.Parent == rig and p1.Parent == rig then
-                    local transform = joint:IsA("Motor6D") and joint.Transform or CFrame.identity
+                    local c0,c1=Util.GetCharacterJointFrames(joint)
+                    local transform = Util.IsCharacterJoint(joint) and joint.Transform or CFrame.identity
                     if poses[p0] and not poses[p1] then
-                        poses[p1] = poses[p0] * joint.C0 * transform * joint.C1:Inverse()
+                        poses[p1] = poses[p0] * c0 * transform * c1:Inverse()
                         changed = true
                     elseif poses[p1] and not poses[p0] then
-                        poses[p0] = poses[p1] * joint.C1 * (joint.C0 * transform):Inverse()
+                        poses[p0] = poses[p1] * c1 * (c0 * transform):Inverse()
                         changed = true
                     end
                 end
             end
             if not changed then break end
         end
+        if not live and phase then backend.FallbackBodyPoseBatch={Phase=phase,Rig=rig,
+            RootFrame=root.CFrame,Revision=index.Revision,Poses=poses} end
         return poses
+    end
+
+    function backend.AccessoryLifetime.CommitControllerPose(rig)
+        local root = rig and rig:FindFirstChild("HumanoidRootPart")
+        if not root then backend.ControllerPoseSample = nil return end
+        local poses = backend.AccessoryLifetime.ControllerBodyPoses(rig, true)
+        local offsets = {}
+        for part, pose in pairs(poses) do offsets[part] = root.CFrame:ToObjectSpace(pose) end
+        local index = backend.AccessoryLifetime.ControllerIndex(rig)
+        backend.FallbackBodyPoseBatch=nil
+        backend.ControllerPoseSample = {Rig=rig, Root=root, Offsets=offsets,
+            Revision=index and index.Revision, At=os.clock(), RootFrame=root.CFrame, Poses=poses,
+            Serial=(backend.ControllerPoseSample and backend.ControllerPoseSample.Serial or 0)+1}
     end
 
     function backend.AccessoryLifetime.ControllerBodyPose(part, poses)
@@ -2921,7 +3009,7 @@ return function(Context)
         local index = backend.AccessoryLifetime.ControllerIndex(handle and handle:FindFirstAncestorOfClass("Model"))
         if not index then return nil end
         local best, bestAnchor, bestScore
-        for _, joint in ipairs(index.Joints) do
+        for _, joint in ipairs(index.HandleJoints[handle] or {}) do
             if joint.Parent and joint.Enabled ~= false then
                 local other = joint.Part0 == handle and joint.Part1 or joint.Part1 == handle and joint.Part0
                 if other and other ~= handle and other.Parent then
@@ -3353,7 +3441,32 @@ return function(Context)
         end
     end
 
+    function backend.AccessoryLifetime.Service(rig,physical)
+        if not physical or not physical.Parent or not rig or not rig.Parent then return end
+        local index= getPhysicalHeadIndex(physical)
+        local controller=backend.AccessoryLifetime.ControllerIndex(rig)
+        local now=os.clock()
+        local hidden=type(Reanimate.ShouldBodyHidePart)=="function" and Reanimate.ShouldBodyHidePart("Head") == true
+        local prior=backend.AccessoryMaintenance
+        if prior and prior.Rig==rig and prior.Physical==physical
+            and prior.Revision==index.Revision and prior.ControllerRevision==controller.Revision
+            and prior.BreakWelds==options.BreakAccessoryWelds and prior.Hidden==hidden
+            and prior.PD==backend.EffectivePermanentDeath and now>=prior.At and now-prior.At<.1 then return end
+        backend.AccessoryMaintenance={Rig=rig,Physical=physical,Revision=index.Revision,
+            ControllerRevision=controller.Revision,BreakWelds=options.BreakAccessoryWelds,
+            Hidden=hidden,PD=backend.EffectivePermanentDeath,At=now}
+        local inventoryOk,inventoryError=pcall(backend.AccessoryLifetime.Refresh,rig,physical)
+        backend.AccessoryLifetimeError=not inventoryOk and tostring(inventoryError) or nil
+        local repairOk,repairError=pcall(repairAccessoryWeldBindings)
+        local hideOk,hideError=pcall(updateAccessoryBodyHideWelds)
+        pdHeadFollower.AccessoryError=not repairOk and tostring(repairError)
+            or not hideOk and tostring(hideError) or backend.AccessoryWeldRepairError
+    end
+
     local function detachScaleBridge()
+        backend.ControllerPoseSample,backend.FallbackBodyPoseBatch = nil,nil
+        backend.AccessoryMaintenance,backend.LastOwnershipWarningAt = nil,nil
+        if backend.AccessoryLifetime.ResetBodyChain then backend.AccessoryLifetime.ResetBodyChain() end
         if controllerSettingsCleanup then controllerSettingsCleanup() controllerSettingsCleanup = nil end
         local global = environment()
         global.UhhhhhhTBZGelatekTorsoWriter = nil
@@ -3445,6 +3558,7 @@ return function(Context)
         end
         restoreAccessoryRecoveryStates()
         restoreAccessoryBodyHideWelds()
+        if backend.AccessoryLifetime.RestoreResetNeck then backend.AccessoryLifetime.RestoreResetNeck() end
         -- A controller bridge can restart around the same original shell.
         -- Preserve original accessory identities across that handoff; changing
         -- physical characters or final cleanup releases the registry instead.
@@ -3454,119 +3568,6 @@ return function(Context)
         global.UhhhhhhTBZGelatekFlingActive = nil
         lastAppliedScale = nil
         lastJump = false
-    end
-
-    local bodyChainPoseCache = {}
-    local bodyChainLastSample = 0
-    local lastHeadHiddenState = nil
-
-    local function findLimbStyleJointChannels(character, part0Name, part1Name)
-        local constraint = nil
-        local motor = nil
-        for _, joint in ipairs(character:GetDescendants()) do
-            if Util.IsCharacterJoint(joint) then
-                local part0, part1 = Util.GetCharacterJointParts(joint)
-                if part0
-                    and part1
-                    and part0.Name == part0Name
-                    and part1.Name == part1Name
-                then
-                    if joint:IsA("Motor6D") then
-                        motor = joint
-                    else
-                        constraint = joint
-                    end
-                end
-            end
-        end
-        return constraint, motor
-    end
-
-    local function computeMappedJointFromCFrames(
-        physicalCharacter,
-        map,
-        p0CFrame,
-        p1CFrame
-    )
-        local constraint, motor =
-            findLimbStyleJointChannels(physicalCharacter, map.Part0, map.Part1)
-        local reference = constraint or motor
-        if not reference then
-            return nil
-        end
-
-        local cf
-        if map.Type == 1 then
-            cf = p0CFrame:ToObjectSpace(p1CFrame)
-        elseif map.Type == 2 then
-            local offset = map.Offset or CFrame.identity
-            local c0, c1 = CFrame.new(map.C0), CFrame.new(map.C1)
-            local transform = offset
-                * (p0CFrame * c0):ToObjectSpace(p1CFrame * c1)
-                * offset:Inverse()
-            local jointC0, jointC1 = Util.GetCharacterJointFrames(reference)
-            if not jointC0 or not jointC1 then
-                return nil
-            end
-            cf = jointC0 * transform * jointC1:Inverse()
-        end
-        return cf
-    end
-
-    local function applyCachedMappedJoint(
-        physicalCharacter,
-        map,
-        p0CFrame,
-        p1CFrame,
-        cacheKey,
-        sampleNow
-    )
-        if sampleNow or not bodyChainPoseCache[cacheKey] then
-            local cf = computeMappedJointFromCFrames(
-                physicalCharacter,
-                map,
-                p0CFrame,
-                p1CFrame
-            )
-            if cf then
-                bodyChainPoseCache[cacheKey] = cf
-            end
-        end
-
-        local cf = bodyChainPoseCache[cacheKey]
-        if not cf then
-            return false
-        end
-
-        local constraint, motor =
-            findLimbStyleJointChannels(physicalCharacter, map.Part0, map.Part1)
-        local reference = constraint or motor
-        if not reference then
-            return false
-        end
-
-        -- Keep the same R6/R15 preview policy as the shared Limb writer.
-        local localMotor = motor or (reference:IsA("Motor6D") and reference or nil)
-        if localMotor then
-            Util.SetCharacterJointLocalOffset(localMotor, cf)
-        end
-        local writeAccepted = Util.SetCharacterJointOffset(reference, cf, nil, localMotor == reference)
-        if motor and motor ~= reference then
-            writeAccepted = Util.SetCharacterJointOffset(motor, cf, nil, true) or writeAccepted
-        end
-        return writeAccepted
-    end
-
-    local function setLimbStyleJointIdentity(character, part0Name, part1Name)
-        local constraint, motor =
-            findLimbStyleJointChannels(character, part0Name, part1Name)
-        local reference = constraint or motor
-        if reference then
-            Util.SetCharacterJointTransform(reference, CFrame.identity)
-        end
-        if motor and motor ~= reference then
-            Util.SetCharacterJointTransform(motor, CFrame.identity)
-        end
     end
 
     local function gelatekTorsoWriterBlocked()
@@ -3820,6 +3821,8 @@ return function(Context)
         pdHeadFollower.Head, pdHeadFollower.Humanoid, pdHeadFollower.SavedHumanoid = nil, nil, nil
         pdHeadFollower.LinearMover, pdHeadFollower.AngularMover, pdHeadFollower.SavedProperties = nil, nil, nil
         pdHeadFollower.LastTarget, pdHeadFollower.SampledTarget, pdHeadFollower.LastError = nil, nil, nil
+        pdHeadFollower.RelativeSample = nil
+        pdHeadFollower.LocalDisplayError = nil
         pdHeadFollower.LastOwned, pdHeadFollower.OwnershipLossSince = nil, nil
         pdHeadFollower.PositionError, pdHeadFollower.Writes, pdHeadFollower.AccessoryWrites = 0, 0, 0
         pdHeadFollower.AcceptedWrites = 0
@@ -3852,6 +3855,173 @@ return function(Context)
             and math.abs(value.Z) < math.huge
     end
     pdHeadFollower.FiniteCFrame = finiteCFrame
+
+    -- Keep the original player root connected in normal non-PD. Splitting this
+    -- assembly made the torso depend on a new ownership allocation; PhysicsRootRef
+    -- cannot allocate ownership. Only the root receives a physical CFrame write.
+    local bodyChain = {Joints={}, Targets={}, Properties={}}
+    backend.BodyChain = bodyChain
+    local function captureBodyChainJoint(joint)
+        local saved={Transform=joint.Transform,Enabled=joint.Enabled}
+        if joint.ClassName=="AnimationConstraint" then saved.IsKinematic=joint.IsKinematic end
+        return saved
+    end
+    function backend.AccessoryLifetime.BodyChainJoint(physical, a, b)
+        local index = getPhysicalHeadIndex(physical)
+        local key = a.."/"..b
+        if index.BodyChainRevision ~= index.Revision then
+            index.BodyChainRevision,index.BodyChainMotors = index.Revision,{}
+        end
+        local cached = index.BodyChainMotors[key]
+        if cached and cached.Parent then
+            local p0,p1 = Util.GetCharacterJointParts(cached)
+            if p0 and p1 and ((p0.Name==a and p1.Name==b) or (p0.Name==b and p1.Name==a)) then return cached end
+        end
+        for _, joint in ipairs(index.Joints) do
+            if joint.Parent and Util.IsCharacterJoint(joint) then
+                local p0, p1 = Util.GetCharacterJointParts(joint)
+                if p0 and p1 and ((p0.Name==a and p1.Name==b) or (p0.Name==b and p1.Name==a)) then
+                    index.BodyChainMotors[key] = joint
+                    return joint
+                end
+            end
+        end
+    end
+    function backend.AccessoryLifetime.CanKeepBodyChain(physical)
+        if gelatekTorsoWriterBlocked() then return false, "torso/bullet mode needs a detached torso" end
+        local lower = physical and physical:FindFirstChild("LowerTorso")
+        local torso = physical and (physical:FindFirstChild("UpperTorso") or physical:FindFirstChild("Torso"))
+        if not torso or not backend.AccessoryLifetime.BodyChainJoint(physical,"HumanoidRootPart",lower and "LowerTorso" or "Torso") then
+            return false, "original root joint missing"
+        end
+        if lower and not backend.AccessoryLifetime.BodyChainJoint(physical,"LowerTorso","UpperTorso") then
+            return false, "original waist joint missing"
+        end
+        return true
+    end
+    function backend.AccessoryLifetime.ResetBodyChain()
+        for joint, saved in pairs(bodyChain.Joints) do
+            if joint.Parent then pcall(function()
+                if saved.DetachedForPD then
+                    if saved.Attached then joint.Attachment0,joint.Attachment1=saved.Attachment0,saved.Attachment1
+                    else joint.Part0,joint.Part1=saved.Part0,saved.Part1 end
+                end
+                joint.Transform, joint.Enabled = saved.Transform, saved.Enabled
+                if saved.IsKinematic~=nil then joint.IsKinematic=saved.IsKinematic end
+            end) end
+        end
+        for part, saved in pairs(bodyChain.Properties) do
+            if part.Parent then pcall(function() part.RootPriority, part.Massless = saved.RootPriority, saved.Massless end) end
+        end
+        table.clear(bodyChain.Joints) table.clear(bodyChain.Properties) table.clear(bodyChain.Targets)
+        bodyChain.Physical, bodyChain.Suspended, bodyChain.LastError = nil, nil, nil
+    end
+    function backend.AccessoryLifetime.SuspendBodyChainForFling(root)
+        if not backend.KeepBodyChain then return end
+        local physical = backend.RealCharacter or originalCharacter
+        for _, childName in ipairs({"Torso","LowerTorso"}) do
+            local joint = physical and backend.AccessoryLifetime.BodyChainJoint(physical,"HumanoidRootPart",childName)
+            if joint then
+                bodyChain.Joints[joint] = bodyChain.Joints[joint] or captureBodyChainJoint(joint)
+                joint.Enabled = false
+            end
+        end
+        bodyChain.Suspended = true
+        table.clear(bodyChain.Targets)
+    end
+    function backend.AccessoryLifetime.DetachBodyChainForPD(physical)
+        quiesceGelatekFollowerSupport()
+        backend.AccessoryLifetime.ResetBodyChain()
+        for _, link in ipairs({{"HumanoidRootPart","Torso"},{"HumanoidRootPart","LowerTorso"},{"LowerTorso","UpperTorso"}}) do
+            local joint = backend.AccessoryLifetime.BodyChainJoint(physical,link[1],link[2])
+            if joint then
+                local saved=captureBodyChainJoint(joint)
+                saved.DetachedForPD=true
+                if joint.ClassName=="AnimationConstraint" then
+                    saved.Attached,saved.Attachment0,saved.Attachment1=true,joint.Attachment0,joint.Attachment1
+                else saved.Part0,saved.Part1=joint.Part0,joint.Part1 end
+                bodyChain.Joints[joint] = saved
+                joint.Enabled = false
+                if joint.ClassName=="AnimationConstraint" then joint.Attachment1=nil
+                else joint.Part1 = nil end -- release the actual rigid endpoint during PD
+            end
+        end
+        backend.KeepBodyChain = false
+    end
+    function backend.AccessoryLifetime.UpdateBodyChain(rig, physical, poseOnly, poses)
+        if not backend.KeepBodyChain then return false end
+        if environment().UhhhhhhTBZGelatekFlingActive then return false end
+        if bodyChain.Physical and bodyChain.Physical ~= physical then backend.AccessoryLifetime.ResetBodyChain() end
+        bodyChain.Physical = physical
+        local canKeep, reason = backend.AccessoryLifetime.CanKeepBodyChain(physical)
+        if not canKeep then
+            backend.AccessoryLifetime.ResetBodyChain()
+            backend.KeepBodyChain, backend.BodyChainReason = false, reason
+            local config = environment().GelatekReanimateConfig
+            if config then config.CurrentAngleBodyChain = false end
+            return false
+        end
+        local root = physical:FindFirstChild("HumanoidRootPart")
+        local controllerRoot = rig:FindFirstChild("HumanoidRootPart")
+        if not root or not controllerRoot then bodyChain.LastError = "real/controller root missing" return false end
+        local targets = {[root]=backend.AccessoryLifetime.ControllerBodyPose(controllerRoot,poses)}
+        for _, name in ipairs({"Torso","LowerTorso","UpperTorso"}) do
+            local part = physical:FindFirstChild(name)
+            if part then
+                local controller = rig:FindFirstChild(name) or rig:FindFirstChild("Torso")
+                local target = controller and backend.AccessoryLifetime.ControllerBodyPose(controller,poses)
+                if target and controller.Name ~= name then target *= scaledRecoveryOffset(backend.AccessoryLifetime.BodyAnchorOffset(name)) end
+                if target and type(Reanimate.ResolveBodyHideTargetCFrame)=="function" then
+                    target = Reanimate.ResolveBodyHideTargetCFrame(part,target,name,false)
+                end
+                targets[part] = target
+            end
+        end
+        for _, name in ipairs({"HumanoidRootPart","Torso","LowerTorso","UpperTorso"}) do
+            local part = physical:FindFirstChild(name)
+            if part and not finiteCFrame(targets[part]) then bodyChain.LastError = "invalid body-chain target" return false end
+        end
+        -- A fling temporarily isolates the root. Rejoin only at the controller
+        -- root after ownership returns, never at the fling destination.
+        if bodyChain.Suspended then
+            if poseOnly or not ownsPhysicalPart(root) then return false end
+            root.CFrame = targets[root]
+        end
+        local owned = ownsPhysicalPart(root)
+        bodyChain.Owned, bodyChain.Root = owned, root
+        if not owned then
+            bodyChain.OwnershipLossSince = bodyChain.OwnershipLossSince or os.clock()
+            bodyChain.LastError = "original root assembly not owned; server assignment required"
+            return false
+        end
+        bodyChain.OwnershipLossSince = nil
+        local accepted = true
+        local lower = physical:FindFirstChild("LowerTorso")
+        local links = {{"HumanoidRootPart",lower and "LowerTorso" or "Torso"}}
+        if lower then table.insert(links,{"LowerTorso","UpperTorso"}) end
+        for _, link in ipairs(links) do
+            local joint = backend.AccessoryLifetime.BodyChainJoint(physical,link[1],link[2])
+            if not joint then bodyChain.LastError = "original body-chain joint missing" return false end
+            local p0,p1 = Util.GetCharacterJointParts(joint)
+            if not p0 or not p1 or not targets[p0] or not targets[p1] then
+                bodyChain.LastError = "original body-chain joint missing" return false
+            end
+            bodyChain.Joints[joint] = bodyChain.Joints[joint] or captureBodyChainJoint(joint)
+            local offset = targets[p0]:ToObjectSpace(targets[p1])
+            if not poseOnly then accepted = Util.SetCharacterJointOffset(joint,offset,nil,true)==true and accepted end
+            Util.SetCharacterJointLocalOffset(joint,offset)
+            joint.Enabled = true
+        end
+        for part in pairs(targets) do
+            bodyChain.Properties[part] = bodyChain.Properties[part] or {RootPriority=part.RootPriority,Massless=part.Massless}
+            local priority,massless = part==root and 127 or 0,part~=root
+            if part.RootPriority~=priority then part.RootPriority=priority end
+            if part.Massless~=massless then part.Massless=massless end
+        end
+        bodyChain.Targets, bodyChain.Suspended = targets, false
+        bodyChain.LastError = not accepted and "body-chain CurrentAngle submission failed" or nil
+        return accepted
+    end
 
     local function headStillSharesBodyAssembly(physical, head)
         local root = head.AssemblyRootPart
@@ -3893,7 +4063,44 @@ return function(Context)
                 and debugSafe(function() return humanoid:GetState() end, nil) == Enum.HumanoidStateType.Dead)
     end
 
+    function backend.AccessoryLifetime.PrepareResetNeck(physical,head)
+        if not head or not head.Parent then return end
+        backend.ResetPDNeckStates=backend.ResetPDNeckStates or {}
+        for _,joint in ipairs(getPhysicalHeadIndex(physical).Joints) do
+            local p0,p1=Util.GetCharacterJointParts(joint)
+            local other=p0==head and p1 or p1==head and p0
+            if other and other.Parent==physical and (other.Name=="Torso" or other.Name=="UpperTorso") then
+                local attached=joint.ClassName=="AnimationConstraint" or joint.ClassName=="RigidConstraint"
+                if not backend.ResetPDNeckStates[joint] then
+                    backend.ResetPDNeckStates[joint]=attached and {
+                        Attached=true,Attachment0=joint.Attachment0,Attachment1=joint.Attachment1,Enabled=joint.Enabled,
+                    } or {Part0=joint.Part0,Part1=joint.Part1,Enabled=joint.Enabled}
+                end
+                joint.Enabled=false
+                if attached then joint.Attachment1=nil else joint.Part1=nil end
+            end
+        end
+    end
+    function backend.AccessoryLifetime.RestoreResetNeck()
+        for joint,saved in pairs(backend.ResetPDNeckStates or {}) do
+            if joint.Parent then pcall(function()
+                if saved.Attached then joint.Attachment0,joint.Attachment1=saved.Attachment0,saved.Attachment1
+                else joint.Part0,joint.Part1=saved.Part0,saved.Part1 end
+                joint.Enabled=saved.Enabled
+            end) end
+        end
+        backend.ResetPDNeckStates=nil
+    end
+
     function pdHeadFollower.UpdateResetHandoff(physical, head)
+        if backend.ResetPDIntent == true and options.ResetTurnsPD == true
+            and backend.Running and not rebindInProgress
+            and pdHeadFollower.PhysicalHumanoidIsDead(physical)
+            and environment().UhhhhhhTBZGelatekPDTransitionPending ~= true then
+            environment().UhhhhhhTBZGelatekPDTransitionPending = true
+            quiesceGelatekFollowerSupport()
+            backend.AccessoryLifetime.PrepareResetNeck(physical,head)
+        end
         if backend.ResetPDIntent ~= true or options.ResetTurnsPD ~= true
             or rebindInProgress or not backend.Running
             or not pdHeadFollower.IsDetachedFromBody(physical, head) or not pdHeadFollower.PhysicalHumanoidIsDead(physical) then
@@ -3949,7 +4156,7 @@ return function(Context)
         if type(Reanimate.ResumePhysicsHead) == "function" then pcall(Reanimate.ResumePhysicsHead) end
     end
 
-    local function writeGelatekCurrentAngleHead(physical, head, target, controllerTorso, bodyPoses)
+    local function writeGelatekCurrentAngleHead(physical, head, target, controllerTorso, bodyPoses, poseOnly)
         if not physical or not physical.Parent or not head or not head.Parent or not finiteCFrame(target) then
             pdHeadFollower.LastBlockedReason = "missing real Head or invalid joint target"
             return false
@@ -3995,10 +4202,14 @@ return function(Context)
             end
             pdHeadFollower.NeckRevision = index.Revision
         end
-        -- Keep the body as this assembly's root. No CFrame, velocity or mover
-        -- write is made to the connected Head: only the Neck's two pose channels.
-        head.RootPriority, head.Massless = -127, true
-        torso.RootPriority, torso.Massless = 127, false
+        -- Keep the body as this assembly's root. The connected Head receives
+        -- no physical CFrame/velocity writes; the Neck owns transport and display.
+        if head.RootPriority~=-127 then head.RootPriority=-127 end
+        if head.Massless~=true then head.Massless=true end
+        local torsoPriority=backend.KeepBodyChain and not bodyChain.Suspended and 0 or 127
+        local torsoMassless=backend.KeepBodyChain == true and not bodyChain.Suspended
+        if torso.RootPriority~=torsoPriority then torso.RootPriority=torsoPriority end
+        if torso.Massless~=torsoMassless then torso.Massless=torsoMassless end
         -- Derive the intended pose from the controller's torso. Compensating
         -- against a fallen, unowned physical torso hid ownership loss locally
         -- and sent a huge compensating Neck offset instead of the actual pose.
@@ -4006,12 +4217,17 @@ return function(Context)
         if controllerTorso and torso.Name == "UpperTorso" and controllerTorso.Name == "Torso" then
             basis *= scaledRecoveryOffset(backend.AccessoryLifetime.BodyAnchorOffset("UpperTorso"))
         end
+        -- The torso may be hidden through its retained root/waist joints. Neck
+        -- offsets must use that intended torso pose so a visible Head stays put.
+        if backend.KeepBodyChain and bodyChain.Physical==physical and bodyChain.Targets[torso] then
+            basis = bodyChain.Targets[torso]
+        end
         if not finiteCFrame(basis) then
             pdHeadFollower.LastBlockedReason = "invalid controller torso pose"
             return false
         end
         local relative = basis:ToObjectSpace(target)
-        local wrote, channelsPresent = false, false
+        local wrote, channelsPresent, displayError, writeError = false, false, nil, nil
         for _, channel in ipairs(pdHeadFollower.NeckChannels) do
             local joint = channel.Joint
             if joint.Parent then
@@ -4020,28 +4236,44 @@ return function(Context)
                     channelsPresent = true
                     joint.Enabled = true
                     local offset = part0 == head and relative:Inverse() or relative
-                    -- Local display cannot substitute for either replicated
-                    -- pose channel. R6 deliberately has no Transform preview.
-                    Util.SetCharacterJointLocalOffset(joint, offset)
-                    local accepted = Util.SetCharacterJointOffset(joint, offset, nil, true)
-                    wrote = accepted == true or wrote
+                    -- Only simulation commits submit the two upstream channels.
+                    -- Rendering can display the full Neck pose without rewriting
+                    -- that outgoing sample or proving another client's pose.
+                    if not poseOnly and ownsPhysicalPart(torso) then
+                        local accepted = Util.SetCharacterJointOffset(joint, offset, nil, true)
+                        wrote = accepted == true or wrote
+                        if accepted ~= true then
+                            local stats = Util.CharacterJointReplicationStats
+                            local record = stats and stats.Joints and stats.Joints[joint]
+                            writeError = record and record.LastError or "Neck replication submission failed"
+                        end
+                    end
+                    local displayed, reason = Util.SetCharacterJointLocalOffset(joint, offset)
+                    if displayed ~= true then displayError = tostring(reason or "Neck local display unavailable") end
                 end
             end
         end
         pdHeadFollower.LastOwned = ownsPhysicalPart(torso)
         pdHeadFollower.PositionError = (head.Position - target.Position).Magnitude
-        local stats = Util.CharacterJointReplicationStats
-        pdHeadFollower.LastError = stats and (stats.State == "failed" or stats.State == "local-only") and stats.LastError or nil
-        if not channelsPresent or not wrote then
-            pdHeadFollower.LastBlockedReason = not channelsPresent and "real Neck joint missing" or "Neck writer rejected target"
+        pdHeadFollower.LocalDisplayError = displayError
+        if poseOnly then
+            return channelsPresent and pdHeadFollower.LastOwned == true
+                and pdHeadFollower.LastSuccessfulWriteAt ~= nil
+                and os.clock() - pdHeadFollower.LastSuccessfulWriteAt < .25
+                and pdHeadFollower.LastBlockedReason == nil
+        end
+        pdHeadFollower.LastError = not wrote and writeError or nil
+        if not channelsPresent then
+            pdHeadFollower.LastBlockedReason = "real Neck joint missing"
             return false
         end
-        pdHeadFollower.AcceptedWrites += 1
         if not pdHeadFollower.LastOwned then
             pdHeadFollower.OwnershipLossSince = pdHeadFollower.OwnershipLossSince or os.clock()
             pdHeadFollower.LastBlockedReason = "real torso assembly is not owned; observer pose unverified"
             return false
         end
+        if not wrote then pdHeadFollower.LastBlockedReason = "Neck writer rejected target" return false end
+        pdHeadFollower.AcceptedWrites += 1
         pdHeadFollower.OwnershipLossSince = nil
         pdHeadFollower.LastTarget, pdHeadFollower.LastSuccessfulWriteAt = target, os.clock()
         pdHeadFollower.LastBlockedReason = nil
@@ -4181,70 +4413,94 @@ return function(Context)
     end
 
     quiesceGelatekFollowerSupport = function()
-        local physical = backend.RealCharacter or originalCharacter
-        if not physical or not physical.Parent then return end
-        local head = physical:FindFirstChild("Head")
-        if head and head:IsA("BasePart") and not headStillSharesBodyAssembly(physical, head)
-            and ownsPhysicalPart(head) then
-            pcall(function() head.AssemblyLinearVelocity, head.AssemblyAngularVelocity = Vector3.zero, Vector3.zero end)
+        -- Stop only movers created by this follower. Pausing or rejecting a
+        -- target never rewrites an assembly's linear or angular velocity.
+        for _, mover in pairs({pdHeadFollower.LinearMover, pdHeadFollower.AngularMover}) do
+            if mover.Parent then pcall(function()
+                if mover.Enabled then mover.Enabled = false end
+            end) end
         end
-        for handle, state in pairs(accessoryRecoveryStates) do
-            if handle.Parent and state.Managed and ownsPhysicalPart(handle) then
-                pcall(function()
-                    handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
-                    if state.LinearMover then state.LinearMover.MaxForce = Vector3.zero end
-                    if state.AngularMover then state.AngularMover.MaxTorque = Vector3.zero end
-                end)
-            end
+        for _, state in pairs(accessoryRecoveryStates) do
+            if state.Managed then pcall(function()
+                if state.LinearMover and state.LinearMover.MaxForce ~= Vector3.zero then
+                    state.LinearMover.MaxForce = Vector3.zero
+                end
+                if state.AngularMover and state.AngularMover.MaxTorque ~= Vector3.zero then
+                    state.AngularMover.MaxTorque = Vector3.zero
+                end
+            end) end
         end
     end
 
     local function updateGelatekBodyChain(rig, dt, poseOnly, bodyPoses)
-        if not backend.Running or rebindInProgress or not rig or not rig.Parent then
+        if not backend.Running or rebindInProgress or not rig or not rig.Parent
+            or environment().UhhhhhhTBZGelatekFollowersPaused then
             pdHeadFollower.LastBlockedReason = "bridge paused or controller missing"
             return false
         end
         local physical = backend.RealCharacter or originalCharacter
+        if not physical or not physical.Parent then
+            pdHeadFollower.LastBlockedReason = "real character missing"
+            return false
+        end
         local controllerHead = rig:FindFirstChild("Head")
         local head = physical and physical.Parent and physical:FindFirstChild("Head")
+        pdHeadFollower.UpdateResetHandoff(physical, head)
+        bodyPoses = bodyPoses or backend.AccessoryLifetime.ControllerBodyPoses(rig)
+        if poseOnly and options.ShowMeHowILook ~= true then
+            bodyPoses = backend.AccessoryLifetime.ControllerBodyPoses(rig,true)
+        end
+        if backend.KeepBodyChain then backend.AccessoryLifetime.UpdateBodyChain(rig,physical,poseOnly,bodyPoses) end
         if not controllerHead or not head then
             pdHeadFollower.LastBlockedReason = "real or controller Head missing"
             quiesceGelatekFollowerSupport()
             return false
         end
-        pdHeadFollower.UpdateResetHandoff(physical, head)
+        if environment().UhhhhhhTBZGelatekPDTransitionPending then
+            pdHeadFollower.LastBlockedReason = "follower handoff paused"
+            return false
+        end
         if backend.EffectivePermanentDeath == true and environment().UhhhhhhTBZGelatekPermaReady ~= true then
             pdHeadFollower.LastBlockedReason = "PD handoff not ready"
             return false
         end
         local detached = pdHeadFollower.IsDetachedFromBody(physical, head)
-        bodyPoses = bodyPoses or backend.AccessoryLifetime.ControllerBodyPoses(rig)
         local target = backend.AccessoryLifetime.ControllerBodyPose(controllerHead, bodyPoses)
         local requestedHide = type(Reanimate.ShouldBodyHidePart) == "function" and Reanimate.ShouldBodyHidePart("Head") == true
         local hidden = backend.AccessoryLifetime.HeadHideReady(physical, head, requestedHide)
         if hidden and type(Reanimate.ResolveBodyHideTargetCFrame) == "function" then
             target = Reanimate.ResolveBodyHideTargetCFrame(head, target, "Head", false)
         end
-        local now, cached = os.clock(), pdHeadFollower.SampledTarget
-        if options.ShowMeHowILook and finiteCFrame(cached) and lastHeadHiddenState == hidden
-            and pdHeadFollower.Head == head and (cached.Position - target.Position).Magnitude <= 16
-            and now - bodyChainLastSample < 1 / 20 then
-            target = cached
-        else
-            bodyChainLastSample = now
+        local controllerTorso = rig:FindFirstChild("UpperTorso") or rig:FindFirstChild("Torso")
+        local anchor = (backend.EffectivePermanentDeath == true or detached)
+            and rig:FindFirstChild("HumanoidRootPart") or controllerTorso
+        local basis = anchor and backend.AccessoryLifetime.ControllerBodyPose(anchor, bodyPoses)
+        local realTorso = physical:FindFirstChild("UpperTorso") or physical:FindFirstChild("Torso")
+        if anchor == controllerTorso and realTorso and realTorso.Name == "UpperTorso"
+            and controllerTorso and controllerTorso.Name == "Torso" and finiteCFrame(basis) then
+            basis *= scaledRecoveryOffset(backend.AccessoryLifetime.BodyAnchorOffset("UpperTorso"))
         end
-        lastHeadHiddenState = hidden
+        local now, sample = os.clock(), nil
+        if finiteCFrame(basis) and finiteCFrame(target) then
+            local relative = basis:ToObjectSpace(target)
+            -- Roblox handles transport cadence. A local 20 Hz sample-and-hold
+            -- made smooth Neck animation visibly step, even with frame smoothing.
+            sample = {Head=head, Anchor=anchor, Offset=relative, At=now,
+                Show=options.ShowMeHowILook == true, Hidden=hidden, Detached=detached,
+                PD=backend.EffectivePermanentDeath}
+        end
         local written
         if backend.EffectivePermanentDeath == true or detached then
             written = writeGelatekPhysicsHead(physical, head, controllerHead, target, dt, poseOnly)
             pdHeadFollower.Route = backend.EffectivePermanentDeath == true and "PD" or "detached Head recovery"
         else
             written = writeGelatekCurrentAngleHead(physical, head, target,
-                rig:FindFirstChild("UpperTorso") or rig:FindFirstChild("Torso"), bodyPoses)
+                controllerTorso, bodyPoses, poseOnly)
             pdHeadFollower.Route = "connected non-PD joint"
         end
         if written then
             pdHeadFollower.SampledTarget = target
+            pdHeadFollower.RelativeSample = sample
             backend.HeadHideApplied = hidden
             if backend.HeadHideAccessoryRestorePending and (head.Position - controllerHead.Position).Magnitude <= 4 then
                 backend.AccessoryLifetime.RollbackHeadHide()
@@ -4262,10 +4518,7 @@ return function(Context)
             and not headStillSharesBodyAssembly(backend.RealCharacter or originalCharacter, head)
     end
     local function stepGelatekHeadBridge(rig, dt, phase, bodyPoses)
-        local repairOk, repairError = pcall(repairAccessoryWeldBindings)
-        local hideOk, hideError = pcall(updateAccessoryBodyHideWelds)
-        pdHeadFollower.AccessoryError = not repairOk and tostring(repairError)
-            or not hideOk and tostring(hideError) or backend.AccessoryWeldRepairError
+        backend.AccessoryLifetime.Service(rig,backend.RealCharacter or originalCharacter)
         local headOk, result = pcall(updateGelatekBodyChain, rig, dt, phase == "RenderPose" or phase == "ControllerPose", bodyPoses)
         pdHeadFollower.LastStepAt, pdHeadFollower.LastPhase = os.clock(), phase
         if not headOk then pdHeadFollower.LastError = tostring(result) end
@@ -4351,16 +4604,13 @@ return function(Context)
         -- Only a committed physics pose may touch the original server Handle.
         -- Controller/render callbacks otherwise made local hats look smoother
         -- than the pose/velocity sample observers actually received.
-        if poseOnly then return false end
+        if poseOnly or environment().UhhhhhhTBZGelatekFollowersPaused then return false end
         local state = accessoryRecoveryStates[handle]
         local target = resolveGelatekAccessoryTargetCFrame(handle, controller, bodyPoses)
         if not finiteCFrame(target) then
             if state then
                 state.LastBlockedReason = "invalid controller accessory pose"
                 state.SampleCFrame, state.SampleAt = nil, nil
-                if ownsPhysicalPart(handle) then
-                    handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
-                end
             end
             return false
         end
@@ -4490,9 +4740,6 @@ return function(Context)
             if state then
                 state.LastBlockedReason = "missing real or controller accessory Handle"
                 state.SampleCFrame, state.SampleAt = nil, nil
-                if handle.Parent and ownsPhysicalPart(handle) then
-                    pcall(function() handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero end)
-                end
             end
             return false
         end
@@ -4578,6 +4825,9 @@ return function(Context)
             then
                 return false
             end
+            if backend.KeepBodyChain and not bodyChain.Suspended then
+                return true -- root + CurrentAngle own this connected assembly
+            end
             return writeGelatekTorso(
                 rig,
                 physicalPart,
@@ -4661,13 +4911,8 @@ return function(Context)
             return pdHeadWriterIsCurrent(pdHeadFollower.Head)
         end
 
-        accessoryBodyHideConnection =
-            RunService.PreSimulation:Connect(function()
-                if not bridgeIsActive() then
-                    return
-                end
-                updateAccessoryBodyHideWelds()
-            end)
+        -- Shared maintenance owns weld repair/hiding; it is invalidated by rig
+        -- changes and switches, and does not run a second full accessory scan.
 
         -- The proxy owns locomotion. Detached physical followers stay isolated.
         -- Collision is shared with Limb; this name set is only for void recovery.
@@ -4831,7 +5076,7 @@ return function(Context)
         -- controller root did not teleport. It works for PD and non-PD detached
         -- parts; Head is excluded because the dedicated PD/non-PD bridge owns it.
         limbRecoveryConnection = RunService.PreSimulation:Connect(function()
-            if not bridgeIsActive() or rebindInProgress then
+            if not bridgeIsActive() or rebindInProgress or environment().UhhhhhhTBZGelatekFollowersPaused then
                 return
             end
             local physical = backend.RealCharacter
@@ -4840,6 +5085,7 @@ return function(Context)
             end
 
             local threshold = math.clamp(tonumber(options.PhysicalRecoveryDistance) or 25, 0, 50)
+            local bodyPoses = backend.AccessoryLifetime.ControllerBodyPoses(rig)
             for _, pair in ipairs(getGelatekRecoveryPairs(rig, physical)) do
                 local physicalPart = pair.Physical
                 local controllerPart = pair.Controller
@@ -4847,6 +5093,8 @@ return function(Context)
                     and controllerPart.Parent
                     and pair.Name ~= "Head"
                     and pair.IsAccessory ~= true
+                    and not (backend.KeepBodyChain
+                        and (pair.Name=="Torso" or pair.Name=="LowerTorso" or pair.Name=="UpperTorso"))
                     and ownsPhysicalPart(physicalPart)
                     and (
                         pair.IsAccessory == true
@@ -4856,7 +5104,7 @@ return function(Context)
                         )
                     )
                 then
-                    local targetCFrame = controllerPart.CFrame * pair.Offset
+                    local targetCFrame = backend.AccessoryLifetime.ControllerBodyPose(controllerPart,bodyPoses) * pair.Offset
                     if pair.IsAccessory == true then
                         targetCFrame = resolveGelatekAccessoryTargetCFrame(physicalPart, controllerPart)
                     end
@@ -4901,8 +5149,7 @@ return function(Context)
             end
             local physical = backend.RealCharacter or originalCharacter
             if not physical or not physical.Parent then return end
-            local inventoryOk,inventoryError=pcall(backend.AccessoryLifetime.Refresh,rig,physical)
-            backend.AccessoryLifetimeError=not inventoryOk and tostring(inventoryError) or nil
+            if phase == "ControllerPose" then backend.AccessoryLifetime.CommitControllerPose(rig) end
             local bodyPoses = backend.AccessoryLifetime.ControllerBodyPoses(rig)
             stepGelatekHeadBridge(rig, dt, phase, bodyPoses)
             local now = os.clock()
@@ -4912,17 +5159,17 @@ return function(Context)
             if not commitAccessories then return end
             -- Managed-head early returns in native CFrameAlign must not leave
             -- a previously visible ownership warning permanently stuck on.
-            for _, part in ipairs(getPhysicalHeadIndex(physical).Descendants) do
-                if part:IsA("BasePart") then backend.RefreshOwnershipWarning(part) end
+            if not backend.LastOwnershipWarningAt or now-backend.LastOwnershipWarningAt>=.2 then
+                backend.LastOwnershipWarningAt=now
+                for _,part in ipairs(getPhysicalHeadIndex(physical).Descendants) do
+                    if part:IsA("BasePart") then backend.RefreshOwnershipWarning(part) end
+                end
             end
             for handle, state in pairs(accessoryRecoveryStates) do
                 if state.Managed and handle.Parent and (not state.Controller or not state.Controller.Parent) then
                     state.LastBlockedReason = "controller accessory target missing"
-                    if ownsPhysicalPart(handle) then pcall(function()
-                        handle.AssemblyLinearVelocity, handle.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
-                        if state.LinearMover then state.LinearMover.MaxForce = Vector3.zero end
-                        if state.AngularMover then state.AngularMover.MaxTorque = Vector3.zero end
-                    end) end
+                    if state.LinearMover and state.LinearMover.MaxForce ~= Vector3.zero then state.LinearMover.MaxForce = Vector3.zero end
+                    if state.AngularMover and state.AngularMover.MaxTorque ~= Vector3.zero then state.AngularMover.MaxTorque = Vector3.zero end
                 end
             end
             for _, pair in ipairs(getGelatekRecoveryPairs(rig, physical)) do
@@ -4994,6 +5241,7 @@ return function(Context)
                 restoreGelatekRootRepRoot()
                 return
             end
+            backend.AccessoryLifetime.SuspendBodyChainForFling(physicalRoot)
             global.UhhhhhhTBZGelatekFlingActive = true
             local written, writeError = pcall(function()
                 physicalRoot.CFrame = targetCFrame
@@ -5116,7 +5364,7 @@ local function UhhhhhhTBZJointParts(Joint)
 	local Ok, Part0, Part1 = pcall(function()
 		return Joint.Part0, Joint.Part1
 	end)
-	if Ok and Part0 and Part1 then return Part0, Part1 end
+	if Ok and Part0 and Part1 and Part0:IsA("BasePart") and Part1:IsA("BasePart") then return Part0, Part1 end
 	local Read, Attachment0, Attachment1 = pcall(function()
 		return Joint.Attachment0, Joint.Attachment1
 	end)
@@ -5197,6 +5445,8 @@ local ArtificalEvent = RunService.PostSimulation]==],
 			PreserveForCurrentAngleChain = PreserveForCurrentAngleChain
 				or (N0 == "HumanoidRootPart" and (N1 == "Torso" or N1 == "LowerTorso"))
 				or (N0 == "LowerTorso" and N1 == "UpperTorso")
+				or (N1 == "HumanoidRootPart" and (N0 == "Torso" or N0 == "LowerTorso"))
+				or (N1 == "LowerTorso" and N0 == "UpperTorso")
 		end
 		if Joint.Name ~= "Neck" and not PreserveForCurrentAngleChain then
 			Joint:Destroy()
@@ -5398,6 +5648,14 @@ local function UhhhhhhTBZFinitePose(Value)
 	return true
 end
 local CFrameAlign = function(Part0, Part1, Position, Angle)
+    if not Part0 or not Part0.Parent then return end
+    if not Part1 or not Part1.Parent or not UhhhhhhTBZFinitePose(Part1.CFrame) then
+        Global.UhhhhhhTBZGelatekAlignStats=Global.UhhhhhhTBZGelatekAlignStats or setmetatable({}, {__mode="k"})
+        local Stat=Global.UhhhhhhTBZGelatekAlignStats[Part0] or {Calls=0,OwnedCalls=0,UnownedCalls=0}
+        Global.UhhhhhhTBZGelatekAlignStats[Part0]=Stat
+        Stat.LastBlockedReason,Stat.LastPhysicalWriteAt="missing or invalid controller target",nil
+        return
+    end
 	if Config.ManagedHeadFollower == true and Part0 and Part0.Name == "Head" then
 		-- The backend authorizes only the current, actually detached Head.
 		-- Launch-time PD can be stale after Reset; an intact Neck stays blocked.
@@ -5514,10 +5772,8 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
 		local TargetCFrame = TargetPose * CFrame_Position * CFrame_Angle
 		if not UhhhhhhTBZFinitePose(TargetCFrame) then
 			UhhhhhhAlignStat.LastBlockedReason = "invalid controller limb pose"
-			if UhhhhhhTBZFinitePose(UhhhhhhAlignStat.TargetCFrame) then Part0.CFrame = UhhhhhhAlignStat.TargetCFrame end
-			Part0.AssemblyLinearVelocity, Part0.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
-			local Support = Part0:FindFirstChild("Stabilition")
-			if Support and Support:IsA("BodyVelocity") then Support.Velocity = Vector3.zero end
+			UhhhhhhAlignStat.LastPhysicalWriteAt=nil
+			-- No usable pose: stop submitting support and let physics continue.
 			return
 		end
 		UhhhhhhAlignStat.LastBlockedReason = nil
@@ -5551,6 +5807,7 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
 				end
 			end
 			Part0.CFrame = TargetCFrame
+			UhhhhhhAlignStat.LastPhysicalWriteAt=os.clock()
 		end
 		UhhhhhhAlignStat.TorsoWriterHandled = UhhhhhhTorsoHandled
 		UhhhhhhAlignStat.ErrorAfter =
@@ -5783,6 +6040,11 @@ local function FollowPhysicalRoot(Position)
 		Character:FindFirstChild("UpperTorso")
 		or Character:FindFirstChild("Torso")
 	if RootPart and RootPart.Parent and PhysicalTorso and PhysicalTorso.Parent then
+		if Config.CurrentAngleBodyChain == true then
+			local ControllerRoot = FakeRig and FakeRig:FindFirstChild("HumanoidRootPart")
+			if ControllerRoot then CFrameAlign(RootPart, ControllerRoot) end
+			return
+		end
 		-- A connected root already follows its assembly. Moving it again
 		-- would move the torso/head too and feed the offset back each frame.
 		if RootPart.AssemblyRootPart == PhysicalTorso.AssemblyRootPart then
@@ -5803,6 +6065,17 @@ local function FollowPhysicalRoot(Position)
 end]==],
             "exact physical-root bridge"
         )
+        source = replaceOnce(source,
+            [==[if Config.CurrentAngleBodyChain == true and IsPermaDeath == false then
+	if RigType == "R15" then
+		Offsets["UpperTorso"] = nil
+		Offsets["LowerTorso"] = nil
+	else
+		Offsets["Torso"] = nil
+	end
+end]==],
+            "-- Torso targets remain registered for PD/fling handoffs; the bridge suppresses connected torso CFrame writes.",
+            "connected torso targets survive mode transitions")
         source = replaceCount(
             source,
             'CFrameAlign(RootPart, Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso"), CFrame.new(0,Root_Offset,0))',
@@ -5851,7 +6124,7 @@ end]==],
 			pcall(Transport, PhysicalHead, ControllerHead, Velocity, UhhhhhhPhase)
 		end
 	end
-	do -- [[ One velocity authority per physical assembly ]] --
+	local function UhhhhhhTBZApplyBodySupport()
 		local ManagedHeadRoot
 		local Head = Character:FindFirstChild("Head")
 		local Ready = Global.UhhhhhhTBZGelatekPDHeadWriterReady
@@ -5870,11 +6143,11 @@ end]==],
 			local Ok, Detached = pcall(Allowed, Head)
 			if Ok and Detached == true then ManagedHeadRoot = Head.AssemblyRootPart or Head end
 		end
-		local Skipped = 0
+		local Skipped, WrittenRoots = 0, {}
 		local function VendorMayWrite(Part)
-			if Global.UhhhhhhTBZGelatekFollowersPaused == true
-				and (Part == Head or Part:FindFirstAncestorOfClass("Accessory")
-					or (Head and Part.AssemblyRootPart == Head.AssemblyRootPart)) then return false end
+			if Global.UhhhhhhTBZGelatekFollowersPaused == true then return false end
+			if Global.UhhhhhhTBZGelatekPDTransitionPending == true and Part == Head then return false end
+			if Global.UhhhhhhTBZGelatekFlingActive and Part==RootPart then return false end
 			if UhhhhhhPhase == "RenderPose" then return false end
 			local Ok, Owned = pcall(isnetworkowner, Part.AssemblyRootPart or Part)
 			if not Ok or Owned ~= true then return false end
@@ -5889,6 +6162,17 @@ end]==],
 				Skipped = Skipped + 1
 				return false
 			end
+			local Root = Part.AssemblyRootPart or Part
+			if WrittenRoots[Root] then return false end
+			local Stats = Global.UhhhhhhTBZGelatekAlignStats
+			local Pose = Stats and (Stats[Root] or Stats[Part])
+			local Age = Pose and Pose.LastPhysicalWriteAt and os.clock()-Pose.LastPhysicalWriteAt
+			if not Age or Age<0 or Age>math.max(.25,math.min(dt or 1/60,.5)*2) then
+				-- No recent physical pose: skip support without clamping velocity.
+				WrittenRoots[Root]=true
+				return false
+			end
+			WrittenRoots[Root]=true
 			return true
 		end
 		-- The dead torso can disappear while the detached Head remains valid.
@@ -6274,6 +6558,9 @@ end]==], "optional library does not block the head bridge")
             'table.insert(Events, ArtificalEvent:Connect(function()\n',
             [==[local function UhhhhhhTBZBodyStep(dt, UhhhhhhPhase)
 	if not UhhhhhhTBZRunActive() then return end
+    if Global.UhhhhhhTBZGelatekFollowersPaused then return end
+    Global.UhhhhhhTBZGelatekPosePhaseId=(Global.UhhhhhhTBZGelatekPosePhaseId or 0)+1
+    if Config.CurrentAngleBodyChain == true then FollowPhysicalRoot() end
 	-- Reset can finish against the existing physical shell with no CharacterAdded.
 	-- Share the promoted config with all native closures in this generation.
 	if Config.PermanentDeath == true then IsPermaDeath = true end
@@ -6299,11 +6586,18 @@ end))
 if DynamicalVelocity == true then]==],
             [==[		FollowPhysicalRoot(CFrame.new(0,Root_Offset,0))
 	end
+    UhhhhhhTBZApplyBodySupport()
 end
-	table.insert(Events, RunService.PreSimulation:Connect(function(dt) UhhhhhhTBZBodyStep(dt, "PreSimulation") end))
-	table.insert(Events, RunService.PostSimulation:Connect(function(dt) UhhhhhhTBZBodyStep(dt, "PostSimulation") end))
-	RunService:BindToRenderStep(UhhhhhhRenderBinding, Enum.RenderPriority.Last.Value + 1,
-		function(dt) UhhhhhhTBZBodyStep(dt, "RenderPose") end)
+local function UhhhhhhTBZSafeBodyStep(dt,Phase)
+    if not UhhhhhhTBZRunActive() then return end
+    local Ok,Reason=pcall(UhhhhhhTBZBodyStep,dt,Phase)
+    if not Ok then
+        Global.UhhhhhhTBZGelatekBodyStepError=tostring(Reason)
+        -- Keep diagnostics local; do not reset assemblies after a failed tick.
+    else Global.UhhhhhhTBZGelatekBodyStepError=nil end
+end
+	table.insert(Events, RunService.PreSimulation:Connect(function(dt) UhhhhhhTBZSafeBodyStep(dt, "PreSimulation") end))
+	table.insert(Events, RunService.PostSimulation:Connect(function(dt) UhhhhhhTBZSafeBodyStep(dt, "PostSimulation") end))
 
 if DynamicalVelocity == true then]==], "direct pre/post simulation plus late render wiring")
         -- The vendor initializes inside task.spawn. Carry an actual failure
@@ -6322,6 +6616,10 @@ if not StartupOk and UhhhhhhTBZRunActive() then
 	if not Global.UhhhhhhTBZGelatekControllerReady and type(Stop) == "function" then pcall(Stop) end
 end
 end)]==], "generation-scoped initialization error handoff")
+        source = replaceOnce(source,
+            'if not (Config.CurrentAngleBodyChain == true and IsPermaDeath == false)',
+            'if not (Config.CurrentAngleBodyChain == true)',
+            "retained root follows its controller through Head PD")
         return source
     end
 
@@ -6821,6 +7119,7 @@ end)]==], "generation-scoped initialization error handoff")
         global.UhhhhhhTBZGelatekPromoteResetPD = nil
         global.UhhhhhhTBZGelatekRuntimePD = nil
         global.UhhhhhhTBZGelatekFollowersPaused = nil
+        global.UhhhhhhTBZGelatekPDTransitionPending = nil
         local accessoryTargetFolder = global.UhhhhhhTBZGelatekAccessoryTargetFolder
         if typeof(accessoryTargetFolder) == "Instance" and accessoryTargetFolder.Parent then
             pcall(function()
@@ -7113,6 +7412,9 @@ end)]==], "generation-scoped initialization error handoff")
             local before = snapshotWorkspaceModels()
             backend.DetectedRig = originalHumanoid.RigType.Name
             backend.ControllerRig = "R6"
+            local canKeep, chainReason = backend.AccessoryLifetime.CanKeepBodyChain(originalCharacter)
+            backend.KeepBodyChain = not effectivePermanentDeath and canKeep
+            backend.BodyChainReason = effectivePermanentDeath and "PD uses detached followers" or chainReason or "original root/torso/neck retained"
             disableVoidDestruction()
 
             local global = environment()
@@ -7135,6 +7437,7 @@ end)]==], "generation-scoped initialization error handoff")
             global.UhhhhhhTBZGelatekPermaError = nil
             global.UhhhhhhTBZGelatekControllerReady = false
             global.UhhhhhhTBZGelatekStartupError = nil
+            global.UhhhhhhTBZGelatekPDTransitionPending,global.UhhhhhhTBZGelatekBodyStepError,global.UhhhhhhTBZGelatekPosePhaseId=nil,nil,nil
             global.UhhhhhhTBZGelatekFollowersPaused = rebindInProgress
             global.UhhhhhhTBZGelatekRunToken = generationRunToken
             global.UhhhhhhTBZGelatekRuntimePD = effectivePermanentDeath
@@ -7150,11 +7453,18 @@ end)]==], "generation-scoped initialization error handoff")
                 -- do not wait for a replacement that the place may never send.
                 effectivePermanentDeath = true
                 backend.EffectivePermanentDeath = true
+                -- Head PD does not require splitting a usable original root/torso
+                -- assembly. Keep its existing follower and ownership allocation.
+                if backend.KeepBodyChain and not backend.AccessoryLifetime.CanKeepBodyChain(physical) then
+                    backend.AccessoryLifetime.ResetBodyChain()
+                    backend.KeepBodyChain = false
+                end
                 local config = global.GelatekReanimateConfig
                 if type(config) == "table" then
-                    config.PermanentDeath, config.CurrentAngleHeadOnly = true, false
+                    config.PermanentDeath, config.CurrentAngleHeadOnly, config.CurrentAngleBodyChain = true, false, backend.KeepBodyChain == true
                 end
                 global.UhhhhhhTBZGelatekPermaReady = true
+                global.UhhhhhhTBZGelatekPDTransitionPending = nil
                 return true
             end
             global.UhhhhhhTBZGelatekPDHeadTransport = function(head, controllerHead, nativeVelocity, phase)
@@ -7175,10 +7485,10 @@ end)]==], "generation-scoped initialization error handoff")
                 if type(Reanimate.ResolveBodyHideTargetCFrame) == "function" then
                     target = Reanimate.ResolveBodyHideTargetCFrame(head, target, "Head", false)
                 end
-                -- Normal runtime also applies the saved 20 FPS preview policy.
+                -- Normal runtime consumes the completed controller pose.
                 -- The first handoff cannot be gated by backend.Running/Ready.
                 local written
-                if backend.Running then written = stepGelatekHeadBridge(rig, dt, phase or "GelatekBody")
+                if backend.Running then written = pdHeadWriterIsCurrent(head)
                 else
                     local ok, result = pcall(writeGelatekPhysicsHead, originalCharacter, head, controllerHead, target, dt, phase == "RenderPose")
                     written = ok and result == true
@@ -7247,8 +7557,8 @@ end)]==], "generation-scoped initialization error handoff")
                 DirectPositionCorrection = options.DirectPositionCorrection,
                 -- The optional torso writer is intercepted at CFrameAlign. Keep
                 -- Gelatek's native torso entries so it can fall back per frame.
-                CurrentAngleBodyChain = false,
-                CurrentAngleHeadOnly = not effectivePermanentDeath,
+                CurrentAngleBodyChain = backend.KeepBodyChain == true,
+                CurrentAngleHeadOnly = not effectivePermanentDeath and not backend.KeepBodyChain,
                 ManagedHeadFollower = true,
                 DisableDirectionalWalking = options.DisableDirectionalWalking,
                 DisableTweaks = options.DisableTweaks,
@@ -26204,6 +26514,12 @@ local Util = Context.Util
 local __TheoIsExternal = Context.__TheoIsExternal
 local ismissing = Context.ismissing
 local pcall = Context.pcall
+local function AnimatedJointPart(joint)
+    if not Util.IsCharacterJoint(joint) then return nil end
+    if joint:IsA("Motor6D") then return joint.Part0 and joint.Part1 end
+    local _,part=Util.GetCharacterJointParts(joint)
+    return part
+end
 local AnimLib = {
 	Version = "1.9.0",
 	Settings = {
@@ -26306,9 +26622,8 @@ function AnimLib.ResetDisabledJointPoses(rig)
 	end
 	local disabled = SavedAnimLibOptions.DisabledAnimationParts
 	for _, descendant in rig:GetDescendants() do
-		if descendant:IsA("Motor6D")
-			and descendant.Part1
-			and disabled[descendant.Part1.Name] == true
+		local part=AnimatedJointPart(descendant)
+		if part and disabled[part.Name] == true
 		then
 			descendant.Transform = CFrame.identity
 		end
@@ -27332,10 +27647,11 @@ do
 		for key, value in mask do
 			local joint = type(key) == "number" and value or key
 			local enabled = type(key) == "number" or value == true
-			if typeof(joint) == "Instance" and joint:IsA("Motor6D") then
-				joint = joint.Part1 and joint.Part1.Name or joint.Name
+			if Util.IsCharacterJoint(joint) then
+				local part=AnimatedJointPart(joint)
+				joint = part and part.Name or joint.Name
 			end
-			assert(type(joint) == "string", "joint mask entries must be names or Motor6Ds")
+			assert(type(joint) == "string", "joint mask entries must be names or animation joints")
 			if enabled then
 				normalizedMask[joint] = true
 			end
@@ -27362,10 +27678,11 @@ do
 		for key, value in mask do
 			local joint = type(key) == "number" and value or key
 			local disabled = type(key) == "number" or value == true
-			if typeof(joint) == "Instance" and joint:IsA("Motor6D") then
-				joint = joint.Part1 and joint.Part1.Name or joint.Name
+			if Util.IsCharacterJoint(joint) then
+				local part=AnimatedJointPart(joint)
+				joint = part and part.Name or joint.Name
 			end
-			assert(type(joint) == "string", "disabled joint entries must be names or Motor6Ds")
+			assert(type(joint) == "string", "disabled joint entries must be names or animation joints")
 			if disabled then
 				normalizedMask[joint] = true
 			end
@@ -27373,9 +27690,8 @@ do
 		self.disabledJoints = next(normalizedMask) and normalizedMask or nil
 		if self.rig and self.disabledJoints then
 			for _, descendant in self.rig:GetDescendants() do
-				local name = descendant:IsA("Motor6D")
-					and descendant.Part1
-					and descendant.Part1.Name
+				local part=AnimatedJointPart(descendant)
+				local name = part and part.Name
 				if name
 					and self.disabledJoints[name] == true
 					and (not previousMask or previousMask[name] ~= true)
@@ -27585,7 +27901,7 @@ do
 			return self
 		end
 		for _, descendant in self.rig:GetDescendants() do
-			if descendant:IsA("Motor6D") then
+			if Util.IsCharacterJoint(descendant) then
 				descendant.Transform = CFrame.identity
 			end
 		end
@@ -27697,8 +28013,9 @@ do
 			if not jointmap then
 				jointmap = {}
 				for _, v in rig:GetDescendants() do
-					if v:IsA("Motor6D") and v.Part0 and v.Part1 and (not Context.RigAdapter or Context.RigAdapter.IsRigMotor(rig,v)) then
-						jointmap[v.Part1.Name] = v
+					local part=AnimatedJointPart(v)
+					if part and (not Context.RigAdapter or Context.RigAdapter.IsRigMotor(rig,v)) then
+						jointmap[part.Name] = v
 					end
 				end
 				self._jointmap = jointmap
@@ -28081,10 +28398,11 @@ do
 	]]
 	local Motor6DUtil = {}
 	local function ValidateMotor(motor)
-		if typeof(motor) ~= "Instance" or not motor:IsA("Motor6D") then
-			return false, "motor must be a Motor6D"
+		if not Util.IsCharacterJoint(motor) then
+			return false, "motor must be a Motor6D or AnimationConstraint"
 		end
-		if not motor.Part0 or not motor.Part1 then
+		local p0,p1=Util.GetCharacterJointParts(motor)
+		if not p0 or not p1 then
 			return false, "motor must have Part0 and Part1"
 		end
 		return true
@@ -28105,28 +28423,33 @@ do
 	function Motor6DUtil.SolveWorldTransform(motor, target, reference)
 		local valid, reason = ValidateMotor(motor)
 		assert(valid, reason)
-		local targetCFrame = ResolveWorldCFrame(target, motor.Part1, "target")
-		local referenceCFrame = ResolveWorldCFrame(reference, motor.Part0, "reference")
+		local p0,p1=Util.GetCharacterJointParts(motor)
+		local c0,c1=Util.GetCharacterJointFrames(motor)
+		local targetCFrame = ResolveWorldCFrame(target, p1, "target")
+		local referenceCFrame = ResolveWorldCFrame(reference, p0, "reference")
 		local relative = referenceCFrame:Inverse() * targetCFrame
-		return motor.C0:Inverse() * relative * motor.C1
+		return c0:Inverse() * relative * c1
 	end
 	function Motor6DUtil.GetCurrentWorldTransform(motor)
-		return Motor6DUtil.SolveWorldTransform(motor, motor.Part1, motor.Part0)
+		return Motor6DUtil.SolveWorldTransform(motor)
 	end
 	function Motor6DUtil.GetWorldCFrame(motor, transform, reference)
 		local valid, reason = ValidateMotor(motor)
 		assert(valid, reason)
 		transform = transform or motor.Transform
 		assert(typeof(transform) == "CFrame", "transform must be a CFrame")
-		local referenceCFrame = ResolveWorldCFrame(reference, motor.Part0, "reference")
-		return referenceCFrame * motor.C0 * transform * motor.C1:Inverse()
+		local p0=Util.GetCharacterJointParts(motor)
+		local c0,c1=Util.GetCharacterJointFrames(motor)
+		local referenceCFrame = ResolveWorldCFrame(reference, p0, "reference")
+		return referenceCFrame * c0 * transform * c1:Inverse()
 	end
 	function Motor6DUtil.RetargetTransform(sourceMotor, targetMotor)
 		local sourceValid, sourceReason = ValidateMotor(sourceMotor)
 		local targetValid, targetReason = ValidateMotor(targetMotor)
 		assert(sourceValid, sourceReason)
 		assert(targetValid, targetReason)
-		return Motor6DUtil.SolveWorldTransform(targetMotor, sourceMotor.Part1, sourceMotor.Part0)
+		local p0,p1=Util.GetCharacterJointParts(sourceMotor)
+		return Motor6DUtil.SolveWorldTransform(targetMotor, p1, p0)
 	end
 	function Motor6DUtil.ToReplicationVectors(transform)
 		assert(typeof(transform) == "CFrame", "transform must be a CFrame")
@@ -28137,6 +28460,9 @@ do
 		local valid, reason = ValidateMotor(motor)
 		if not valid then
 			return false, reason
+		end
+		if not motor:IsA("Motor6D") then
+			return false, "ReplicateCurrent channels require a Motor6D; AnimationConstraint pose is local only"
 		end
 		if typeof(transform) ~= "CFrame" then
 			return false, "transform must be a CFrame"
@@ -28228,8 +28554,9 @@ do
 			return motors
 		end
 		for _, descendant in rig:GetDescendants() do
-			if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
-				motors[descendant.Part1.Name] = descendant
+			local part=AnimatedJointPart(descendant)
+			if part then
+				motors[part.Name] = descendant
 			end
 		end
 		return motors
@@ -28884,6 +29211,10 @@ function Reset.Capture(rig, excluded)
                 C0 = instance.C0, C1 = instance.C1, Enabled = instance.Enabled,
                 MaxVelocity = instance:IsA("Motor6D") and instance.MaxVelocity or nil,
                 Attributes = instance:GetAttributes()})
+        elseif instance.ClassName=="AnimationConstraint" then
+            table.insert(snapshot.Joints, {Instance=instance, Parent=instance.Parent, Name=instance.Name,
+                Class=instance.ClassName, Attachment0=instance.Attachment0, Attachment1=instance.Attachment1,
+                Enabled=instance.Enabled, IsKinematic=instance.IsKinematic, Attributes=instance:GetAttributes()})
         elseif instance:IsA("Humanoid") then
             snapshot.Humanoid, snapshot.HumanoidValues = instance, properties(instance, humanoidProperties)
         end
@@ -28924,8 +29255,16 @@ function Reset.Restore(snapshot, scale)
             record.Instance = joint
             snapshot.Instances[joint] = true
         end
-        joint.Name, joint.Part0, joint.Part1 = record.Name, record.Part0, record.Part1
-        joint.C0, joint.C1, joint.Enabled = record.C0, record.C1, record.Enabled
+        joint.Name,joint.Enabled=record.Name,record.Enabled
+        if record.Class=="AnimationConstraint" then
+            -- The compatibility Part0/C0 aliases are read-only. Restore the
+            -- original attachment references, never rewrite rig attachments.
+            joint.Attachment0,joint.Attachment1=record.Attachment0,record.Attachment1
+            joint.Transform,joint.IsKinematic=CFrame.identity,record.IsKinematic
+        else
+            joint.Part0,joint.Part1=record.Part0,record.Part1
+            joint.C0,joint.C1=record.C0,record.C1
+        end
         for name in pairs(joint:GetAttributes()) do joint:SetAttribute(name, nil) end
         for name, value in pairs(record.Attributes) do joint:SetAttribute(name, value) end
         if joint:IsA("Motor6D") then
@@ -31302,17 +31641,17 @@ function LimbReanimator.Start()
 			RestoreLimbWriter(map)
 		end
 
-		-- R15 can preview Transform locally; R6 stays on the upstream hidden
-		-- writer. The utility refuses client-only R6 Transform assignments.
+		-- Submit STEVE's replication pose, then display the chosen local pose.
+		-- Render preview must not overwrite the sampled outgoing channels.
+		local accepted = Util.SetCharacterJointOffset(reference, offset, nil, displayOffset ~= nil) == true
+		if motor and motor ~= reference then
+			accepted = Util.SetCharacterJointOffset(motor, offset, nil, displayOffset ~= nil) == true or accepted
+		end
 		if displayOffset then
 			Util.SetCharacterJointLocalOffset(reference, displayOffset)
 			if motor and motor ~= reference then
 				Util.SetCharacterJointLocalOffset(motor, displayOffset)
 			end
-		end
-		local accepted = Util.SetCharacterJointOffset(reference, offset, nil, displayOffset ~= nil) == true
-		if motor and motor ~= reference then
-			accepted = Util.SetCharacterJointOffset(motor, offset, nil, displayOffset ~= nil) == true or accepted
 		end
 		map.WriterWriteAccepted = accepted
 		map.WriterState = accepted and "write-accepted; observer unverified" or "replication unavailable"
@@ -35968,6 +36307,9 @@ end
 Util.HiddenPropertyGetter = gethiddenproperty
 Util.TrySetHiddenProperty = function(instance, property, value)
 	local lastError = "no hidden-property setter is available"
+	local submitted
+	local jointChannel = typeof(instance) == "Instance" and instance:IsA("Motor6D")
+		and (property == "ReplicateCurrentOffset6D" or property == "ReplicateCurrentAngle6D")
 	for _, candidate in Util.HiddenPropertySetters do
 		local success, result = pcall(candidate.Set, instance, property, value)
 		if success then
@@ -35986,10 +36328,15 @@ Util.TrySetHiddenProperty = function(instance, property, value)
 			end
 			if matches then return true, candidate.Name, verified end
 			lastError = candidate.Name .. " did not retain the requested value"
+			-- STEVE submits these two channels through the setter. Immediate
+			-- readback is useful diagnostics, but cannot veto a non-throwing
+			-- replication submission. Prefer an alias with matching readback.
+			if jointChannel then submitted = submitted or candidate.Name end
 		else
 			lastError = tostring(result)
 		end
 	end
+	if submitted then return true, submitted, false, lastError end
 	return false, lastError
 end
 
@@ -36131,24 +36478,27 @@ end
 Util.Vector2ToUDim2Offset = function(x)
 	return UDim2.fromOffset(x.X, x.Y)
 end
+Util.ForcedTextSizes = setmetatable({}, {__mode = "k"})
+Util.ApplyPreferredTextSize = function(label, original)
+    local size = GuiService.PreferredTextSize.Name
+    local wanted = size == "Large" and original - 4 or size == "Larger" and original - 9
+        or size == "Largest" and original - 14 or original
+    wanted=math.max(1,wanted)
+    if label.TextSize ~= wanted then label.TextSize = wanted end
+end
 Util.ForceTextSize = function(inst)
-	if inst:IsA("TextLabel") then
-		local original = inst.TextSize
-		local conn
-		conn = RunService.PreRender:Connect(function()
-			local size = GuiService.PreferredTextSize.Name
-			if size == "Medium" then
-				inst.TextSize = original
-			elseif size == "Large" then
-				inst.TextSize = original - 4
-			elseif size == "Larger" then
-				inst.TextSize = original - 9
-			elseif size == "Largest" then
-				inst.TextSize = original - 14
-			end
-		end)
-		Util.LinkDestroyI2C(inst, conn)
-	end
+    if not inst:IsA("TextLabel") then return end
+    Util.ForcedTextSizes[inst] = inst.TextSize
+    Util.ApplyPreferredTextSize(inst, inst.TextSize)
+    if not Util.TextSizeConnection then
+        -- Hundreds of marketplace labels share this one event. Fonts are not
+        -- animation: rewriting TextSize on every render invalidated GUI layout.
+        Util.TextSizeConnection = GuiService:GetPropertyChangedSignal("PreferredTextSize"):Connect(function()
+            for label, original in pairs(Util.ForcedTextSizes) do
+                if label.Parent then Util.ApplyPreferredTextSize(label, original) end
+            end
+        end)
+    end
 end
 Util.QueryPlayerSelector = function(query, excludespeaker)
 	if #query == 0 then
@@ -36189,6 +36539,10 @@ SCREENGUI.ClipToDeviceSafeArea = false
 SCREENGUI.ResetOnSpawn = false
 SCREENGUI.ScreenInsets = Enum.ScreenInsets.None
 SCREENGUI.DisplayOrder = 2147483647
+SCREENGUI.Destroying:Connect(function()
+    if Util.TextSizeConnection then Util.TextSizeConnection:Disconnect() Util.TextSizeConnection=nil end
+    table.clear(Util.ForcedTextSizes)
+end)
 if gethiddengui then
 	SCREENGUI.Parent = gethiddengui()
 else
@@ -38499,45 +38853,37 @@ do
 	local AntiflingHumanoids = {}
 	local AntiflingBaseParts = {}
 	local OnStepped = function()
-		for i, v in AntiflingBaseParts do
-			if v:IsDescendantOf(workspace) then
-				if v.CanCollide then
-					v.CanCollide = false
+		local seen = {}
+		for part in pairs(AntiflingBaseParts) do
+			if part.Parent and part:IsDescendantOf(workspace) then
+				if part.CanCollide then part.CanCollide = false end
+				local root = part.AssemblyRootPart or part
+				if not seen[root] then
+					seen[root] = true
+					if root.AssemblyLinearVelocity ~= Vector3.zero then root.AssemblyLinearVelocity = Vector3.zero end
+					if root.AssemblyAngularVelocity ~= Vector3.zero then root.AssemblyAngularVelocity = Vector3.zero end
 				end
-				v.AssemblyLinearVelocity, v.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
-			else
-				table.remove(AntiflingBaseParts, i)
-			end
+			else AntiflingBaseParts[part] = nil end
 		end
-		for i, v in AntiflingHumanoids do
-			if v:IsDescendantOf(workspace) then
-				if v.EvaluateStateMachine then
-					v.EvaluateStateMachine = false
-				end
-			else
-				table.remove(AntiflingHumanoids, i)
-			end
+		for humanoid in pairs(AntiflingHumanoids) do
+			if humanoid.Parent and humanoid:IsDescendantOf(workspace) then
+				if humanoid.EvaluateStateMachine then humanoid.EvaluateStateMachine = false end
+			else AntiflingHumanoids[humanoid] = nil end
 		end
 	end
-	RunService.PreAnimation:Connect(OnStepped)
-	RunService.PreSimulation:Connect(OnStepped)
-	RunService.Stepped:Connect(OnStepped)
+	Util.LinkDestroyI2C(SCREENGUI, RunService.PreSimulation:Connect(OnStepped))
 	local OnBasePart = function(v)
 		if v:IsA("BasePart") then
 			v.CanCollide = false
-			if not table.find(AntiflingBaseParts, v) then
-				table.insert(AntiflingBaseParts, v)
-			end
+			AntiflingBaseParts[v] = true
 		end
 		if v:IsA("Humanoid") then
 			v.EvaluateStateMachine = false
-			if not table.find(AntiflingHumanoids, v) then
-				table.insert(AntiflingHumanoids, v)
-			end
+			AntiflingHumanoids[v] = true
 		end
 	end
 	local OnCharacter = function(character)
-		character.DescendantAdded:Connect(OnBasePart)
+		Util.LinkDestroyI2C(character, character.DescendantAdded:Connect(OnBasePart))
 		for _, v in character:GetDescendants() do
 			OnBasePart(v)
 		end
@@ -38546,12 +38892,12 @@ do
 		if player == Player then
 			return
 		end
-		player.CharacterAdded:Connect(OnCharacter)
+		Util.LinkDestroyI2C(SCREENGUI, player.CharacterAdded:Connect(OnCharacter))
 		if player.Character then
 			OnCharacter(player.Character)
 		end
 	end
-	Players.PlayerAdded:Connect(OnPlayer)
+	Util.LinkDestroyI2C(SCREENGUI, Players.PlayerAdded:Connect(OnPlayer))
 	for _, player in Players:GetPlayers() do
 		OnPlayer(player)
 	end
@@ -38629,11 +38975,8 @@ Util.IsCharacterJoint = function(joint)
 		and (joint:IsA("Motor6D") or joint.ClassName == "AnimationConstraint")
 end
 Util.GetCharacterJointParts = function(joint)
-	local success, part0, part1 = pcall(function()
-		return joint.Part0, joint.Part1
-	end)
-	if success and part0 and part1 then
-		return part0, part1
+	if typeof(joint)=="Instance" and joint:IsA("JointInstance") then
+		return joint.Part0,joint.Part1
 	end
 	if joint and joint.ClassName == "AnimationConstraint" then
 		local ok, attachment0, attachment1 = pcall(function()
@@ -38643,25 +38986,43 @@ Util.GetCharacterJointParts = function(joint)
 			return attachment0:FindFirstAncestorWhichIsA("BasePart"),
 				attachment1:FindFirstAncestorWhichIsA("BasePart")
 		end
+		return nil, nil
+	end
+	local success, part0, part1 = pcall(function()
+		return joint.Part0, joint.Part1
+	end)
+	if success and part0 and part1 then
+		return part0, part1
 	end
 	return nil, nil
 end
 Util.GetCharacterJointFrames = function(joint)
+	if typeof(joint)=="Instance" and joint:IsA("JointInstance") then
+		return joint.C0,joint.C1
+	end
+	if joint and joint.ClassName == "AnimationConstraint" then
+		local ok, frame0, frame1 = pcall(function()
+			local a0,a1=joint.Attachment0,joint.Attachment1
+			if not a0 or not a1 then return nil,nil end
+			local p0,p1=a0.Parent,a1.Parent
+			-- Standard R15 attachments are already part-local. Only nested
+			-- bone attachments need the more expensive world-space conversion.
+			if p0 and p1 and p0:IsA("BasePart") and p1:IsA("BasePart") then
+				return a0.CFrame,a1.CFrame
+			end
+			local part0,part1=Util.GetCharacterJointParts(joint)
+			return part0.CFrame:ToObjectSpace(a0.WorldCFrame),part1.CFrame:ToObjectSpace(a1.WorldCFrame)
+		end)
+		if ok and typeof(frame0) == "CFrame" and typeof(frame1) == "CFrame" then
+			return frame0, frame1
+		end
+		return nil, nil
+	end
 	local success, c0, c1 = pcall(function()
 		return joint.C0, joint.C1
 	end)
 	if success and typeof(c0) == "CFrame" and typeof(c1) == "CFrame" then
 		return c0, c1
-	end
-	if joint and joint.ClassName == "AnimationConstraint" then
-		local part0, part1 = Util.GetCharacterJointParts(joint)
-		local ok, frame0, frame1 = pcall(function()
-			return part0.CFrame:ToObjectSpace(joint.Attachment0.WorldCFrame),
-				part1.CFrame:ToObjectSpace(joint.Attachment1.WorldCFrame)
-		end)
-		if ok and typeof(frame0) == "CFrame" and typeof(frame1) == "CFrame" then
-			return frame0, frame1
-		end
 	end
 	return nil, nil
 end
@@ -38685,34 +39046,37 @@ Util.IsR15CharacterJoint = function(joint)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	return humanoid ~= nil and humanoid.RigType == Enum.HumanoidRigType.R15
 end
+local function FiniteJointPose(value)
+	if typeof(value) ~= "CFrame" then return false end
+	for _, component in ipairs({value:GetComponents()}) do
+		if component ~= component or math.abs(component) == math.huge then return false end
+	end
+	return true
+end
 Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplication, preserveLocalDisplay)
-	if not Util.IsCharacterJoint(joint) or typeof(transform) ~= "CFrame" then
+	if not Util.IsCharacterJoint(joint) or not FiniteJointPose(transform) then
 		return false
 	end
 	local applied = false
 	if joint:IsA("Motor6D") then
-		-- R6 is intentionally frozen to STEVE's original writer. R15 support must
-		-- never insert a client-only Transform assignment into the R6 path again.
-		-- Only a Motor6D proven to belong to an R15 Humanoid receives Transform;
-		-- missing/custom rig metadata takes the conservative original R6 path.
+		-- Local display and the two replication channels are separate. R6
+		-- needs the full Transform too; DesiredAngle represents only one axis.
 		local r15Path = Util.IsR15CharacterJoint(joint)
-		if r15Path and not preserveLocalDisplay then
-			applied = pcall(function()
-				joint.Transform = transform
-			end)
-		end
 		local desiredApplied = pcall(function()
 			joint.MaxVelocity = 9e9
 			local _, _, desiredAngle = transform:ToEulerAngles(Enum.RotationOrder.ZYX)
-			joint.DesiredAngle = desiredAngle
 			joint:SetDesiredAngle(desiredAngle)
 		end)
 		applied = applied or desiredApplied
 		local axis, angle = transform:ToAxisAngle()
-		local offsetSuccess, offsetResult, offsetVerified =
+		local offsetSuccess, offsetResult, offsetVerified, offsetReadbackError =
 			Util.TrySetHiddenProperty(joint, "ReplicateCurrentOffset6D", transform.Position)
-		local angleSuccess, angleResult, angleVerified =
+		local angleSuccess, angleResult, angleVerified, angleReadbackError =
 			Util.TrySetHiddenProperty(joint, "ReplicateCurrentAngle6D", axis * angle)
+		if not preserveLocalDisplay then
+			local displayed = pcall(function() joint.Transform = transform end)
+			applied = displayed or applied
+		end
 		local stats = Util.CharacterJointReplicationStats
 		local replicated = offsetSuccess and angleSuccess
 		local verified = replicated and offsetVerified and angleVerified
@@ -38736,6 +39100,7 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 			RequestedOffset = transform.Position, RequestedAngle = axis * angle,
 			OffsetAccepted = offsetSuccess, AngleAccepted = angleSuccess,
 			OffsetReadbackVerified = offsetVerified, AngleReadbackVerified = angleVerified,
+			OffsetReadbackError = offsetReadbackError, AngleReadbackError = angleReadbackError,
 			OffsetSource = offsetResult, AngleSource = angleResult,
 			WrittenAt = os.clock(),
 		}
@@ -38760,20 +39125,24 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 	return false, applied
 end
 Util.SetCharacterJointOffset = function(joint, offset, legacyMotorReplication, preserveLocalDisplay)
+	if not FiniteJointPose(offset) then return false end
 	local c0, c1 = Util.GetCharacterJointFrames(joint)
-	if not c0 or not c1 then
+	if not FiniteJointPose(c0) or not FiniteJointPose(c1) then
 		return false
 	end
 	return Util.SetCharacterJointTransform(joint, c0:Inverse() * offset * c1, legacyMotorReplication, preserveLocalDisplay)
 end
 Util.SetCharacterJointLocalOffset = function(joint, offset)
-	-- R6 uses the upstream DesiredAngle + hidden-channel writer. Explicitly
-	-- assigning Transform here bypassed that rule for every limb and the Neck.
-	if not Util.IsCharacterJoint(joint)
-		or (joint:IsA("Motor6D") and not Util.IsR15CharacterJoint(joint)) then return false end
+	-- Display never submits a replication write or claims observer success.
+	if not Util.IsCharacterJoint(joint) or not FiniteJointPose(offset) then return false end
 	local c0, c1 = Util.GetCharacterJointFrames(joint)
-	if not c0 or not c1 then return false end
-	return pcall(function() joint.Transform = c0:Inverse() * offset * c1 end)
+	if not FiniteJointPose(c0) or not FiniteJointPose(c1) then return false end
+	local transform = c0:Inverse() * offset * c1
+	if not FiniteJointPose(transform) then return false end
+	return pcall(function()
+		joint.Transform = transform
+		if joint.ClassName == "AnimationConstraint" then joint.IsKinematic = true end
+	end)
 end
 -- Backward-compatible aliases for community modules written before R15's
 -- AnimationConstraint-based Avatar Joint Upgrade.
@@ -42196,6 +42565,8 @@ end
 UI.CreateSeparator(MainPage)
 
 Reanimate.ControllerRigAdapter = Steve110.Require("main/rig_adapter")({
+    JointParts=Util.GetCharacterJointParts,
+    JointFrames=Util.GetCharacterJointFrames,
     CreateDriver=function(native)
         local template=CreateHumanoidCharacter()
         local ok,driver,accessories,motors=pcall(GelatekReanimator.AccessoryLifetime.CloneController,native,template,false)
@@ -45895,10 +46266,22 @@ assert(player, "Uhhhhhh: player left")
 local character = player.Character
 assert(character, "Uhhhhhh: character missing")
 
-local owned = 0
+local owned, claimedAssemblies, failedAssemblies = 0, 0, 0
+local seen = {}
 for _, instance in character:GetDescendants() do
     if instance:IsA("BasePart") and not instance.Anchored then
-        if pcall(instance.SetNetworkOwner, instance, player) then
+        local root = instance.AssemblyRootPart or instance
+        if not seen[root] then
+            seen[root] = true
+            local ok, allowed = pcall(root.CanSetNetworkOwnership, root)
+            local assigned = ok and allowed and pcall(root.SetNetworkOwner, root, player)
+            local verified, owner = pcall(root.GetNetworkOwner, root)
+            if assigned and verified and owner == player then
+                claimedAssemblies += 1
+            else failedAssemblies += 1 end
+        end
+        local ok, owner = pcall(instance.GetNetworkOwner, instance)
+        if ok and owner == player then
             owned += 1
         end
     end
@@ -45933,6 +46316,8 @@ end
 return {
     Ok = true,
     OwnedParts = owned,
+    OwnedAssemblies = claimedAssemblies,
+    FailedAssemblies = failedAssemblies,
     Method = %q,
 }
 ]=]):format(
@@ -47246,6 +47631,11 @@ local function RefreshMainModuleRow(m, container)
 	local page = m.ModuleType == "MOVESET" and MovesetsPage or DancesPage
 	local query = page.Search.Box.Text:lower()
 	local hideFromList = m.ModuleType == "MOVESET" and IsHidden(m)
+    local item = container:FindFirstChild("_UhhhhhhModuleCard")
+    if item then
+        local favorite = FavoriteSystem.IsFavorite(m)
+        if item:GetAttribute("Favorite") ~= favorite then item:SetAttribute("Favorite", favorite) end
+    end
 	container:SetAttribute("_UhhhhhhHiddenFromList", hideFromList)
 	container.Visible = not hideFromList
 		and (query == "" or container.Name:lower():find(query, 1, true) ~= nil)
@@ -47254,6 +47644,12 @@ end
 FavoriteSystem.RegisterMainItem = function(m, container)
 	moduleListRows[m] = container
 	RefreshMainModuleRow(m, container)
+end
+
+FavoriteSystem.SetMainRunning = function(m, running)
+    local container = m and moduleListRows[m]
+    local item = container and container.Parent and container:FindFirstChild("_UhhhhhhModuleCard")
+    if item and item:GetAttribute("Running") ~= running then item:SetAttribute("Running", running) end
 end
 
 local function ToggleHidden(m)
@@ -47458,6 +47854,24 @@ end
 FavoriteSystem.OpenModuleDetails = OpenModuleDetails
 end)()
 
+-- Selection state is shared; a pack of 500 dances does not need 500 render callbacks.
+;(function()
+    local lastMoveset, lastDance
+    AddToRenderStep(function()
+        local moveset = MovementStyles[MovementStyleIndex]
+        if moveset ~= lastMoveset then
+            FavoriteSystem.SetMainRunning(lastMoveset, false)
+            FavoriteSystem.SetMainRunning(moveset, true)
+            lastMoveset = moveset
+        end
+        if CurrentDance ~= lastDance then
+            FavoriteSystem.SetMainRunning(lastDance, false)
+            FavoriteSystem.SetMainRunning(CurrentDance, true)
+            lastDance = CurrentDance
+        end
+    end, UIMainFrame, true)
+end)()
+
 local function AddMoveset(m)
 	if type(m) == "table" then
 		if not m.Name or not m.Description or not m.Config or not m.Assets or not m.Init or not m.Update or not m.Destroy then
@@ -47480,10 +47894,7 @@ local function AddMoveset(m)
         item:GetAttributeChangedSignal("RunningClick"):Connect(function()
             MovementStyleIndex = table.find(MovementStyles, m)
         end)
-        AddToRenderStep(function()
-            item:SetAttribute("Running", MovementStyleIndex == table.find(MovementStyles, m))
-            item:SetAttribute("Favorite", FavoriteSystem.IsFavorite(m))
-        end, item)
+        item:SetAttribute("Running", MovementStyles[MovementStyleIndex] == m)
 		item.Parent.Name = m.Name .. " " .. m.Description
 		FavoriteSystem.RegisterMainItem(m, item.Parent)
 		Util.LinkDestroyI2C(
@@ -47518,10 +47929,7 @@ local function AddDance(m)
         item:GetAttributeChangedSignal("RunningClick"):Connect(function()
             if CurrentDance == m then CurrentDance = nil else CurrentDance = m end
         end)
-        AddToRenderStep(function()
-            item:SetAttribute("Running", CurrentDance == m)
-            item:SetAttribute("Favorite", FavoriteSystem.IsFavorite(m))
-        end, item)
+        item:SetAttribute("Running", CurrentDance == m)
 		item.Parent.Name = m.Name .. " " .. m.Description
 		FavoriteSystem.RegisterMainItem(m, item.Parent)
 		Util.LinkDestroyI2C(
@@ -47680,7 +48088,8 @@ local function __TheoCaptureGelatekControllerPose(character, dt)
 	end
 
     if character:GetAttribute("MovementInit") == true or character:GetAttribute("IsDancing") == true then
-        for _, descendant in character:GetDescendants() do
+        local poseIndex = GelatekReanimator.AccessoryLifetime.ControllerIndex(character)
+        for _, descendant in ipairs(poseIndex and poseIndex.Motors or {}) do
             if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
                 __TheoGelatekPoseCache[descendant] = Reanimate.CharacterMotion.BaseTransform(descendant)
             end
@@ -50461,6 +50870,15 @@ return function(ctx)
     api.Settings = saved
     local adapter=ctx.RigAdapter
     local function owner(rig) return adapter and adapter.Owner(rig) or rig end
+    local function poseJoint(joint) return joint:IsA("Motor6D") or joint.ClassName=="AnimationConstraint" end
+    local function jointParts(joint)
+        if adapter then return adapter.JointParts(joint) end
+        return joint.Part0,joint.Part1
+    end
+    local function jointFrames(joint)
+        if adapter then return adapter.JointFrames(joint) end
+        return joint.C0,joint.C1
+    end
     local clock = ctx.Clock or os.clock
     local state = {Corrections = {}, Connections = {}, Joints = {}, Contacts={}, Rest={}, Blends={}, Direction=Vector3.zero, Dt=1/60}
     local function finiteNumber(value) return type(value)=="number" and value==value and math.abs(value)<math.huge end
@@ -50511,7 +50929,9 @@ return function(ctx)
             state.Contacts,state.Rest,state.Blends,state.Direction={},{},{},Vector3.zero
             if rig then
                 for _, event in ipairs({"DescendantAdded", "DescendantRemoving"}) do
-                    table.insert(state.Connections, rig[event]:Connect(function() state.Dirty = true end))
+                    table.insert(state.Connections, rig[event]:Connect(function(item)
+                        if poseJoint(item) or item:IsA("BasePart") and item.Parent==rig then state.Dirty = true end
+                    end))
                 end
             end
         end
@@ -50519,12 +50939,15 @@ return function(ctx)
             state.Joints = {}
             local live={}
             for _, joint in ipairs(rig:GetDescendants()) do
-                if joint:IsA("Motor6D") then
+                local p0,p1
+                if poseJoint(joint) then p0,p1=jointParts(joint) end
+                if p0 and p1 and p0.Parent==rig and p1.Parent==rig then
                     table.insert(state.Joints, joint)
                     live[joint]=true
                     local rest=state.Rest[joint]
-                    if not rest or rest.Part0~=joint.Part0 or rest.Part1~=joint.Part1 then
-                        state.Rest[joint]={Part0=joint.Part0,Part1=joint.Part1,C0=joint.C0,C1=joint.C1}
+                    if not rest or rest.Part0~=p0 or rest.Part1~=p1 then
+                        local c0,c1=jointFrames(joint)
+                        state.Rest[joint]={Part0=p0,Part1=p1,C0=c0,C1=c1}
                     end
                 end
             end
@@ -50543,11 +50966,12 @@ return function(ctx)
         for _ = 1, 16 do
             local changed = false
             for _, joint in ipairs(state.Joints) do
-                local p0, p1 = joint.Part0, joint.Part1
+                local p0, p1 = jointParts(joint)
                 if joint.Parent and joint.Enabled ~= false and p0 and p1 and p0 ~= p1 and p0.Parent == rig and p1.Parent == rig then
                     incoming[p1] = joint
-                    if poses[p0] and not poses[p1] and finitePose(joint.C0) and finitePose(joint.C1) and finitePose(joint.Transform) then
-                        local pose=poses[p0] * joint.C0 * joint.Transform * joint.C1:Inverse()
+                    local c0,c1=jointFrames(joint)
+                    if poses[p0] and not poses[p1] and finitePose(c0) and finitePose(c1) and finitePose(joint.Transform) then
+                        local pose=poses[p0] * c0 * joint.Transform * c1:Inverse()
                         if finitePose(pose) then poses[p1],changed=pose,true end
                     end
                 end
@@ -50579,16 +51003,17 @@ return function(ctx)
     end
     local function writeJoint(joint, parentPose, childPose, confidence, length, now)
         local base = joint.Transform
+        local c0,c1=jointFrames(joint)
         if not finitePose(base) or not finitePose(parentPose) or not finitePose(childPose)
-            or not finitePose(joint.C0) or not finitePose(joint.C1)
+            or not finitePose(c0) or not finitePose(c1)
             or not finiteNumber(confidence) or not finiteNumber(length) or length<=0 or not finiteNumber(now) then
             state.Blends[joint]=nil return nil
         end
         if confidence<=0 then
             state.Blends[joint]=nil
-            return parentPose * joint.C0 * base * joint.C1:Inverse()
+            return parentPose * c0 * base * c1:Inverse()
         end
-        local solved = joint.C0:Inverse() * parentPose:ToObjectSpace(childPose) * joint.C1
+        local solved = c0:Inverse() * parentPose:ToObjectSpace(childPose) * c1
         -- Filter only the terrain offset. The animation's own snapping, timing,
         -- C0/C1 changes and Transform remain the baseline on every call.
         local delta=base:ToObjectSpace(solved)
@@ -50606,7 +51031,7 @@ return function(ctx)
         local written = base*CFrame.identity:Lerp(filtered,saved.IKStrength*confidence)
         if not finitePose(filtered) or not writeTransform(joint,written) then state.Blends[joint]=nil return nil end
         state.Blends[joint]={Delta=filtered,At=now}
-        return parentPose * joint.C0 * written * joint.C1:Inverse()
+        return parentPose * c0 * written * c1:Inverse()
     end
     local function restPose(joint,parentPose)
         local rest=state.Rest[joint]
@@ -50662,11 +51087,13 @@ return function(ctx)
         local direction=state.Direction
         local torso=rig:FindFirstChild("UpperTorso") or rig:FindFirstChild("Torso")
         local motor=torso and incoming[torso]
-        if motor and selected(torso.Name) and poses[torso] and poses[motor.Part0] then
-            local pivot=(poses[torso]*motor.C1).Position
+        local parent=motor and jointParts(motor)
+        if motor and selected(torso.Name) and poses[torso] and poses[parent] then
+            local c0,c1=jointFrames(motor)
+            local pivot=(poses[torso]*c1).Position
             local tilt=root.CFrame.Rotation*CFrame.Angles(math.rad(direction.Z*5),0,math.rad(-direction.X*saved.LeanAngle))*root.CFrame.Rotation:Inverse()
             local target=rotateAt(poses[torso],pivot,tilt)
-            writeTransform(motor,motor.C0:Inverse()*poses[motor.Part0]:ToObjectSpace(target)*motor.C1)
+            writeTransform(motor,c0:Inverse()*poses[parent]:ToObjectSpace(target)*c1)
         end
         poses,incoming=api.BodyPoses(rig)
         -- Positive Y yaw turns the visible forward vector toward the left.
@@ -50675,10 +51102,12 @@ return function(ctx)
         for _,side in ipairs({"Left","Right"}) do
             local limb=rig:FindFirstChild(side.."UpperLeg") or rig:FindFirstChild(side.." Leg")
             local m=limb and incoming[limb]
-            if m and selected(limb.Name) and poses[limb] and poses[m.Part0] then
-                local pivot=(poses[limb]*m.C1).Position
+            local parent=m and jointParts(m)
+            if m and selected(limb.Name) and poses[limb] and poses[parent] then
+                local c0,c1=jointFrames(m)
+                local pivot=(poses[limb]*c1).Position
                 local target=rotateAt(poses[limb],pivot,CFrame.fromAxisAngle(root.CFrame.UpVector,angle))
-                writeTransform(m,m.C0:Inverse()*poses[m.Part0]:ToObjectSpace(target)*m.C1)
+                writeTransform(m,c0:Inverse()*poses[parent]:ToObjectSpace(target)*c1)
             end
         end
     end
@@ -50756,7 +51185,10 @@ return function(ctx)
             local m=limb and incoming[limb]
             local part=rig:FindFirstChild(side.."Foot") or limb
             local lower=rig:FindFirstChild(side.."LowerLeg")
-            if m and selected(limb.Name) and selected(part.Name) and (not lower or selected(lower.Name)) and poses[limb] and poses[part] then contacts[side]=probe(rig,side,poses[part],part,(poses[limb]*m.C1).Position) end
+            if m and selected(limb.Name) and selected(part.Name) and (not lower or selected(lower.Name)) and poses[limb] and poses[part] then
+                local _,c1=jointFrames(m)
+                contacts[side]=probe(rig,side,poses[part],part,(poses[limb]*c1).Position)
+            end
         end
         -- Leave both authored legs alone on level ground. The overlay is for
         -- terrain correction, not a replacement walking/dance cycle.
@@ -50769,8 +51201,9 @@ return function(ctx)
             local hipJoint = upper and incoming[upper]
             local upperPose = upper and poses[upper]
             if not hipJoint or not upperPose then continue end
-            local parentPose = poses[hipJoint.Part0]
-            local hip = (upperPose * hipJoint.C1).Position
+            local parentPose = poses[jointParts(hipJoint)]
+            local _,hipC1=jointFrames(hipJoint)
+            local hip = (upperPose * hipC1).Position
             local endPart = foot or upper
             local endPose = poses[endPart]
             if not endPose then continue end
@@ -50802,13 +51235,15 @@ return function(ctx)
             end
             local height=bottom.Y+math.clamp(hit.Position.Y+lift-bottom.Y,-length*.2,length*.2)
             local target=Vector3.new(bottom.X,math.min(height,hip.Y-.01),bottom.Z)
-            if kneeJoint and ankleJoint and kneeJoint.Part0 == upper and ankleJoint.Part0 == lower and poses[lower] then
+            if kneeJoint and ankleJoint and jointParts(kneeJoint) == upper and jointParts(ankleJoint) == lower and poses[lower] then
+                local _,kneeC1=jointFrames(kneeJoint)
+                local _,ankleC1=jointFrames(ankleJoint)
                 local footRotation = rotationBetween(endPose.UpVector, hit.Normal) * endPose.Rotation
                 local footPose = CFrame.new(target + footRotation.UpVector*endPart.Size.Y/2) * footRotation
-                local ankle = (footPose*ankleJoint.C1).Position
+                local ankle = (footPose*ankleC1).Position
                 if ankle.Y >= hip.Y then continue end
-                local knee = (poses[lower]*kneeJoint.C1).Position
-                local oldAnkle = (endPose*ankleJoint.C1).Position
+                local knee = (poses[lower]*kneeC1).Position
+                local oldAnkle = (endPose*ankleC1).Position
                 local axis=oldAnkle-hip
                 if not finiteVector(axis) or axis.Magnitude<1e-5 then
                     -- Fully folded/custom legs have no bend axis. Keep their
@@ -50843,7 +51278,9 @@ return function(ctx)
     function api.Prepare(dt)
         local rig = ctx.Reanimate.Character
         bindRig(rig)
-        api.BeforePose(rig)
+        -- Preparing input must not strip the visible overlay. Animation writers
+        -- and ApplyIK restore it immediately before replacing the pose; removing
+        -- it in PreAnimation exposed an uncorrected leg to early physics readers.
         state.Dt=number(dt,0,0,.1)
         local root=rig and rig:FindFirstChild("HumanoidRootPart")
         local h=rig and rig:FindFirstChildOfClass("Humanoid")
@@ -51912,11 +52349,23 @@ return function(ctx)
         return h and h.RigType.Name or (rig and rig:FindFirstChild("UpperTorso") and "R15" or "R6")
     end
     function api.Owner(rig) return api.Drivers[rig] or rig end
+    function api.JointParts(joint)
+        if not joint or not (joint:IsA("Motor6D") or joint.ClassName=="AnimationConstraint") then return nil,nil end
+        if joint:IsA("Motor6D") then return joint.Part0,joint.Part1 end
+        if ctx.JointParts then return ctx.JointParts(joint) end
+        return joint.Part0,joint.Part1
+    end
+    function api.JointFrames(joint)
+        if joint:IsA("Motor6D") then return joint.C0,joint.C1 end
+        if ctx.JointFrames then return ctx.JointFrames(joint) end
+        return joint.C0,joint.C1
+    end
     function api.IsBodyMotor(rig,motor)
-        return motor:IsA("Motor6D") and motor.Part0 and motor.Part1
-            and motor.Part0.Parent==rig and motor.Part1.Parent==rig
+        local p0,p1=api.JointParts(motor)
+        return p0 and p1 and p0.Parent==rig and p1.Parent==rig
     end
     function api.IsRigMotor(rig,motor)
+        if motor.ClassName=="AnimationConstraint" then return api.IsBodyMotor(rig,motor) end
         if not motor:IsA("Motor6D") or not motor.Part0 or not motor.Part1 then return false end
         for _,part in ipairs({motor.Part0,motor.Part1}) do
             local accessory=part:FindFirstAncestorOfClass("Accessory")
@@ -51926,10 +52375,10 @@ return function(ctx)
     end
     local function index(rig)
         local result={}
-        for _,m in ipairs(rig:GetDescendants()) do if api.IsBodyMotor(rig,m) then result[m.Part1.Name]=m end end
+        for _,m in ipairs(rig:GetDescendants()) do if api.IsBodyMotor(rig,m) then local _,p1=api.JointParts(m) result[p1.Name]=m end end
         return result
     end
-    local function rest(m) return m.C0*m.C1:Inverse() end
+    local function rest(m) local c0,c1=api.JointFrames(m) return c0*c1:Inverse() end
     local function dirty(state)
         state.Dirty=true
     end
@@ -52155,7 +52604,8 @@ return function(ctx)
             local source,target=state.Source[sourceName],state.Target[targetName]
             if source and target and source.Parent and target.Parent and animated(sourceName) and animated(targetName) then
                 local reference=state.SourceRest[source]
-                local pose=source.C0*source.Transform*source.C1:Inverse()
+                local sourceC0,sourceC1=api.JointFrames(source)
+                local pose=sourceC0*source.Transform*sourceC1:Inverse()
                 local scale=1
                 if sourceName~="Torso" and sourceName~="Head" then
                     local side=sourceName:sub(1,sourceName:find(" ")-1)
@@ -52170,7 +52620,8 @@ return function(ctx)
                 local nativeRest=state.TargetRest[target]
                 local relative=CFrame.new(nativeRest.Position+(pose.Position-reference.Position)*scale)
                     *(pose.Rotation*reference.Rotation:Inverse())*nativeRest.Rotation
-                target.Transform=target.C0:Inverse()*relative*target.C1
+                local targetC0,targetC1=api.JointFrames(target)
+                target.Transform=targetC0:Inverse()*relative*targetC1
             end
         end
         -- R6 has no authored elbow/knee/waist articulation. Keep their native
