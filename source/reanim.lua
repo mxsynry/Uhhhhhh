@@ -318,7 +318,7 @@ end
 ]=====],
     ["UhhhhhhReanim/System/launch.lua"] = [=====[
 local ROOT = "UhhhhhhReanim/System"
-local BUILD = "gelatek-market-runtime-20261020"
+local BUILD = "gelatek-neck-transport-20261021"
 local HttpService = game:GetService("HttpService")
 
 local function compile(source, label)
@@ -501,7 +501,7 @@ return function(Context)
     replicationWriters.GelatekHead = "ReplicateCurrentAngle6D"
     local backend = {
         Name = "Gelatek",
-        Build = "gelatek-market-runtime-20261020",
+        Build = "gelatek-neck-transport-20261021",
         DetectedRig = nil,
         ControllerRig = nil,
         Rig = nil,
@@ -792,7 +792,7 @@ return function(Context)
         return basis
     end
 
-    local function ownsPhysicalPart(part)
+    local function ownsPhysicalPart(part, requireVerified)
         if typeof(part) ~= "Instance"
             or not part:IsA("BasePart")
             or not part.Parent
@@ -829,6 +829,7 @@ return function(Context)
 
         -- Executor compatibility only. Never use this to override a successful
         -- isnetworkowner(false).
+        if requireVerified then return false end
         local okAge, age = pcall(function()
             return assemblyRoot.ReceiveAge
         end)
@@ -1984,6 +1985,9 @@ return function(Context)
                 .. " accessoryWrites=" .. tostring(pdHeadFollower and pdHeadFollower.AccessoryWrites or 0)
                 .. " lifecycleWarning=" .. tostring(pdHeadFollower and pdHeadFollower.LifecycleWarning or "none")
                 .. " route=" .. tostring(pdHeadFollower and pdHeadFollower.Route or "waiting")
+                .. " jointClass=" .. tostring(pdHeadFollower and pdHeadFollower.JointClass or "none")
+                .. " transportRoot=" .. debugPath(pdHeadFollower and pdHeadFollower.TransportRoot)
+                .. " realNeckLocalDisplay=false"
                 .. " localDisplayError=" .. tostring(pdHeadFollower and pdHeadFollower.LocalDisplayError or "none")
                 .. " sampleAnchor=" .. debugPath(pdHeadFollower and pdHeadFollower.RelativeSample and pdHeadFollower.RelativeSample.Anchor)
         )
@@ -4499,14 +4503,12 @@ return function(Context)
             local joint, saved = channel.Joint, channel.Saved
             if joint.Parent then
                 pcall(function()
-                    if saved.Transform then
-                        Util.SetCharacterJointTransform(joint, saved.Transform)
-                        joint.Transform = saved.Transform
+                    if joint:IsA("Motor6D") and saved.Transform then
+                        Util.SetCharacterJointTransform(joint, saved.Transform, nil, true)
                     end
-                    if saved.IsKinematic ~= nil then joint.IsKinematic = saved.IsKinematic end
-                    if saved.Enabled ~= nil then joint.Enabled = saved.Enabled end
                 end)
             end
+            Util.CharacterJointTransportOnly[joint] = saved.TransportOnly
         end
         local torso, torsoSaved = pdHeadFollower.Torso, pdHeadFollower.SavedTorso
         if torso and torso.Parent and torsoSaved then
@@ -4564,6 +4566,7 @@ return function(Context)
         pdHeadFollower.LastTarget, pdHeadFollower.SampledTarget, pdHeadFollower.LastError = nil, nil, nil
         pdHeadFollower.RelativeSample = nil
         pdHeadFollower.LocalDisplayError = nil
+        pdHeadFollower.JointClass, pdHeadFollower.TransportRoot = nil, nil
         pdHeadFollower.LastOwned, pdHeadFollower.OwnershipLossSince = nil, nil
         pdHeadFollower.PositionError, pdHeadFollower.Writes, pdHeadFollower.AccessoryWrites = 0, 0, 0
         pdHeadFollower.AcceptedWrites = 0
@@ -4956,6 +4959,14 @@ return function(Context)
         local index = getPhysicalHeadIndex(physical)
         if pdHeadFollower.NeckRevision ~= index.Revision then
             local channels = pdHeadFollower.NeckChannels
+            for i = #channels, 1, -1 do
+                local channel = channels[i]
+                local p0, p1 = Util.GetCharacterJointParts(channel.Joint)
+                if not channel.Joint.Parent or not ((p0 == torso and p1 == head) or (p0 == head and p1 == torso)) then
+                    Util.CharacterJointTransportOnly[channel.Joint] = channel.Saved.TransportOnly
+                    table.remove(channels, i)
+                end
+            end
             for _, joint in ipairs(index.Joints) do
                 if joint.Parent and (joint:IsA("Motor6D") or joint.ClassName == "AnimationConstraint") then
                     local part0, part1 = Util.GetCharacterJointParts(joint)
@@ -4967,18 +4978,34 @@ return function(Context)
                                 Joint = joint,
                                 Saved = {
                                     Transform = debugSafe(function() return joint.Transform end, CFrame.identity),
-                                    Enabled = debugSafe(function() return joint.Enabled end, true),
-                                    IsKinematic = debugSafe(function() return joint.IsKinematic end, nil),
+                                    TransportOnly = Util.CharacterJointTransportOnly[joint],
                                 },
                             })
+                            Util.CharacterJointTransportOnly[joint] = true
                         end
                     end
                 end
             end
             pdHeadFollower.NeckRevision = index.Revision
         end
+        local motorCount, unsupportedClass = 0, nil
+        for _, channel in ipairs(pdHeadFollower.NeckChannels) do
+            local joint = channel.Joint
+            local p0, p1 = Util.GetCharacterJointParts(joint)
+            if joint.Parent and ((p0 == torso and p1 == head) or (p0 == head and p1 == torso)) then
+                if joint:IsA("Motor6D") then motorCount += 1
+                else unsupportedClass = joint.ClassName end
+            end
+        end
+        if motorCount ~= 1 or unsupportedClass then
+            pdHeadFollower.JointClass = unsupportedClass or (motorCount > 0 and "Motor6D" or nil)
+            pdHeadFollower.LastBlockedReason = unsupportedClass and ("real Neck is " .. unsupportedClass .. "; Motor6D replication channels unavailable")
+                or (motorCount == 0 and "real Neck joint missing" or "multiple real Neck motors; transport is ambiguous")
+            return false
+        end
         -- Keep the body as this assembly's root. The connected Head receives
-        -- no physical CFrame/velocity writes; the Neck owns transport and display.
+        -- no physical CFrame/velocity or local Transform writes. Its original
+        -- joint remains connected and is driven only by the transport channels.
         if head.RootPriority~=-127 then head.RootPriority=-127 end
         if head.Massless~=true then head.Massless=true end
         local torsoPriority=backend.KeepBodyChain and not bodyChain.Suspended and 0 or 127
@@ -4994,19 +5021,29 @@ return function(Context)
             return false
         end
         local relative = basis:ToObjectSpace(target)
-        local wrote, channelsPresent, displayError, writeError = false, false, nil, nil
+        local wrote, channelsPresent, writeError = false, false, nil
+        local torsoRoot, headRoot = torso.AssemblyRootPart or torso, head.AssemblyRootPart or head
+        local connectedAssembly = torsoRoot == headRoot
+        -- Both parts share this exact assembly; query its ownership once.
+        -- The connected Neck must never turn ReceiveAge into ownership proof.
+        local assemblyOwned = connectedAssembly and not torsoRoot.Anchored and ownsPhysicalPart(torso, true)
+        pdHeadFollower.TransportRoot = torsoRoot
+        pdHeadFollower.JointClass = nil
         for _, channel in ipairs(pdHeadFollower.NeckChannels) do
             local joint = channel.Joint
             if joint.Parent then
                 local part0, part1 = Util.GetCharacterJointParts(joint)
                 if (part0 == torso and part1 == head) or (part0 == head and part1 == torso) then
                     channelsPresent = true
-                    joint.Enabled = true
+                    pdHeadFollower.JointClass = joint.ClassName
                     local offset = part0 == head and relative:Inverse() or relative
-                    -- Only simulation commits submit the two upstream channels.
-                    -- Rendering can display the full Neck pose without rewriting
-                    -- that outgoing sample or proving another client's pose.
-                    if not poseOnly and ownsPhysicalPart(torso) then
+                    -- A local Transform on this joint changes the motor path
+                    -- being tested. Rendering never writes the physical Neck.
+                    if not joint:IsA("Motor6D") then
+                        writeError = "real Neck is " .. joint.ClassName .. "; Motor6D replication channels unavailable"
+                    elseif not joint.Enabled then
+                        writeError = "original Neck is disabled"
+                    elseif not poseOnly and assemblyOwned then
                         local accepted = Util.SetCharacterJointOffset(joint, offset, nil, true)
                         wrote = accepted == true or wrote
                         if accepted ~= true then
@@ -5015,16 +5052,14 @@ return function(Context)
                             writeError = record and record.LastError or "Neck replication submission failed"
                         end
                     end
-                    local displayed, reason = Util.SetCharacterJointLocalOffset(joint, offset)
-                    if displayed ~= true then displayError = tostring(reason or "Neck local display unavailable") end
                 end
             end
         end
-        pdHeadFollower.LastOwned = ownsPhysicalPart(torso)
+        pdHeadFollower.LastOwned = assemblyOwned
         pdHeadFollower.PositionError = (head.Position - target.Position).Magnitude
-        pdHeadFollower.LocalDisplayError = displayError
+        pdHeadFollower.LocalDisplayError = nil
         if poseOnly then
-            return channelsPresent and pdHeadFollower.LastOwned == true
+            return channelsPresent and not writeError and pdHeadFollower.LastOwned == true
                 and pdHeadFollower.LastSuccessfulWriteAt ~= nil
                 and os.clock() - pdHeadFollower.LastSuccessfulWriteAt < .25
                 and pdHeadFollower.LastBlockedReason == nil
@@ -5034,9 +5069,17 @@ return function(Context)
             pdHeadFollower.LastBlockedReason = "real Neck joint missing"
             return false
         end
+        if writeError and not wrote then
+            pdHeadFollower.LastBlockedReason = writeError
+            return false
+        end
+        if not connectedAssembly then
+            pdHeadFollower.LastBlockedReason = "real Head and torso are not in the same connected assembly"
+            return false
+        end
         if not pdHeadFollower.LastOwned then
             pdHeadFollower.OwnershipLossSince = pdHeadFollower.OwnershipLossSince or os.clock()
-            pdHeadFollower.LastBlockedReason = "real torso assembly is not owned; observer pose unverified"
+            pdHeadFollower.LastBlockedReason = "real torso/head assembly is not owned or ownership could not be verified"
             return false
         end
         if not wrote then pdHeadFollower.LastBlockedReason = "Neck writer rejected target" return false end
@@ -29517,21 +29560,33 @@ do
 			transform = transform.Rotation + transform.Position * positionScale
 		end
 		local appliedTransform = motor.Transform:Lerp(transform, weight)
-		motor.Transform = appliedTransform
+		local transportOnly = Util.CharacterJointTransportOnly and Util.CharacterJointTransportOnly[motor] == true
+		if not transportOnly then motor.Transform = appliedTransform end
 		local replication = {
 			Attempted = options.HiddenReplication == true and 1 or 0,
 			Succeeded = 0,
 			Failed = 0,
 			LastError = nil,
+			LocalDisplayApplied = not transportOnly,
+			ObserverVerified = false,
 		}
 		if replication.Attempted == 1 then
-			local success, replicationReason = Motor6DUtil.TryHiddenReplication(motor, appliedTransform)
+			local success, replicationReason
+			if transportOnly then
+				success = Util.SetCharacterJointTransform(motor, appliedTransform, nil, true)
+				local record = Util.CharacterJointReplicationStats.Joints[motor]
+				replicationReason = record and record.LastError
+			else
+				success, replicationReason = Motor6DUtil.TryHiddenReplication(motor, appliedTransform)
+			end
 			if success then
 				replication.Succeeded = 1
 			else
 				replication.Failed = 1
 				replication.LastError = replicationReason
 			end
+		elseif transportOnly then
+			replication.LastError = "joint is reserved for replication transport; local pose write skipped"
 		end
 		return appliedTransform, replication
 	end
@@ -37170,7 +37225,7 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
--- Packaged runtime: gelatek-market-runtime-20261020
+-- Packaged runtime: gelatek-neck-transport-20261021
 
 if _G.UhhhhhhLoaded then
 	return
@@ -40162,11 +40217,15 @@ local function FiniteJointPose(value)
 	end
 	return true
 end
+-- Original physical joints reserved by a transport must not acquire a second
+-- local-display writer through a module alias or animation helper.
+Util.CharacterJointTransportOnly = setmetatable({}, {__mode = "k"})
 Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplication, preserveLocalDisplay)
 	if not Util.IsCharacterJoint(joint) or not FiniteJointPose(transform) then
 		return false
 	end
 	local applied = false
+	local transportOnly = preserveLocalDisplay == true or Util.CharacterJointTransportOnly[joint] == true
 	if joint:IsA("Motor6D") then
 		-- Local display and the two replication channels are separate. R6
 		-- needs the full Transform too; DesiredAngle represents only one axis.
@@ -40174,6 +40233,7 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 		local desiredApplied = pcall(function()
 			joint.MaxVelocity = 9e9
 			local _, _, desiredAngle = transform:ToEulerAngles(Enum.RotationOrder.ZYX)
+			joint.DesiredAngle = desiredAngle
 			joint:SetDesiredAngle(desiredAngle)
 		end)
 		applied = applied or desiredApplied
@@ -40182,7 +40242,7 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 			Util.TrySetHiddenProperty(joint, "ReplicateCurrentOffset6D", transform.Position)
 		local angleSuccess, angleResult, angleVerified, angleReadbackError =
 			Util.TrySetHiddenProperty(joint, "ReplicateCurrentAngle6D", axis * angle)
-		if not preserveLocalDisplay then
+		if not transportOnly then
 			local displayed = pcall(function() joint.Transform = transform end)
 			applied = displayed or applied
 		end
@@ -40206,6 +40266,7 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 			State = stats.State, Path = stats.Path, LastError = stats.LastError,
 			WriteAccepted = replicated, ReadbackVerified = verified,
 			ObserverVerified = false,
+			TransportOnly = transportOnly,
 			RequestedOffset = transform.Position, RequestedAngle = axis * angle,
 			OffsetAccepted = offsetSuccess, AngleAccepted = angleSuccess,
 			OffsetReadbackVerified = offsetVerified, AngleReadbackVerified = angleVerified,
@@ -40217,7 +40278,7 @@ Util.SetCharacterJointTransform = function(joint, transform, _legacyMotorReplica
 		-- hidden replication channel accepted this pose.
 		return replicated, applied
 	else
-		if not preserveLocalDisplay then
+		if not transportOnly then
 			applied = pcall(function()
 				joint.Transform = transform
 				joint.IsKinematic = true
@@ -40243,6 +40304,7 @@ Util.SetCharacterJointOffset = function(joint, offset, legacyMotorReplication, p
 end
 Util.SetCharacterJointLocalOffset = function(joint, offset)
 	-- Display never submits a replication write or claims observer success.
+	if Util.CharacterJointTransportOnly[joint] then return false, "joint is reserved for replication transport" end
 	if not Util.IsCharacterJoint(joint) or not FiniteJointPose(offset) then return false end
 	local c0, c1 = Util.GetCharacterJointFrames(joint)
 	if not FiniteJointPose(c0) or not FiniteJointPose(c1) then return false end
