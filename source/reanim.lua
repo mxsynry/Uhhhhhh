@@ -43,6 +43,24 @@ local files = {
   "UhhhhhhVersion": "1.1.0 DEV (Modded)"
 }
 ]=====],
+    ["UhhhhhhReanim/System/examples/BackendExtension.lua.example.txt"] = [=====[
+-- Independent lifecycle example. Disabled until enabled in that method's Config.
+-- Installed with __KIND__ replaced by Gelatek, Ragdoll, Custom or All.
+local CRM=...
+return {
+    Kind="__KIND__",Name="Custom __KIND__ Reanimation",TickRate=1,
+    Description="Optional lifecycle hook. All runs on every wrapped method; custom libraries are available through CRM.LoadLibrary.",
+    Begin=function(backend,settings,crm)
+        return {} -- allocate resources here; release them from End
+    end,
+    Tick=function(backend,settings,state,elapsed)
+        -- The backend is running. Use the backend's own supported APIs.
+    end,
+    End=function(backend,settings,state,crm)
+        -- End also runs after failed/cancelled startup. Restore owned changes.
+    end,
+}
+]=====],
     ["UhhhhhhReanim/System/examples/CustomReanimation.lua.example.txt"] = [=====[
 -- Inert example. Edit this, then save it as Example.lua in the same folder.
 -- This only creates a controller. Put your owned-body follower in Start.
@@ -67,6 +85,27 @@ end, {StartTimeout = 30}
 -- Alternative format:
 -- return {Name = "My method", Start = function(ctx) ... end,
 --     Config = function(parent) ... end, StartTimeout = 30}
+-- Inside Start, ctx.AnimLib and ctx.LoadLibrary("RbxUtility") are shared APIs.
+-- Named local libraries live at UhhhhhhReanim/Libraries/<Name>.lua.
+-- Optional table fields:
+-- AnimatorEvaluation = "BeforePhysics" (after native Animator) or "BeforeAnimation".
+-- SelectionParts = function(ctx) return {{Name="Chest", Part=ownedChest}} end
+-- SelectionPartKind = "CustomBody"
+-- GetPresentationCharacter = function(ctx) return ownedModel end
+-- These expose your method's physical targets to picking/diagnostics/effects.
+-- Your Start still implements the rig mapping and owned-part physics itself.
+]=====],
+    ["UhhhhhhReanim/System/examples/LocalLibrary.lua.example.txt"] = [=====[
+-- Inert example. Copy to UhhhhhhReanim/Libraries/ExampleLibrary.lua to enable.
+-- Dances/movesets: local helpers = LoadLibrary("ExampleLibrary")
+-- Custom method Start: ctx.LoadLibrary; extension Begin/Tick: CRM.LoadLibrary.
+local context=...
+local utility=LoadLibrary("RbxUtility")
+return {
+    GetController=function()return context.Reanimate and context.Reanimate.Character end,
+    Create=utility.Create, -- created instances belong to this consumer's library scope
+    Track=context.Track, -- register connections/instances/cleanup functions too
+}
 ]=====],
     ["UhhhhhhReanim/System/examples/NoobyCustomHat.lua.example.txt"] = [=====[
 -- Nooby / Elliot12-wq: original optional Hat extension. Default: disabled.
@@ -195,7 +234,7 @@ return {
     ["UhhhhhhReanim/System/launch.lua"] = [=====[
 
 local ROOT = "UhhhhhhReanim/System"
-local BUILD = "followup-20261109"
+local BUILD = "ragdoll-velocity-20261110"
 local HttpService = game:GetService("HttpService")
 
 local function compile(source, label)
@@ -339,6 +378,7 @@ return function(Context)
     local Bridge = Context.GlobalBridge
     local Util = Context.Util
     local PhysicsRoot = Util.PhysicsRoot
+    local BodyFollower = assert(Context.BodyFollower, "Incomplete update: shared body follower missing")
     local Player = Context.Player
     local RunService = game:GetService("RunService")
     local StarterGui = game:GetService("StarterGui")
@@ -475,7 +515,7 @@ return function(Context)
     replicationWriters.GelatekHead = "ReplicateCurrentAngle6D"
     local backend = {
         Name = "Gelatek",
-        Build = "followup-20261109",
+        Build = "ragdoll-velocity-20261110",
         DetectedRig = nil,
         ControllerRig = nil,
         Rig = nil,
@@ -3537,6 +3577,16 @@ return function(Context)
         return index
     end
 
+    function backend.AccessoryLifetime.ReleaseControllerIndex(rig)
+        local index=physicalIndex.ControllerJoints
+        if index and index.Rig==rig then
+            for _,connection in ipairs(index.Connections)do connection:Disconnect()end
+            physicalIndex.ControllerJoints=nil
+        end
+        if backend.ControllerPoseSample and backend.ControllerPoseSample.Rig==rig then backend.ControllerPoseSample=nil end
+        if backend.FallbackBodyPoseBatch and backend.FallbackBodyPoseBatch.Rig==rig then backend.FallbackBodyPoseBatch=nil end
+    end
+
     function backend.AccessoryLifetime.ControllerBodyPoses(rig, live)
         local poses = {}
         local root = rig and rig:FindFirstChild("HumanoidRootPart")
@@ -5178,7 +5228,7 @@ return function(Context)
                 and pdHeadFollower.LastError==nil and pdHeadFollower.LastBlockedReason==nil
             if ready and renderOnly and not physicalHead:IsGrounded()
                 and not headStillSharesBodyAssembly(physical,physicalHead) then
-                physicalHead.CFrame=target
+                BodyFollower.CommitPose(physicalHead,target)
                 pdHeadFollower.LastRenderTarget,pdHeadFollower.LastRenderAt=target,os.clock()
             end
             return ready
@@ -5260,18 +5310,11 @@ return function(Context)
             pdHeadFollower.OwnershipLossSince = nil
             local antiSleep = options.AntiSleep == true and math.sin(os.clock() * 15) * 0.0015 or 0
             local corrected = target + Vector3.new(0, antiSleep, 0)
-            physicalHead.CFrame = corrected
+            BodyFollower.CommitPose(physicalHead,corrected)
             if not poseOnly then
                 -- Pose distance never becomes a chase force or a launch velocity.
-                local netless = tonumber(Reanimate.NetlessVelocity) or 25.1
-                if netless ~= netless or math.abs(netless) == math.huge then netless = 25.1 end
-                netless = math.clamp(netless, 25.01, 50)
                 local root = controllerHead.Parent:FindFirstChild("HumanoidRootPart")
-                local velocity = root and root.AssemblyLinearVelocity or Vector3.zero
-                if not finiteVector3(velocity) then velocity = Vector3.zero end
-                local horizontal = Vector3.new(velocity.X, 0, velocity.Z)
-                if horizontal.Magnitude > netless then horizontal = horizontal.Unit * netless end
-                physicalHead.AssemblyLinearVelocity = Vector3.new(horizontal.X, netless, horizontal.Z)
+                physicalHead.AssemblyLinearVelocity = BodyFollower.RetentionVelocity(root,Reanimate.NetlessVelocity)
                 physicalHead.AssemblyAngularVelocity = Vector3.zero
             end
             if not pdHeadFollower.RepRootCleared then
@@ -6899,6 +6942,7 @@ local CFrameAlign = function(Part0, Part1, Position, Angle)
 				end
 			end
 			Part0.CFrame = TargetCFrame
+			if Config.MarkBodyPose then Config.MarkBodyPose(Part0,TargetCFrame) end
 			UhhhhhhAlignStat.LastPhysicalWriteAt=os.clock()
 		end
 		UhhhhhhAlignStat.TorsoWriterHandled = UhhhhhhTorsoHandled
@@ -7705,15 +7749,7 @@ end]==], "optional library does not block the head bridge")
 	Global.UhhhhhhTBZGelatekRuntimePD = IsPermaDeath
 	if UhhhhhhPhase ~= "RenderPose" then
 		local Root = FakeRig and FakeRig:FindFirstChild("HumanoidRootPart")
-		local V = Root and Root.AssemblyLinearVelocity or Vector3.zero
-		if V.X ~= V.X or V.Y ~= V.Y or V.Z ~= V.Z
-			or math.abs(V.X) == math.huge or math.abs(V.Y) == math.huge or math.abs(V.Z) == math.huge then V = Vector3.zero end
-		local Speed = tonumber(Config.NetlessVelocity) or 25.1
-		if Speed ~= Speed or math.abs(Speed) == math.huge then Speed = 25.1 end
-		Speed = math.clamp(Speed, 25.01, 50)
-		local Horizontal = Vector3.new(V.X, 0, V.Z)
-		if Horizontal.Magnitude > Speed then Horizontal = Horizontal.Unit * Speed end
-		Velocity = Vector3.new(Horizontal.X, Speed, Horizontal.Z)
+		Velocity = Config.ReadBodyVelocity(Root,Config.NetlessVelocity)
 	end
     -- Read Transform after Roblox's animation batch; one pose feeds all limbs.
     if UhhhhhhPhase ~= "PreSimulation" and type(Config.PrepareBodyPose) == "function" then Config.PrepareBodyPose(FakeRig) end
@@ -8789,6 +8825,8 @@ end)]==], "generation-scoped initialization error handoff")
                 BuildBodyTargets = Context.R15Body.Targets,
                 KeepR15GroupJoint = Context.R15Body.KeepJoint,
                 ConfigureR15Part = Context.R15Body.ConfigurePart,
+                ReadBodyVelocity = BodyFollower.RetentionVelocity,
+                MarkBodyPose = BodyFollower.MarkPose,
                 PrepareR15Groups = backend.AccessoryLifetime.RefreshR15Groups,
                 R15GroupName = Context.R15Body.Group,
                 PrepareBodyPose = backend.AccessoryLifetime.CommitControllerPose,
@@ -28934,6 +28972,17 @@ return function(ctx)
     return sources
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/animator_policy.lua"] = [=====[
+-- Native Animator evaluation can reset custom Transform poses on any backend.
+local Policy={}
+function Policy.AfterAnimator(rig,backend)
+    if backend and backend.AnimatorEvaluation=="BeforeAnimation"then return false end
+    if backend and backend.AnimatorEvaluation=="BeforePhysics"then return true end
+    local owner=rig and (rig:FindFirstChildOfClass("Humanoid")or rig:FindFirstChildOfClass("AnimationController"))
+    return owner~=nil and owner:FindFirstChildOfClass("Animator")~=nil
+end
+return Policy
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/animlib.lua"] = [=====[
 
 --!optimize 2
@@ -30366,8 +30415,9 @@ do
 		--
 		-- Only change the DEFAULT signal for the Gelatek backend. A module that
 		-- explicitly asks for a signal still gets exactly what it requested.
-		local defaultSignal =
-			__TheoIsExternal() and "PreSimulation" or "PreAnimation"
+        local afterAnimator=__TheoIsExternal()
+        if Context.AfterAnimator then afterAnimator=Context.AfterAnimator(self._requestedRig or self.rig)end
+		local defaultSignal = afterAnimator and "PreSimulation"or "PreAnimation"
 		local resolved, name = ResolveRunSignal(signal, defaultSignal)
 		self._boundSignal = name
 		self._updateConnection = resolved:Connect(function(dt)
@@ -30558,6 +30608,7 @@ do
             -- map the same R6->R15 pose twice for every animator step.
             if Context.CharacterMotion then Context.CharacterMotion.ApplyIK(rig)
             elseif Context.RigAdapter then Context.RigAdapter.Apply(rig) end
+            if Context.CharacterMotion and Context.CharacterMotion.AfterPose then Context.CharacterMotion.AfterPose(rig)end
 		end
 	end
 	AnimLib.Animator = Animator
@@ -65962,8 +66013,11 @@ return Bounds
 local Pose={}
 local finite=require(script.Parent.head_tracking).Finite
 local r15=require(script.Parent.reanimation.gelatek_r15)
+local bodyFollower=require(script.Parent.reanimation.body_follower)
 function Pose.Read(part)
     if not part then return nil end
+    local applied=bodyFollower.ReadPose(part)
+    if applied then return applied end
     local ok,value=pcall(function()return part:GetRenderCFrame()end)
     if ok and finite(value)then return value end
     local cf=part.CFrame
@@ -68875,6 +68929,92 @@ return function(context)
         api.SourceBytes,api.SourceCount,api.Modules,api.Merged,api.Unverified,api.Overflow=0,0,0,0,0,0
         epoch+=1 serial=0
     end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/module_libraries.lua"] = [=====[
+-- Named local libraries use the requesting addon's environment and cache.
+-- No remote download, global LoadLibrary replacement, or cross-pack singleton.
+local RbxUtility=require(script.Parent.rbxutility_compat)
+return function(ctx)
+    local api={Generation=0,Reads=0}
+    local releases={}
+    local root="UhhhhhhReanim/Libraries/"
+    local function nameOf(value)
+        assert(type(value)=="string"and #value>0 and #value<=128,"LoadLibrary expects a local library name")
+        value=value:gsub("%.lua$","")
+        assert(value~=""and not value:find("[/\\:%c]")and not value:find("..",1,true)and value:sub(1,1)~=".","invalid library name")
+        return value
+    end
+    function api.Bind(environment,context)
+        environment=environment or ctx.Environment or {}
+        local cache,loading,resources,tracked={},{},{},{}
+        local closed=false
+        local function dispose(object)
+            pcall(function()
+                if typeof(object)=="RBXScriptConnection"or type(object)=="table"and object.Disconnect then object:Disconnect()
+                elseif type(object)=="function"then object()
+                else object:Destroy()end
+            end)
+        end
+        local depth,generation=0,api.Generation
+        local function track(object)
+            if closed then dispose(object)error("this library scope has stopped",2)end
+            if not tracked[object]then tracked[object]=true table.insert(resources,object)end
+            return object
+        end
+        local scope=table.clone(context or {})scope.Track=track
+        local loadLibrary
+        loadLibrary=function(request)
+            assert(not closed,"this library scope has stopped")
+            local name=nameOf(request)
+            if generation~=api.Generation then table.clear(cache)generation=api.Generation end
+            if cache[name]~=nil then return cache[name]end
+            assert(not loading[name],"cyclic library dependency: "..name)
+            assert(depth<(ctx.MaxDepth or 16),"library dependency limit reached")
+            if name:lower()=="rbxutility"then
+                local value=RbxUtility({New=ctx.New,Encode=ctx.Encode,Decode=ctx.Decode,Track=track})
+                cache[name]=value return value
+            end
+            if name:lower()=="animlib"then
+                local value=scope.AnimLib or scope.Reanimate and scope.Reanimate.AnimLib or environment.AnimLib
+                assert(value,"AnimLib is not ready in this context")cache[name]=value return value
+            end
+            local path=root..name..".lua"
+            assert(ctx.Exists(path),"Library '"..name.."' is unavailable; put a returning .lua module in "..root)
+            loading[name]=true depth+=1
+            local okay,value=pcall(function()
+                local source=ctx.Read(path)api.Reads+=1
+                assert(type(source)=="string"and #source<=(ctx.MaxBytes or 1024*1024),"library exceeds the source size limit")
+                local chunk,reason=ctx.Compile(source,"@Library/"..name)
+                assert(chunk,reason or "library compilation failed")
+                local own=setmetatable({LoadLibrary=loadLibrary},{__index=environment})
+                ctx.SetEnvironment(chunk,own)
+                local result=chunk(scope)
+                assert(result~=nil,"library must return a value: "..name)
+                return result
+            end)
+            loading[name]=nil depth-=1
+            if not okay then error(value,2)end
+            cache[name]=value return value
+        end
+        scope.LoadLibrary=loadLibrary
+        local release
+        release=function()
+            if closed then return end closed=true releases[release]=nil
+            for i=#resources,1,-1 do local object=resources[i]
+                dispose(object)
+            end
+            table.clear(resources)table.clear(tracked)table.clear(cache)
+        end
+        releases[release]=true
+        return loadLibrary,release
+    end
+    function api.ReleaseAll()
+        local pending={}for release in pairs(releases)do table.insert(pending,release)end
+        for _,release in ipairs(pending)do release()end
+    end
+    function api.Invalidate()api.Generation+=1 end
     return api
 end
 ]=====],
@@ -72369,12 +72509,73 @@ return function(ctx)
     return api
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/rbxutility_compat.lua"] = [=====[
+-- Independent compatibility for the classic RbxUtility calls used by addons.
+-- Reference API: Gelatek's pinned LoadLibrary shim; original notices retained.
+return function(ctx)
+    local api={}
+    api.EncodeJSON=function(value)return ctx.Encode(value)end
+    api.DecodeJSON=function(value)return ctx.Decode(value)end
+    local create
+    create=setmetatable({}, {__call=function(_,class)
+        assert(type(class)=="string","Create expects an Instance class")
+        return function(properties)
+            assert(type(properties)=="table","Create expects a property table")
+            local object=ctx.New(class)
+            local okay,reason=pcall(function()
+                local parent=properties.Parent
+                for key,value in pairs(properties)do
+                    if key=="Parent"or key==create then continue end
+                    if type(key)=="number"then value.Parent=object
+                    elseif type(key)=="table"and key.Event then object[key.Event]:Connect(value)
+                    else object[key]=value end
+                end
+                if properties[create]then properties[create](object)end
+                if parent then object.Parent=parent end
+            end)
+            if not okay then object:Destroy()error(reason,2)end
+            if ctx.Track then ctx.Track(object)end
+            return object
+        end
+    end})
+    function create.E(name)assert(type(name)=="string","Create.E expects an event name")return {Event=name}end
+    api.Create=create
+    function api.CreateSignal()
+        local event=ctx.New("BindableEvent")
+        if ctx.Track then ctx.Track(event)end
+        local signal={Connections={}}
+        function signal:connect(fn)
+            assert(type(fn)=="function","signal.connect expects a function")
+            local connection=event.Event:Connect(fn)table.insert(self.Connections,connection)return connection
+        end
+        function signal:disconnect()
+            for _,connection in ipairs(self.Connections)do connection:Disconnect()end table.clear(self.Connections)
+        end
+        function signal:wait()return event.Event:Wait()end
+        function signal:fire(...)event:Fire(...)end
+        function signal:Destroy()self:disconnect()event:Destroy()end
+        signal.Connect,signal.Disconnect,signal.Wait,signal.Fire=signal.connect,signal.disconnect,signal.wait,signal.fire
+        return signal
+    end
+    function api.Help(name)
+        local help={Create="Create(class){properties, children, [Create.E(event)]=callback, [Create]=initializer}; Parent is assigned last.",
+            CreateSignal="CreateSignal(): connect/disconnect/wait/fire; uppercase aliases and Destroy are available.",
+            EncodeJSON="EncodeJSON(value) uses HttpService JSON encoding.",DecodeJSON="DecodeJSON(text) uses HttpService JSON decoding."}
+        return help[name]or "RbxUtility: Create, Create.E, CreateSignal, EncodeJSON, DecodeJSON. Legacy terrain tools are unavailable."
+    end
+    api.MakeWedge=function()error("RbxUtility.MakeWedge requires the removed legacy terrain API",2)end
+    api.SelectTerrainRegion=function()error("RbxUtility.SelectTerrainRegion requires the removed legacy terrain API",2)end
+    return api
+end
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/awes_original_ragdoll.lua"] = [=====[
 -- Awes955 / testing734 original ragdoll component; copied from betabetafork.
 -- Pin: b3c9cbf740f5afe862cc26a7a39ac02d311bb44e (same component in e766d5a).
 -- Original component and adaptation record: references/awes-original-ragdoll.*
 -- Shared root/torso assemblies are driven by their animated Torso. The host
 -- filters the whole physical shell before simulation, including skipped parts.
+-- This fork corrects angular-velocity coordinates and stale motion history;
+-- its post-physics commit is a separate, reversible timing adjustment.
 return function(...)
 local __context=...
 local game=__context.Game or game
@@ -72390,6 +72591,19 @@ local Util = ctx.Util
 local UI = ctx.UI
 local SaveData = ctx.SaveData
 local RunService = game:GetService("RunService")
+-- BEGIN PHYSICS OBSERVATION
+local physics=require(script.Parent.ragdoll_physics).new()
+physics.PostPhysics=SaveData.Reanimator.RagdollPostPhysics~=false
+physics.RenderPose=SaveData.Reanimator.RagdollRenderPose~=false
+physics.Observe=SaveData.Reanimator.RagdollPhysicsDiagnostics==true
+physics.Follower=SaveData.Reanimator.RagdollFollower or "Gelatek motion"
+physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(SaveData.Reanimator.RagdollPoseVelocity)
+local gelatekFollower=require(script.Parent.ragdoll_gelatek)({Player=Player,Reanimate=Reanimate,Physics=physics,Clock=ctx.Clock})
+local forgetPhysics=physics.Forget
+physics.Forget=function(part)
+    forgetPhysics(part)gelatekFollower.Forget(part)
+end
+-- END PHYSICS OBSERVATION
 
 local DriveNames = {"Torso", "HumanoidRootPart", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
 local LimbNames = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
@@ -72605,7 +72819,7 @@ local function ApplyLTM(body)
 end
 
 local function DrivePart(part, targetCF, dt, t, visualOnly)
-	if part:IsGrounded() then return false end
+	if part:IsGrounded() then LastCF[part]=nil physics.Forget(part) return false end
 	local owned = part.ReceiveAge == 0
 	local st = Status[part.Name]
 	if st then
@@ -72613,6 +72827,7 @@ local function DrivePart(part, targetCF, dt, t, visualOnly)
 	end
 	if not owned then
 		LastCF[part] = nil
+		physics.Forget(part)
 		return false
 	end
 	part.CanCollide = false
@@ -72620,6 +72835,7 @@ local function DrivePart(part, targetCF, dt, t, visualOnly)
 		part.CFrame = targetCF
 		return true
 	end
+	if physics.AssemblyChanged(part)then LastCF[part]=nil end
 	dt = math.max(dt, 1e-3)
 	local idle = Vector3.new(math.sin(t * 14), math.sin(t * 15 + 1.0472), math.sin(t * 16 + 2.0944)) * 0.001
 	local last = LastCF[part] or targetCF
@@ -72643,17 +72859,19 @@ local function DrivePart(part, targetCF, dt, t, visualOnly)
 	part.CFrame = targetCF
 	if Reanimate.UseAngularVelocity then
 		local a, b = last:ToObjectSpace(targetCF):ToAxisAngle()
-		part.AssemblyAngularVelocity = (a * b) / dt + idle
+		part.AssemblyAngularVelocity = last:VectorToWorldSpace(a * b) / dt + idle
 	else
 		part.AssemblyAngularVelocity = idle
 	end
 	LastCF[part] = targetCF
+	physics.Record(part,targetCF,dt)
 	return true
 end
 
-local function DriveBody(body, fake, dt, t, visualOnly)
+local function DriveBody(body, fake, dt, t, visualOnly, phase)
 	local okay = true
 	local driven = {}
+	bodyMap.Begin(body,fake)
 	if not visualOnly then
 		ApplyLTM(body)
 	end
@@ -72662,6 +72880,7 @@ local function DriveBody(body, fake, dt, t, visualOnly)
 		if part and target and part:IsA("BasePart") and target:IsA("BasePart") then
 			local assembly = part.AssemblyRootPart or part
 			if driven[assembly] then
+				LastCF[part]=nil physics.Forget(part)
 				okay = false
 			else
 				driven[assembly] = true
@@ -72669,7 +72888,7 @@ local function DriveBody(body, fake, dt, t, visualOnly)
 				if not (st and st.Detached) then
 					okay = false
 				end
-				if not DrivePart(part, bodyMap.Target(part,target,fake), dt, t, visualOnly) then
+				if not DrivePart(part, bodyMap.Target(part,target,fake), dt, t, visualOnly, phase) then
 					okay = false
 				end
 			end
@@ -72792,14 +73011,64 @@ local function Start()
 	end
 end
 
--- Managed-host glue only: restore the world setting and retain upstream's
--- stop/death cleanup even if the host cancels the waiting Start coroutine.
+-- BEGIN MANAGED ADAPTER
+-- Lifecycle/settings glue and the reversible post-physics pose commit.
+local __drivePart=DrivePart
+DrivePart=function(part,target,dt,t,visualOnly,phase)
+    if physics.RenderPose==false and (phase=="RenderPose"or phase==nil and visualOnly)then return true end
+    if physics.Follower=="Awes motion"then return __drivePart(part,target,dt,t,visualOnly)end
+    return gelatekFollower.Write(part,target,dt,phase or (visualOnly and "RenderPose"or "PreSimulation"),Reanimate.Character,t)
+end
+local __statusText=StatusText
+StatusText=function()return __statusText().."\n"..physics.StatusText()end
+local __config=Config
+Config=function(parent)
+    local names={"Gelatek motion","Gelatek netless","Awes motion","Pose velocity (fallback)"}
+    UI.CreateDropdown(parent,"Ragdoll follower",names,table.find(names,physics.Follower)or 1).Changed:Connect(function(value)
+        physics.Follower=names[value]or names[1]SaveData.Reanimator.RagdollFollower=physics.Follower
+        gelatekFollower.Clear()table.clear(LastCF)
+    end)
+    UI.CreateText(parent,"Gelatek motion shares Gelatek poses and pre-physics support, then sends controller motion with zero spin. Gelatek netless retains its netless output; Awes motion keeps the preceding writer.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"Pose velocity is an opt-in comparison: exports target COM movement and world rotation after the pose commit. Local pose error cannot detect a remote-only failure.",11,Enum.TextXAlignment.Left)
+    local function limit(key,value)
+        physics.PoseVelocity[key]=value
+        physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(physics.PoseVelocity)
+        SaveData.Reanimator.RagdollPoseVelocity=table.clone(physics.PoseVelocity)
+        gelatekFollower.Clear()
+    end
+    UI.CreateSlider(parent,"Pose velocity limit (studs/s)",physics.PoseVelocity.LinearLimit,10,250,10).Changed:Connect(function(value)
+        limit("LinearLimit",value)
+    end)
+    UI.CreateSlider(parent,"Pose angular limit (rad/s)",physics.PoseVelocity.AngularLimit,1,60,1).Changed:Connect(function(value)
+        limit("AngularLimit",value)
+    end)
+    UI.CreateSwitch(parent,"Commit ragdoll pose after physics (Awes)",physics.PostPhysics).Changed:Connect(function(value)
+        physics.PostPhysics=value==true SaveData.Reanimator.RagdollPostPhysics=physics.PostPhysics
+    end)
+    UI.CreateSwitch(parent,"Measure ragdoll physics drift",physics.Observe).Changed:Connect(function(value)
+        physics.Observe=value==true SaveData.Reanimator.RagdollPhysicsDiagnostics=physics.Observe
+    end)
+    UI.CreateSwitch(parent,"Correct physical pose before render",physics.RenderPose).Changed:Connect(function(value)
+        physics.RenderPose=value==true SaveData.Reanimator.RagdollRenderPose=physics.RenderPose
+    end)
+    UI.CreateText(parent,"Disable render correction to compare the actual post-physics body without extra physical CFrame writes. The animation controller still runs.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"R6/R15 target mapping is available. Modern R15 AnimationConstraint preparation is experimental; mapping alone does not establish remote replication.",11,Enum.TextXAlignment.Left)
+    return __config(parent)
+end
 local __start=Start
 Start=function()
     local previousHeight=workspace.FallenPartsDestroyHeight
     local collisions=__CollisionGuard.new()
+    local create=ctx.CreateCharacter
+    ctx.CreateCharacter=function(...)
+        local result=create(...)
+        bodyMap.CaptureController(Reanimate.Character)
+        return result
+    end
     ctx.OnStop(function()
         bodyMap.Clear()
+        physics.Stop()
+        gelatekFollower.Clear()
         collisions.Clear()
         pcall(function()workspace.FallenPartsDestroyHeight=previousHeight end)
         local h=Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
@@ -72811,11 +73080,22 @@ Start=function()
     local function filterPhysicalShell()
         local physical=Player.Character
         if physical==Reanimate.Character then physical=nil end
+        if physics.Body~=physical then gelatekFollower.Clear()bodyMap.CapturePhysical(physical)end
+        physics.Bind(physical)
         if collisions.Character~=physical then collisions.Bind(physical)end
         collisions.Enforce()
     end
     filterPhysicalShell()
+    if Reanimate.Current then Reanimate.Current.RagdollPhysics=physics end
     ctx.Connect(RunService.PreSimulation,filterPhysicalShell)
+    ctx.Connect(RunService.PostSimulation,function(dt)
+        if ctx.IsStopping()then return end
+        local body,fake=Player.Character,Reanimate.Character
+        physics.AfterPhysics(body)
+        if (physics.Follower~="Awes motion"or physics.PostPhysics)and body and fake and Ready[body]then
+            DriveBody(body,fake,dt,os.clock(),true,"PostSimulation")
+        end
+    end)
     return __start()
 end
 
@@ -72840,6 +73120,50 @@ return function(ctx)
     end
     return api
 end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/body_follower.lua"] = [=====[
+-- GelatekReanimate / existing mxsynry adaptation; contributor notices remain
+-- in vendor/Gelatek.lua and SOURCE_CREDITS.md.
+-- Shared with Gelatek's CFrame-first detached Head and body support.
+-- Retention velocity is a physics input, not an avatar's motion velocity.
+local Follower={}
+local finite=require(script.Parent.Parent.head_tracking).Finite
+Follower.ValidPose=finite
+local written=setmetatable({}, {__mode="k"})
+local function finiteVector(value)
+    return typeof(value)=="Vector3"and value.X==value.X and value.Y==value.Y and value.Z==value.Z
+        and math.abs(value.X)<math.huge and math.abs(value.Y)<math.huge and math.abs(value.Z)<math.huge
+end
+function Follower.MotionVelocity(root)
+    local value=root and root.AssemblyLinearVelocity
+    return finiteVector(value)and value or Vector3.zero
+end
+function Follower.RetentionVelocity(root,configured)
+    local speed=tonumber(configured)or 25.1
+    if speed~=speed or math.abs(speed)==math.huge then speed=25.1 end
+    speed=math.clamp(speed,25.01,50)
+    local velocity=Follower.MotionVelocity(root)
+    local horizontal=Vector3.new(velocity.X,0,velocity.Z)
+    if horizontal.Magnitude>speed then horizontal=horizontal.Unit*speed end
+    return Vector3.new(horizontal.X,speed,horizontal.Z)
+end
+function Follower.MarkPose(part,pose)
+    local applied=part.CFrame
+    if finite(pose)and finite(applied)then written[part]=applied return true end
+    written[part]=nil return false
+end
+function Follower.ClearPose(part)written[part]=nil end
+function Follower.ReadPose(part)
+    local pose=written[part]
+    -- Only the actual last applied pose is authoritative. A later physics or
+    -- game write invalidates this entry without hiding that newer movement.
+    return pose and part.CFrame==pose and pose or nil
+end
+function Follower.CommitPose(part,pose)
+    if not finite(pose)then return false end
+    part.CFrame=pose return Follower.MarkPose(part,pose)
+end
+return Follower
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/camera_subject.lua"] = [=====[
 -- Give Roblox's camera a stable controller subject without replacing the
@@ -72999,6 +73323,9 @@ return function(deps)
         if type(source)=="function"then chunk=source
         else chunk,reason=deps.Compile(source,"@CustomReanimation/"..file)end
         assert(type(chunk)=="function",tostring(reason))
+        if type(source)=="string"and deps.SetEnvironment then
+            deps.SetEnvironment(chunk,setmetatable({LoadLibrary=context.LoadLibrary},{__index=deps.Environment or {}}))
+        end
         local name,method,extras=chunk(context)
         if type(name)=="table" then
             local value=name name,method,extras=value.Name,value.Start,value
@@ -73006,7 +73333,11 @@ return function(deps)
         assert(type(name)=="string" and #name>0 and #name<=80 and not name:find("%c"),"return a short method name")
         assert(type(method)=="function","return a name, start function and optional callbacks")
         extras=type(extras)=="table" and extras or {}
-        for _,key in ipairs({"Config","Fling","ShowHitboxes"}) do
+        assert(extras.AnimatorEvaluation==nil or extras.AnimatorEvaluation=="BeforeAnimation"or extras.AnimatorEvaluation=="BeforePhysics",
+            "AnimatorEvaluation must be BeforeAnimation or BeforePhysics")
+        assert(extras.SelectionPartKind==nil or type(extras.SelectionPartKind)=="string"and #extras.SelectionPartKind<=40,
+            "SelectionPartKind must be a short label")
+        for _,key in ipairs({"Config","Fling","ShowHitboxes","SelectionParts","GetPresentationCharacter"}) do
             assert(extras[key]==nil or type(extras[key])=="function",key.." must be a function")
         end
         return name,method,extras
@@ -73025,6 +73356,7 @@ return function(deps)
     local function makeContext(session)
         local context=table.clone(deps.Context or {})
         context.Player,context.Reanimate,context.UI=deps.Player,deps.Reanimate,deps.UI
+        context.AnimLib=deps.Reanimate.AnimLib
         context.Notify=notify
         local function live() return session and active==session and not session.Finished end
         local function requireLive() assert(live(),"this method run has stopped") end
@@ -73084,10 +73416,18 @@ return function(deps)
             return result or deps.Reanimate.Character
         end
         context.Stop=function(reason) if live() then session.Finish(reason or "stopped") end end
+        if deps.Libraries then
+            if session then
+                local load,release=deps.Libraries.Bind(deps.Environment,context)
+                context.LoadLibrary=function(name)requireLive()return load(name)end
+                context.OnStop(release)
+            else context.LoadLibrary=function()error("load libraries inside the method's Start",2)end end
+        end
         return context
     end
-    local function create(file,source,name,extras)
-        local backend={Name=name,File=file,Id=file,IsCustom=true,ManagedLifecycle=true,Running=false,Status="ready"}
+    local function create(file,source,name,extras,builtin)
+        local backend={Name=name,File=file,Id=file,IsCustom=not builtin,IsBuiltin=builtin==true,ManagedLifecycle=true,Running=false,Status="ready",
+            AnimatorEvaluation=extras.AnimatorEvaluation,SelectionPartKind=extras.SelectionPartKind}
         function backend.Config(parent)
             local label=deps.UI.CreateText(parent,(backend.IsBuiltin and "Bundled method: "or "Custom method: ")..file,12,Enum.TextXAlignment.Left)
             label.RichText=false
@@ -73165,6 +73505,18 @@ return function(deps)
                 if not ok then errorRecord(file,"hitboxes: "..tostring(reason)) end
             end
         end end
+        for _,key in ipairs({"SelectionParts","GetPresentationCharacter"})do
+            if extras[key]then backend[key]=function()
+                local session=active
+                if not session or session.Backend~=backend or not session.Ready or session.Finished then return end
+                local callback=session.Extras and session.Extras[key]
+                if not callback then return end
+                local ok,result=pcall(callback,session.Context)
+                if not ok then errorRecord(file,key..": "..tostring(result))return end
+                return result
+            end end
+        end
+        if deps.Decorate and not builtin then deps.Decorate(backend)end
         return backend
     end
     function api.Builtin(file,factory)
@@ -73181,7 +73533,7 @@ return function(deps)
         end,__newindex=function(_,key,value)current[key]=value end})
         local name,start,extras=immediate(descriptor,factory,file,context)
         local function definition(runContext)current=runContext return name,start,extras end
-        local backend=create(file,definition,name,extras)
+        local backend=create(file,definition,name,extras,true)
         backend.IsCustom,backend.IsBuiltin=false,true
         return backend
     end
@@ -73237,7 +73589,8 @@ end
 -- af5ec0cd06b493b126d666fea8adb30947e34fc0, lines 258300+,259607+,273450+.
 -- Selection uses stable file identities; errors disable one entry per session.
 return function(ctx)
-    local api={Roots={},Flings={},Hooks={},Errors={},Sessions={}}
+    local api={Roots={},Flings={},Hooks={},Errors={},Sessions={},Wrapped=setmetatable({}, {__mode="k"}),
+        Kinds={"Limb","Hat","Tool","NPC","Gelatek","Ragdoll","Custom","All"}}
     local saved=ctx.Saved
     saved.Extensions=type(saved.Extensions)=="table"and saved.Extensions or {}
     local settings=saved.Extensions
@@ -73306,34 +73659,51 @@ return function(ctx)
         local ok,reason=pcall(entry.Run,values)
         if not ok then fail(entry,reason)return false end return true
     end
+    local function finishSession(backend,session)
+        if session.Closed then return end session.Closed=true
+        if session.Entry.End then
+            local ok,reason=pcall(session.Entry.End,backend,saved.Reanimator,session.State,session.CRM)
+            if not ok then fail(session.Entry,reason)end
+        end
+        for _,connection in ipairs(session.Connections)do connection:Disconnect()end
+        if session.LibraryRelease then session.LibraryRelease()end
+        session.CRM.Tick=function()error("Tick callbacks must be registered during an active extension",2)end
+        session.CRM.LoadLibrary=function()error("this extension session has stopped",2)end
+        session.CRM.GetController=function()error("this extension session has stopped",2)end
+    end
     local function finish(backend)
         local sessions=api.Sessions[backend]if not sessions then return end
         api.Sessions[backend]=nil
         for i=#sessions,1,-1 do local session=sessions[i]
-            if session.Entry.End then
-                local ok,reason=pcall(session.Entry.End,backend,saved.Reanimator,session.State,session.CRM)
-                if not ok then fail(session.Entry,reason)end
-            end
-            for _,connection in ipairs(session.Connections)do connection:Disconnect()end
-            session.CRM.Tick=function()error("Tick callbacks must be registered during an active extension",2)end
+            finishSession(backend,session)
         end
     end
     function api.Wrap(backend,kind)
+        if api.Wrapped[backend]then
+            assert(api.Wrapped[backend]==kind,"backend already has a different extension kind")return backend
+        end
+        api.Wrapped[backend]=kind
         local start,stop,config=backend.Start,backend.Stop,backend.Config
         backend.Start=function(...)
             finish(backend)
             local sessions={}api.Sessions[backend]=sessions
             for _,entry in ipairs(api.Hooks)do
-                if entry.Kind==kind and settings.Enabled[entry.Id]and not entry.Failed then
+                if (entry.Kind==kind or entry.Kind=="All")and settings.Enabled[entry.Id]and not entry.Failed then
                     local session={Entry=entry,Connections={},Age=0}
                     session.CRM=entry.CRM or {}
                     session.CRM.LowEnd=function()return ctx.LowEnd and ctx.LowEnd()or false end
                     session.CRM.Trim=ctx.Trim or function()return false,"cache trimming is unavailable"end
+                    session.CRM.GetController=function()return ctx.Reanimate and ctx.Reanimate.Character end
+                    if ctx.Libraries then
+                        session.CRM.LoadLibrary,session.LibraryRelease=ctx.Libraries.Bind(ctx.Environment,
+                            {Backend=backend,Settings=saved.Reanimator,Reanimate=ctx.Reanimate,Player=ctx.Player,
+                                AnimLib=ctx.Reanimate and ctx.Reanimate.AnimLib})
+                    end
                     session.CRM.Tick=function(hz,fn)
                         assert(type(fn)=="function","Tick needs a callback")
                         hz=math.clamp(tonumber(hz)or 1,.2,60)local age=0
                         local connection=ctx.Signal:Connect(function(dt)
-                            if api.Sessions[backend]~=sessions then return end
+                            if api.Sessions[backend]~=sessions or session.Closed or not backend.Running then return end
                             age+=dt if age>=1/hz then local elapsed=age age=0 local ok,reason=pcall(fn,elapsed)if not ok then fail(entry,reason)finish(backend)end end
                         end)
                         table.insert(session.Connections,connection)return connection
@@ -73341,12 +73711,14 @@ return function(ctx)
                     local ok,state=pcall(function()if entry.Begin then return entry.Begin(backend,saved.Reanimator,session.CRM)end end)
                     if ok then session.State=state table.insert(sessions,session)
                     else
-                        for _,connection in ipairs(session.Connections)do connection:Disconnect()end fail(entry,state)
+                        fail(entry,state)finishSession(backend,session)
                     end
                 end
             end
             local result=table.pack(pcall(start,...))
-            if not result[1]or not backend.Running then finish(backend)end
+            if backend.Running then sessions.Ready=true end
+            local pending=ctx.Starting and ctx.Starting()or not ctx.Starting and backend.ManagedLifecycle
+            if not result[1]or result[2]==false or not backend.Running and (sessions.Ready or not pending)then finish(backend)end
             if not result[1]then error(result[2],0)end return table.unpack(result,2,result.n)
         end
         backend.Stop=function(...)
@@ -73355,7 +73727,7 @@ return function(ctx)
         end
         backend.Config=function(parent,...)
             config(parent,...)
-            for _,entry in ipairs(api.Hooks)do if entry.Kind==kind then
+            for _,entry in ipairs(api.Hooks)do if entry.Kind==kind or entry.Kind=="All"then
                 local toggle=ctx.UI.CreateSwitch(parent,"Use "..entry.Name,settings.Enabled[entry.Id]==true)
                 toggle.Changed:Connect(function(on)settings.Enabled[entry.Id]=on if ctx.Save then ctx.Save()end end)
                 if entry.Description then
@@ -73364,13 +73736,14 @@ return function(ctx)
                 end
             end end
         end
+        return backend
     end
     function api.Reload()
         if ctx.Active and ctx.Active()then return false,"deanimate before reloading extensions"end
         table.clear(api.Roots)table.clear(api.Flings)table.clear(api.Hooks)table.clear(api.Errors)
         api.Register(require(script.Parent.nooby_root)(),"@builtin/nooby-root","root")
         local roots={{"UhhhhhhReanim/Plugins","root"},{"UhhhhhhReanim/FlingMethods","fling"}}
-        for _,kind in ipairs({"Limb","Hat","Tool","NPC"})do table.insert(roots,{"UhhhhhhReanim/Custom Reanimation Methods/Custom "..kind.." Reanimation",kind,true})end
+        for _,kind in ipairs(api.Kinds)do table.insert(roots,{"UhhhhhhReanim/Custom Reanimation Methods/Custom "..kind.." Reanimation",kind,true})end
         for _,row in ipairs(roots)do
             if ctx.Folder then pcall(ctx.Folder,row[1])end
             local ok,files=pcall(ctx.List,row[1])
@@ -73402,6 +73775,9 @@ return function(ctx)
     api.Connection=ctx.Signal:Connect(function(dt)
         for backend,sessions in pairs(api.Sessions)do
             if ctx.Current and ctx.Current()~=backend then finish(backend)continue end
+            if backend.Running then sessions.Ready=true
+            elseif sessions.Ready or ctx.Starting and not ctx.Starting()then finish(backend)continue
+            else continue end
             for _,session in ipairs(sessions)do
                 local entry=session.Entry session.Age+=dt
                 if entry.Tick and not entry.Failed and session.Age>=1/entry.TickRate then
@@ -74027,9 +74403,13 @@ return function(ctx)
                         local diagnostic=backend.Diagnostics[row.Limb]or {}backend.Diagnostics[row.Limb]=diagnostic
                         diagnostic.Missing=false diagnostic.Detached=detached diagnostic.Tool=tool.Name diagnostic.Blocked=blocked
                         diagnostic.SharesWith=blocked diagnostic.Owned=nil diagnostic.OwnershipSource="not checked while joined"
-                        diagnostic.TargetPosition=(limb.CFrame*rotation).Position
+                        local pose=limb.CFrame*rotation
+                        if Reanimate.ResolveBodyHideTargetCFrame then
+                            pose=Reanimate.ResolveBodyHideTargetCFrame(handle,pose,row.Limb,false)
+                        end
+                        diagnostic.TargetPosition=pose.Position
                         if not detached then shared+=1 last[handle]=nil
-                        elseif follow(handle,limb.CFrame*rotation,dt,visual,diagnostic)then count+=1
+                        elseif follow(handle,pose,dt,visual,diagnostic)then count+=1
                         else unowned+=1 last[handle]=nil
                         end
                     else
@@ -74895,6 +75275,19 @@ return function(ctx)
     function api.ShowHitboxes()
         if active then for _, reference in ipairs(active.References) do ctx.ShowHitbox(reference.Part) end end
     end
+    function api.SelectionParts()
+        local rows,seen={},{}
+        if active then
+            if active.Root.Parent then table.insert(rows,{Name=active.Root.Name,Part=active.Root})seen[active.Root]=true end
+            for _,reference in ipairs(active.References)do
+                local part=reference.Part
+                if part.Parent and not seen[part]then table.insert(rows,{Name=part.Name,Part=part})seen[part]=true end
+            end
+        end
+        return rows
+    end
+    api.SelectionPartKind="NPCBody"
+    function api.GetPresentationCharacter()return active and active.Model end
 
     function api.Destroy()
         reanimate.Stopping = api.Running or reanimate.Stopping
@@ -74910,6 +75303,7 @@ end
 -- R6 controller poses mapped onto the physical avatar's actual rig type.
 local R15=require(script.Parent.gelatek_r15)
 local CameraSubject=require(script.Parent.camera_subject)
+local Alignment=require(script.Parent.Parent.head_alignment)
 return function(ctx)
     local api={}
     local r6={"Torso","HumanoidRootPart","Head","Left Arm","Right Arm","Left Leg","Right Leg"}
@@ -74927,8 +75321,29 @@ return function(ctx)
     function api.ControllerPart(figure,name)
         return figure:FindFirstChild(name)or R15.Groups[name]and figure:FindFirstChild(R15.Groups[name])
     end
-    function api.Target(part,target,figure)
-        local pose=target.CFrame
+    function api.CapturePhysical(body)
+        local schema=ctx.Reanimate.RigSchema
+        if body and schema and ctx.Util.GetCharacterJointParts then
+            local index=schema.Get(body)
+            if api.Physical~=body or api.Revision~=index.Revision then
+                api.Physical,api.Revision=body,index.Revision api.Joints={}
+                for _,node in ipairs(index.Nodes)do table.insert(api.Joints,node.Joint)end
+            end
+            api.Binding=Alignment.Capture(body,api.Joints,ctx.Util,api.Binding)
+        end
+    end
+    function api.CaptureController(figure)
+        local provider=ctx.PoseProvider
+        local index=provider and provider.ControllerIndex(figure)
+        if index then api.Controller=Alignment.Controller(figure,index.BodyJoints,ctx.Util,nil,api.Controller)end
+    end
+    function api.Begin(body,figure)
+        local provider=ctx.PoseProvider
+        api.Poses=provider and provider.ControllerBodyPoses(figure,true)or nil
+        api.CapturePhysical(body)api.CaptureController(figure)
+    end
+    local function rawTarget(part,target,figure)
+        local pose=api.Poses and api.Poses[target]or target.CFrame
         local offset=part.Name~=target.Name and R15.Offsets[part.Name]
         if offset then
             local ok,scale=pcall(figure.GetScale,figure)
@@ -74936,15 +75351,320 @@ return function(ctx)
             if not scale or scale~=scale or scale<=0 or scale==math.huge then scale=1 end
             pose*=CFrame.new(offset.Position*scale)*offset.Rotation
         end
+        local bridge=ctx.Reanimate.R15Animation
+        local state=bridge and bridge.States[figure]
+        if state and state.Active then
+            local native=bridge.PartPose(figure,part.Name,api.Poses and api.Poses[target]or target.CFrame)
+            if native then return native,true end
+        end
+        return pose
+    end
+    function api.Target(part,target,figure)
+        local pose,native=rawTarget(part,target,figure)
+        if part.Name=="Head"and not native and api.Binding and api.Controller then
+            local torso=api.Binding.Torso
+            local anchor=api.ControllerPart(figure,torso.Name)
+            if anchor then
+                local controllerTorso=api.Controller.Torso
+                local controllerPose=api.Poses and api.Poses[controllerTorso]or controllerTorso.CFrame
+                local ok,scale=pcall(figure.GetScale,figure)
+                pose=Alignment.Resolve(api.Binding,api.Controller,rawTarget(torso,anchor,figure),
+                    controllerPose,pose,ok and scale or 1)or pose
+            end
+        end
         if ctx.Reanimate.ResolveBodyHideTargetCFrame then
             pose=ctx.Reanimate.ResolveBodyHideTargetCFrame(part,pose,part.Name,false)
         end
         return pose
     end
     function api.Camera(body,figure)subject.Bind(body,figure)subject.Step()end
-    api.Clear=subject.Clear
+    function api.Clear()
+        subject.Clear()
+        local provider=ctx.PoseProvider
+        if provider and provider.ReleaseControllerIndex then provider.ReleaseControllerIndex(ctx.Reanimate.Character)end
+        api.Poses,api.Binding,api.Controller,api.Physical,api.Revision,api.Joints=nil,nil,nil,nil,nil,nil
+    end
     return api
 end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_gelatek.lua"] = [=====[
+-- Gelatek's pose-first following with the game's existing ragdoll/ownership
+-- preparation. It does not run Gelatek's death or character-handoff routines.
+local Follow=require(script.Parent.body_follower)
+local Motion=require(script.Parent.ragdoll_pose_velocity)
+return function(ctx)
+    local api={States={}}
+    function api.Clear()
+        for part,state in pairs(api.States)do
+            Follow.ClearPose(part)Follow.ClearPose(state.Assembly)
+            ctx.Physics.Forget(part)
+        end
+        table.clear(api.States)
+    end
+    function api.Forget(part)
+        local state=api.States[part]
+        Follow.ClearPose(part)
+        if state then Follow.ClearPose(state.Assembly)end
+        api.States[part]=nil
+    end
+    function api.Write(part,target,dt,phase,controller,now)
+        local physical=ctx.Player.Character
+        local assembly=part.AssemblyRootPart or part
+        local root=controller and controller:FindFirstChild("HumanoidRootPart")
+        if not Follow.ValidPose(target)or part:IsGrounded()or part.ReceiveAge~=0 or not physical or not part:IsDescendantOf(physical)
+            or assembly.Anchored or not assembly:IsDescendantOf(physical)
+            or root and (root.AssemblyRootPart or root)==assembly then
+            api.Forget(part)ctx.Physics.Forget(part)return false
+        end
+        local state=api.States[part]
+        if state and (state.Assembly~=assembly or state.Controller~=controller)then api.Forget(part)state=nil end
+        if phase=="PreSimulation"then
+            if not state then return false end -- no support before an accepted pose
+            part.AssemblyLinearVelocity=Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)
+            part.AssemblyAngularVelocity=Vector3.zero
+            ctx.Physics.Record(part,target,dt)
+            return true
+        end
+        if phase=="RenderPose"and not state then return false end
+        local history,linear,angular,motion
+        if phase=="PostSimulation"and ctx.Physics.Follower=="Pose velocity (fallback)"then
+            -- Read COM in the driven part's frame BEFORE changing the assembly.
+            local okay,localCOM=pcall(function()
+                return part.CFrame:PointToObjectSpace(assembly.AssemblyCenterOfMass)
+            end)
+            history,linear,angular,motion=Motion.Sample(state and state.Motion,target,okay and localCOM or nil,
+                ctx.Clock and ctx.Clock()or now or os.clock(),Follow.MotionVelocity(root),ctx.Physics.PoseVelocity)
+        end
+        if not Follow.CommitPose(part,target)then api.Forget(part)return false end
+        Follow.MarkPose(assembly,assembly.CFrame)
+        if phase=="PostSimulation"then
+            -- The configured netless pulse remains in PreSimulation. Do not
+            -- advertise it as upward avatar movement after the pose commit.
+            part.AssemblyLinearVelocity=linear or (ctx.Physics.Follower=="Gelatek netless"
+                and Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)or Follow.MotionVelocity(root))
+            part.AssemblyAngularVelocity=angular or Vector3.zero
+            api.States[part]=state or {Assembly=assembly,Controller=controller}
+            api.States[part].Motion=history
+            ctx.Physics.Record(part,target,dt,motion)
+        end
+        return true
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_physics.lua"] = [=====[
+-- Client-only, bounded observations made before the post-physics pose commit.
+-- These are solver deltas, not measurements of another client's replication.
+local Physics={}
+function Physics.new()
+    local api={Samples={},Objects={},Connections={},Rows={},PostPhysics=true,RenderPose=true,Observe=false,Running=false}
+    api.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings()
+    local function resetConnections()
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end
+        table.clear(api.Connections)table.clear(api.Objects)table.clear(api.Samples)
+    end
+    local function include(object)
+        if object:IsA("Constraint")or object:IsA("BodyMover")or object:IsA("Motor6D")then
+            api.Objects[object]=true
+        end
+    end
+    function api.Bind(body)
+        if api.Body==body then return end
+        resetConnections()api.Body=body api.Rows={}api.Running=body~=nil
+        api.HasSample=false api.LastObservedAt=nil api.LastReadError=nil
+        if not body then return end
+        for _,object in ipairs(body:GetDescendants())do include(object)end
+        table.insert(api.Connections,body.DescendantAdded:Connect(include))
+        table.insert(api.Connections,body.DescendantRemoving:Connect(function(object)api.Objects[object]=nil api.Forget(object)end))
+    end
+    function api.Forget(part)api.Samples[part]=nil end
+    function api.AssemblyChanged(part)
+        local previous=api.Samples[part]
+        return previous~=nil and previous.Assembly~=(part.AssemblyRootPart or part)
+    end
+    function api.Record(part,target,dt,motion)
+        local sample=api.Samples[part]or {}api.Samples[part]=sample
+        sample.Target,sample.DeltaTime,sample.Assembly=target,dt,part.AssemblyRootPart or part
+        if motion then sample.Motion=table.clone(motion)end
+    end
+    function api.AfterPhysics(body)
+        if not api.Observe or body~=api.Body then return end
+        local rows={}
+        for part,sample in pairs(api.Samples)do
+            if #rows==32 then break end
+            if part.Parent and part:IsDescendantOf(body)then
+                local okay,row=pcall(function()
+                    local observed=part.CFrame
+                    local _,angle=sample.Target:ToObjectSpace(observed):ToAxisAngle()
+                    local delta=(observed.Position-sample.Target.Position).Magnitude
+                    assert(delta==delta and delta<math.huge and angle==angle,"invalid solver pose")
+                    local linear,angular=part.AssemblyLinearVelocity.Magnitude,part.AssemblyAngularVelocity.Magnitude
+                    assert(linear==linear and linear<math.huge and angular==angular and angular<math.huge,"invalid solver velocity")
+                    return {Name=part.Name,ReceiveAgeZero=part.ReceiveAge==0,
+                        SolverDeltaStuds=delta,SolverDeltaRadians=math.abs(angle),DeltaTime=sample.DeltaTime,
+                        LinearSpeed=linear,AngularSpeed=angular,
+                        AssemblyChanged=sample.Assembly~=(part.AssemblyRootPart or part)}
+                end)
+                if okay then table.insert(rows,row)else api.LastReadError=tostring(row):sub(1,240)end
+            end
+        end
+        table.sort(rows,function(a,b)return a.Name<b.Name end)api.Rows=rows
+        api.HasSample=true api.LastObservedAt=os.clock()
+    end
+    function api.Snapshot()
+        local result={ClientObservedOnly=true,PostPhysics=api.PostPhysics,Running=api.Running,
+            Follower=api.Follower,RenderPose=api.RenderPose,Actuators={},PoseVelocity={Enabled=api.Follower=="Pose velocity (fallback)",
+                Settings=table.clone(api.PoseVelocity),Parts={}},
+            Measuring=api.Observe,Sampled=api.HasSample==true,ObservedAt=api.LastObservedAt,
+            Phase="before post-simulation correction",Parts={},Constraints={},ConstraintCount=0,
+            MotorCount=0,MoverCount=0,AnimationConstraintCount=0,MaxSolverDeltaStuds=0}
+        result.LastReadError=api.LastReadError
+        if result.PoseVelocity.Enabled then
+            for part,sample in pairs(api.Samples)do
+                if #result.PoseVelocity.Parts==32 then break end
+                if part.Parent and sample.Motion then
+                    local row=table.clone(sample.Motion)row.Name=part.Name
+                    table.insert(result.PoseVelocity.Parts,row)
+                end
+            end
+            table.sort(result.PoseVelocity.Parts,function(a,b)return a.Name<b.Name end)
+        end
+        result.TopologyScope="physical character descendants"
+        result.ExternalParentConstraintsScanned=false
+        for _,row in ipairs(api.Rows)do
+            table.insert(result.Parts,table.clone(row))
+            result.MaxSolverDeltaStuds=math.max(result.MaxSolverDeltaStuds,row.SolverDeltaStuds)
+        end
+        local inspected=0
+        for object in pairs(api.Objects)do
+            inspected+=1 if inspected>256 then result.TopologyTruncated=true break end
+            if not object.Parent then continue end
+            local enabled=true
+            pcall(function()enabled=object.Enabled~=false end)
+            if not enabled then continue end
+            local class=object.ClassName
+            if class~="NoCollisionConstraint"then
+                if #result.Actuators<32 then
+                    local row={Name=object.Name,ClassName=class}
+                    pcall(function()row.Active=object.Active end)
+                    pcall(function()
+                        local a,b
+                        if object:IsA("Motor6D")then a,b=object.Part0,object.Part1
+                        elseif object:IsA("BodyMover")then a=object.Parent
+                        else a=object.Attachment0 and object.Attachment0.Parent b=object.Attachment1 and object.Attachment1.Parent end
+                        row.Part0,row.Part1=a and a.Name,b and b.Name
+                        row.ExternalEndpoint=(a~=nil and not a:IsDescendantOf(api.Body))or(b~=nil and not b:IsDescendantOf(api.Body))or false
+                        if a and b and a:IsA("BasePart")and b:IsA("BasePart")then
+                            row.SameAssembly=(a.AssemblyRootPart or a)==(b.AssemblyRootPart or b)
+                        end
+                    end)
+                    table.insert(result.Actuators,row)
+                else result.ActuatorsTruncated=true end
+            end
+            if object:IsA("Motor6D")then result.MotorCount+=1
+            elseif object:IsA("BodyMover")then result.MoverCount+=1
+            elseif class~="NoCollisionConstraint"then
+                result.ConstraintCount+=1
+                if class=="AnimationConstraint"then result.AnimationConstraintCount+=1 end
+                if #result.Constraints<32 then
+                    local row={Name=object.Name,ClassName=class}
+                    pcall(function()row.Active=object.Active end)
+                    pcall(function()
+                        local a,b=object.Attachment0,object.Attachment1
+                        row.Part0=a and a.Parent and a.Parent.Name
+                        row.Part1=b and b.Parent and b.Parent.Name
+                    end)
+                    table.insert(result.Constraints,row)
+                end
+            end
+        end
+        local humanoid=api.Body and api.Body:FindFirstChildOfClass("Humanoid")
+        if humanoid then result.RigType=tostring(humanoid.RigType)end
+        result.R15MappingOnly=true
+        return result
+    end
+    function api.StatusText()
+        local snapshot=api.Snapshot()
+        local movement=snapshot.Sampled and string.format("%.3f studs",snapshot.MaxSolverDeltaStuds)or "not sampled"
+        return string.format("Follower: %s\nPhysics commit: %s; render correction: %s; pre-correction solver movement %s\n%d enabled constraints, %d animation joints, %d motors, %d movers under the character",
+            api.Follower or "Awes motion",
+            api.PostPhysics and "after simulation"or "original timing",api.RenderPose and "on"or "off",movement,
+            snapshot.ConstraintCount,snapshot.AnimationConstraintCount,snapshot.MotorCount,snapshot.MoverCount)
+    end
+    function api.Stop()
+        resetConnections()api.Body=nil api.Running=false
+    end
+    return api
+end
+return Physics
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_pose_velocity.lua"] = [=====[
+-- Optional target-motion export for the existing CFrame-first ragdoll follower.
+-- This is feed-forward at the assembly COM, not a second pose/error servo.
+local Motion={}
+local validPose=require(script.Parent.Parent.head_tracking).Finite
+local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
+local function vector(v)return typeof(v)=="Vector3"and finite(v.X)and finite(v.Y)and finite(v.Z)end
+local function option(n,default,low,high)
+    n=tonumber(n)return finite(n)and math.clamp(n,low,high)or default
+end
+function Motion.Settings(values)
+    values=values or {}
+    return {LinearLimit=option(values.LinearLimit,120,1,500),AngularLimit=option(values.AngularLimit,30,1,100),
+        MaximumGap=option(values.MaximumGap,.25,.02,1)}
+end
+local function cap(value,limit)
+    local speed=value.Magnitude
+    if not finite(speed)then return Vector3.zero,true end
+    return speed>limit and value*(limit/speed)or value,speed>limit
+end
+function Motion.Sample(previous,target,localCOM,now,rootVelocity,settings)
+    settings=Motion.Settings(settings)
+    local base,baseClamped=cap(vector(rootVelocity)and rootVelocity or Vector3.zero,settings.LinearLimit)
+    local info={Reason="first target sample",LinearClamped=baseClamped,AngularClamped=false,CenterOfMassUsed=false}
+    local function reset(reason,nextState)
+        info.Reason=reason info.LinearSpeed=base.Magnitude info.AngularSpeed=0
+        if nextState then nextState.Linear,nextState.Angular=base,Vector3.zero end
+        return nextState,base,Vector3.zero,info
+    end
+    if not validPose(target)or not finite(now)then return reset("invalid target or clock")end
+    if not vector(localCOM)then return reset("assembly COM unavailable")end
+    local nextState={Pose=target,COM=localCOM,At=now}
+    info.CenterOfMassUsed=true
+    if not previous then return reset("first target sample",nextState)end
+    local elapsed=now-previous.At
+    if not finite(elapsed)or elapsed<0 then return reset("clock discontinuity",nextState)end
+    if elapsed==0 then
+        info.Reason="same target sample time"
+        local linear,clipped=cap(previous.Linear or base,settings.LinearLimit)
+        local angular,spinClipped=cap(previous.Angular or Vector3.zero,settings.AngularLimit)
+        info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
+        info.LinearClamped,info.AngularClamped=clipped,spinClipped
+        return previous,linear,angular,info
+    end
+    if elapsed>settings.MaximumGap then return reset("sample gap",nextState)end
+    -- A changed mass/mount layout must not become a one-frame movement impulse.
+    if (previous.COM-localCOM).Magnitude>math.max(.001,localCOM.Magnitude*1e-4)then
+        return reset("assembly COM changed",nextState)
+    end
+    local oldCenter=previous.Pose:PointToWorldSpace(localCOM)
+    local center=target:PointToWorldSpace(localCOM)
+    if (center-oldCenter).Magnitude>settings.LinearLimit*settings.MaximumGap then
+        return reset("target discontinuity",nextState)
+    end
+    local linear=(center-oldCenter)/elapsed
+    local axis,angle=previous.Pose:ToObjectSpace(target):ToAxisAngle()
+    if math.abs(angle)>=math.pi-1e-4 then return reset("ambiguous half-turn",nextState)end
+    local angular=previous.Pose:VectorToWorldSpace(axis*(angle/elapsed))
+    if not vector(linear)or not vector(angular)then return reset("invalid target derivative",nextState)end
+    linear,info.LinearClamped=cap(linear,settings.LinearLimit)
+    angular,info.AngularClamped=cap(angular,settings.AngularLimit)
+    nextState.Linear,nextState.Angular=linear,angular
+    info.Reason,info.Elapsed="target motion",elapsed
+    info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
+    return nextState,linear,angular,info
+end
+return Motion
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/reanim_limb.lua"] = [=====[
 
@@ -78972,6 +79692,10 @@ function State.Snapshot(ctx)
             Backend = backend and text(backend.Name), BackendStatus = backend and text(backend.Status),
             Follow = backend and State.CopyFollow(backend.FollowHealth),
             Controller = name(controller), PhysicalCharacter = name(physical), Parts = {}, Animators = {}}
+        if backend and backend.RagdollPhysics and type(backend.RagdollPhysics.Snapshot)=="function"then
+            local read,value=pcall(backend.RagdollPhysics.Snapshot)
+            if read then result.RagdollPhysics=value else result.RagdollPhysicsError=text(value)end
+        end
         for animator in pairs(ctx.Animators or {}) do
             if #result.Animators == 12 then result.AnimatorsTruncated = true break end
             local row = {}
@@ -79011,6 +79735,12 @@ function State.Snapshot(ctx)
                 local read, failure = pcall(function()
                     local assembly = part.AssemblyRootPart or part
                     row.Position, row.Assembly = point(part.Position), name(assembly)
+                    row.LinearVelocity,row.AngularVelocity=point(part.AssemblyLinearVelocity),point(part.AssemblyAngularVelocity)
+                    local renderOkay,renderPose=pcall(function()return part:GetRenderCFrame()end)
+                    if renderOkay then
+                        row.EngineRenderPosition=point(renderPose.Position)
+                        row.EngineRenderOffsetY=number(renderPose.Position.Y-part.Position.Y)
+                    end
                     row.Anchored = part.Anchored == true
                     local ageOk, age = pcall(function() return part.ReceiveAge end)
                     if ageOk then row.ReceiveAge = number(age) else row.ReceiveAgeError = text(age) end
@@ -79053,7 +79783,7 @@ function State.Snapshot(ctx)
                 if read and type(rows)=="table"then selected=rows
                 elseif not read then result.SelectionPartsError=text(rows)end
             end
-            result.PartKind=selected and "ToolHandles"or "PhysicalBody"
+            result.PartKind=selected and (backend.SelectionPartKind or "ToolHandles")or "PhysicalBody"
             if selected then result.PhysicalParts={}end
             local bodyRows=selected and result.PhysicalParts or result.Parts
             for _,part in ipairs(physical:GetChildren())do
@@ -79510,11 +80240,13 @@ return setmetatable({}, Signal)]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/source_credits.lua"] = [=====[
 -- Added source credits. Steve's original credits and every vendored notice stay in place.
 return {
+    {"mxsynry — optional ragdoll pose velocity", "Independent assembly-COM/world-angular target derivatives, continuity guards, render-phase comparison and read-only actuator endpoints. Roblox physics docs informed the contract; Awes/Gelatek source credits remain. see RAGDOLL_VELOCITY.md."},
+    {"Gelatek — legacy LoadLibrary API reference", "Pinned Addons/LoadLibrary.lua at e776bcda, blob 40305100, reviewed for the RbxUtility contract. the scoped compatibility utility and local-library loader here are independent mxsynry code. removed legacy terrain calls are explicit limits. see REANIMATOR_SUPPORT.md."},
     {"STEVETHEREALONE — original logo and artwork", "Original helper/images, gold, three particle processors, nine-segment triangle path, CFrame/perspective drawing and two-layer intro from 08cbd802. source/reanim.lua:531–566 and 1550–1807. The recreated prism renderer is removed. Source and asset credits stay with Steve."},
     {"STEVETHEREALONE / STEVE-916-create", "the reanimate, Limb/CurrentAngle plumbing, UI, Roserika, Immersive VR and Steve .anim format. yeah, a LOT of this is Steve :D"},
     {"BoredGal", "upstream patches. keeping the credit Steve put in his header."},
     {"mxsynry", "this fork + independent editor, viewport preview, compatible module asset/settings merging, current-pose follower glue and R6/R15 ragdoll adapters. original module/source credits stay with their authors."},
-    {"Gelatek", "GelatekReanimate. the physical backend, not the animation editor."},
+    {"Gelatek", "GelatekReanimate physical backend. its adapted pose reader, Head alignment and finite velocity helper are now shared with Ragdoll. the support/motion split and effect-pose glue are mxsynry fork integration."},
     {"PRODUCTIONTAKEONE / MyWorld / Mizt / 4EYEDFOOL", "Gelatek's original credits: optimizations, delayless inspiration, hat naming and artificial heartbeat."},
     {"MrY7zz", "CurrentAngle V2 pose-mapping reference. MIT notice + license retained."},
     {"codedtocode", "ApexEngine: animation data, curves, evaluation and pose math. MPL-2.0. the editor here is our own."},
@@ -79526,7 +80258,7 @@ return {
     {"BlaaBlaa music catalog + the track artists", "repository audio discovery and supplied track credits. titles and artists come from each catalog; artists stay unstated when the source doesnt name them."},
     {"AALib / BB Demo / rez aka @chiptune", "ascii + demo-scene inspiration. Steve's original art credits are below."},
     {"KadeTheExploiter / Krypton", "reviewed accessory + respawn handling reference. not a second backend hiding in here lol"},
-    {"testing734 / Awes955", "UhhhhhhModded beta fork. original R6 ragdoll component from betabetafork at b3c9cbf: setup, ReceiveAge gate, joint removal and idle / angular / Patchma-style motion. Torso assembly selection, shell collision repair, R15 mapping and shared camera/setting adapters are mxsynry fork integration. also red / classic palettes, folder packs + custom method contract. see ORIGINAL_RAGDOLL.md + AWES_FEATURES.md. ty :D"},
+    {"testing734 / Awes955", "UhhhhhhModded beta fork. original R6 ragdoll component from betabetafork at b3c9cbf: setup, ReceiveAge gate, joint removal and idle / angular / Patchma-style motion. Torso selection, collision repair, experimental R15 mapping, world angular/history correction, post-physics timing and camera/setting adapters are mxsynry fork integration. original gate and setup credits stay with Awes. also red / classic palettes, folder packs + custom method contract. see ORIGINAL_RAGDOLL.md + AWES_FEATURES.md. ty :D"},
     {"Elliot12-wq / Nooby", "RootPart smoothing method + custom extension contracts; NPC workflow, isolated previews, music transport, low-end/loading modes, teleport resume, NaN fallback, weak/contact patterns and player/server tools. source roles are recorded in FORK_UNIFICATION.md. ty :D"},
     {"dolteddown", "the existing alternate hat permadeath state method."},
     {"Centinily", "RAGDOLLV3.txt names Centinily on Toolbox in its description. ragdoll reference supplied by u :D"},
@@ -89458,7 +90190,7 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
--- Packaged runtime: followup-20261109
+-- Packaged runtime: ragdoll-velocity-20261110
 
 if _G.UhhhhhhLoaded then
 	return
@@ -91897,6 +92629,7 @@ local function CreateHumanoidCharacter()
 	hum.MaxHealth = 100
 	hum.MaxSlopeAngle = 89
 	hum.HipHeight = 0
+	Util.Instance("Animator", hum) -- community libraries can use Humanoid.Animator on every controller
 	hum.AutoRotate = true
 	hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 
@@ -95572,6 +96305,13 @@ __TheoLifecycle.RefreshController = function()
     -- Refresh module state without replacing the controller model here.
     __TheoManualRefreshSerial += 1
 end
+Reanimate.ModuleLibraries=Steve110.Require("main/module_libraries")({
+    New=Instance.new,Encode=function(value)return HttpService:JSONEncode(value)end,
+    Decode=function(value)return HttpService:JSONDecode(value)end,
+    Read=readfile,Exists=isfile,Compile=loadstring,SetEnvironment=setfenv,Environment=b_getfenv(),
+})
+Reanimate.AfterAnimator=Steve110.Require("main/animator_policy").AfterAnimator
+Reanimate.UsesAnimatorPhase=function(rig)return Reanimate.AfterAnimator(rig or Reanimate.Character,Reanimate.Current)end
 local __TheoContext = {
     UI = UI,
     SaveData = SaveData,
@@ -95591,6 +96331,7 @@ local __TheoContext = {
     ControllerSettings = Steve110.Require("main/controller_settings"),
     R15Body = Steve110.Require("main/reanimation/gelatek_r15"),
     HeadAlignment = Steve110.Require("main/head_alignment"),
+    BodyFollower = Steve110.Require("main/reanimation/body_follower"),
 }
 local GelatekReanimator = __TheoFactory(__TheoRoot .. "/runtime/backend_gelatek.lua")(__TheoContext)
 local LooseBodyReanimators=Steve110.Require("main/reanimation/loose_body")({
@@ -95622,6 +96363,15 @@ Reanimate.GetActiveRealCharacter = function()
 		return Reanimate.Current.RealCharacter
 	end
 	return nil
+end
+
+Reanimate.GetPresentationCharacter=function()
+    local backend=Reanimate.Current
+    if backend and type(backend.GetPresentationCharacter)=="function"then
+        local okay,model=pcall(backend.GetPresentationCharacter)
+        if okay and typeof(model)=="Instance"and model:IsA("Model")and model.Parent then return model end
+    end
+    return Reanimate.GetActiveRealCharacter()
 end
 
 -- The controller humanoid can remain seated while the live Roblox humanoid is
@@ -95738,18 +96488,24 @@ do
             if not isfolder(current)then makefolder(current)end
         end
     end
-    for _,kind in ipairs({"Limb","Hat","Tool","NPC"})do
+    extensionFolder("UhhhhhhReanim/Libraries")
+    for _,kind in ipairs({"Limb","Hat","Tool","NPC","Gelatek","Ragdoll","Custom","All"})do
         local folder="UhhhhhhReanim/Custom Reanimation Methods/Custom "..kind.." Reanimation"
         extensionFolder(folder)
         local destination=folder.."/init.lua"
         if not isfile(destination)then
-            pcall(writefile,destination,readfile("UhhhhhhReanim/System/examples/NoobyCustom"..kind..".lua.example.txt"))
+            pcall(function()
+                local old="UhhhhhhReanim/System/examples/NoobyCustom"..kind..".lua.example.txt"
+                local source=isfile(old)and readfile(old)or readfile("UhhhhhhReanim/System/examples/BackendExtension.lua.example.txt"):gsub("__KIND__",kind)
+                writefile(destination,source)
+            end)
         end
     end
     Reanimate.Extensions=Steve110.Require("main/reanimation/extensions")({Saved=SaveData,UI=UI,
         Limb=LimbReanimator,Hat=HatReanimator,Signal=RunService.Heartbeat,List=listfiles,Read=readfile,Compile=loadstring,
         Notify=Util.UINotify,Save=SaveSettingsNow,Yield=function()Util.ModuleBudget.Checkpoint()end,
-        Folder=extensionFolder,
+        Folder=extensionFolder,Libraries=Reanimate.ModuleLibraries,Environment=b_getfenv(),Reanimate=Reanimate,Player=Player,
+        Starting=function()return Reanimate.Starting==true end,
         Trim=function()
             if Util.TrimAnimationCaches then return Util.TrimAnimationCaches()end
             return false,"animation caches are not ready"
@@ -95757,16 +96513,19 @@ do
         LowEnd=function()return Util.UIPerformance.ReducedEffects()end,
         Current=function()return Reanimate.Current end,
         Active=function()return Reanimate.Current~=nil or Reanimate.Starting end})
-    for _,row in ipairs({{LimbReanimator,"Limb"},{HatReanimator,"Hat"},{LooseBodyReanimators.Tools,"Tool"},{NPCReanimator,"NPC"}})do
+    for _,row in ipairs({{LimbReanimator,"Limb"},{HatReanimator,"Hat"},{LooseBodyReanimators.Tools,"Tool"},{NPCReanimator,"NPC"},{GelatekReanimator,"Gelatek"}})do
         Reanimate.Extensions.Wrap(row[1],row[2])
     end
     SCREENGUI.Destroying:Once(Reanimate.Extensions.Destroy)
 	local custom = Steve110.Require("main/reanimation/custom_methods")({
 		Player=Player,Reanimate=Reanimate,UI=UI,Task=task,RunService=RunService,
 		List=listfiles,Read=readfile,Compile=loadstring,Notify=Util.UINotify,
+        Libraries=Reanimate.ModuleLibraries,Environment=b_getfenv(),SetEnvironment=setfenv,
+        Decorate=function(backend)Reanimate.Extensions.Wrap(backend,"Custom")end,
 		Alive=function()return SCREENGUI.Parent~=nil end,
 		Context={Util=Util,SaveData=SaveData,Fling=ReanimateFling,FallenPartsDestroyHeight=FallenPartsDestroyHeight,
 			Game=game,Workspace=workspace,GetHiddenProperty=gethiddenproperty,
+            PoseProvider=GelatekReanimator.AccessoryLifetime,
 			DamageMethod=RunDamageMethod,RunService=RunService},
 		Complete=function(backend)if __TheoLifecycle.Complete then __TheoLifecycle.Complete(backend)end end,
 	})
@@ -95785,6 +96544,7 @@ do
     originalRagdoll.Name="Ragdoll (Awes)"
     originalRagdoll.BackendKind="ragdoll"
     originalRagdoll.NoclipAllStates=true
+    Reanimate.Extensions.Wrap(originalRagdoll,"Ragdoll")
     if SaveData.SelectedReanimatorName=="Ragdoll (beta)"or SaveData.SelectedReanimatorName=="Ragdoll (Awes original, R6)"then SaveData.SelectedReanimatorName=originalRagdoll.Name end
 	custom.Reload()
 	local builtins={LimbReanimator,HatReanimator,GelatekReanimator,originalRagdoll,LooseBodyReanimators.Tools,NPCReanimator}
@@ -95947,9 +96707,9 @@ Reanimate.CharacterMotion = Steve110.Require("main/character_motion")({SaveData=
     end
     local prepare = RunService.PreAnimation:Connect(function(dt) safe(motion.Prepare, dt) end)
     local solve = RunService.PreSimulation:Connect(function()
-        -- Gelatek restores its pose cache in its own PreSimulation callback
-        -- below, then solves once. An earlier solve is immediately discarded.
-        if not __TheoIsExternal() then safe(motion.ApplyIK, Reanimate.Character) end
+        -- Controllers with an Animator replay their manual cache below before
+        -- solving. An earlier solve would be discarded by native evaluation.
+        if not Reanimate.UsesAnimatorPhase(Reanimate.Character)then safe(motion.ApplyIK, Reanimate.Character)end
     end)
     Util.LinkDestroyI2C(SCREENGUI, prepare)
     Util.LinkDestroyI2C(SCREENGUI, solve)
@@ -96505,9 +97265,11 @@ local AnimLib = Steve110.Require("main/animlib")({
 	UISound = UISound,
 	Util = Util,
 	__TheoIsExternal = __TheoIsExternal,
+    AfterAnimator=Reanimate.UsesAnimatorPhase,
 	ismissing = ismissing,
 	pcall = pcall,
 })
+Reanimate.AnimLib=AnimLib
 Steve110.Seed("main/animlib", AnimLib)
 Util.TrimAnimationCaches=AnimLib.Track.TrimCaches
 function AnimLib.GetFileTools()
@@ -97476,8 +98238,11 @@ local function ApplyPhysicsHeadOverlay(dt)
 	end
 end
 
--- One write after animation evaluation: a second render writer used to reapply
--- stale animation and tracking during the same frame.
+-- Native tracks have no manual pose callback. Custom writers also apply this
+-- overlay immediately after writing their own pose, so it survives Animator replay.
+Reanimate.CharacterMotion.AfterPose=function(rig)
+    if Reanimate.ControllerRigAdapter.Owner(rig)==Reanimate.Character then ApplyPhysicsHeadOverlay()end
+end
 local PhysicsHeadPreSimulation = RunService.PreSimulation:Connect(ApplyPhysicsHeadOverlay)
 
 Util.LinkDestroyI2C(SCREENGUI, PhysicsHeadPreSimulation)
@@ -98047,7 +98812,7 @@ end)
 end
 
 local function GetDanceEffectGhostSource(figure)
-    local realCharacter=Reanimate.GetActiveRealCharacter and Reanimate.GetActiveRealCharacter()or Player.Character
+    local realCharacter=Reanimate.GetPresentationCharacter and Reanimate.GetPresentationCharacter()or Player.Character
     if realCharacter and realCharacter~=figure and realCharacter.Parent then
         for _,source in ipairs(realCharacter:GetChildren())do
             if IsDanceEffectBodyPart(realCharacter,source)and IsDanceEffectBodyPartVisible(source)then return realCharacter end
@@ -98217,7 +98982,7 @@ local function UpdateDanceEffectVisualizer(dt, figure)
 			DanceEffects.AnchorSource = "Cyan reanimated root - Blue Root Part"
 		end
 	elseif SavedDanceEffectsOptions.DynamicPosition then
-		local realCharacter = Reanimate.GetActiveRealCharacter and Reanimate.GetActiveRealCharacter()or Player.Character
+		local realCharacter = Reanimate.GetPresentationCharacter and Reanimate.GetPresentationCharacter()or Player.Character
 		if realCharacter and realCharacter ~= figure then
 			position, root, scale, anchorCFrame = GetDanceEffectAnchor(realCharacter, anchorMode)
 			if position then
@@ -101132,8 +101897,11 @@ local function GiveFunctionsToFunction(func, marketContext)
 	env.HiddenGui = SCREENGUI
 	env.FallenPartsDestroyHeight = FallenPartsDestroyHeight
 	env.RegisterServerReanimAdapter = _G_Uhhhhhh.RegisterServerReanimAdapter
+    local releaseLibraries
+    env.LoadLibrary,releaseLibraries=Reanimate.ModuleLibraries.Bind(env,{Reanimate=Reanimate,Player=Player,AnimLib=env.AnimLib})
     return function(owner)
         moduleOwner=owner
+        owner._UhhhhhhLibraryRelease=releaseLibraries
         owner._UhhhhhhDeclaredAssets=declared
         if declared then
             for _,reference in ipairs(owner.Assets) do
@@ -101147,10 +101915,17 @@ local function GiveFunctionsToFunction(func, marketContext)
             end
         end
         for animator in pairs(created) do animator._UhhhhhhModuleOwner=owner end
+    end,function()
+        releaseLibraries()
+        for animator in pairs(created)do pcall(function()animator:Destroy(false)end)end
     end
+end
+local function ReleaseModuleLibraries()
+    Reanimate.ModuleLibraries.ReleaseAll()
 end
 local function ClearModules()
     if StreamRuntime then StreamRuntime.Clear() end
+    ReleaseModuleLibraries()
     for page in pairs(FavoriteSystem.DetailPages)do if page.Parent then page:Destroy()end end
     table.clear(FavoriteSystem.DetailPages)
 	table.clear(MovementStyles)
@@ -101748,13 +102523,15 @@ local function AddModule(func, marketContext, sourceLabel)
 	if type(func) ~= "function" then
 		return nil, "Module entry is not a function. Got " .. typeof(func) .. " instead."
 	end
-	local bindOwner=GiveFunctionsToFunction(func, marketContext)
+	local bindOwner,releaseFactory=GiveFunctionsToFunction(func, marketContext)
 	local ran, m = xpcall(func, debug.traceback)
 	if not ran then
+        releaseFactory()
 		return nil, "Module execution failed: " .. tostring(m)
 	end
 	local valid, validationError = ValidateModuleObject(m)
 	if not valid then
+        releaseFactory()
 		return nil, validationError
 	end
     bindOwner(m)
@@ -101768,6 +102545,7 @@ local function AddModule(func, marketContext, sourceLabel)
         -- A factory may construct animators before returning its module. Only
         -- those owned by the discarded duplicate are safe to release here.
         if canonical~=m then
+            releaseFactory()
             for animator in pairs(AnimLib.ActiveAnimators or {})do
                 if animator._UhhhhhhModuleOwner==m then pcall(function()animator:Destroy(false)end)end
             end
@@ -101847,7 +102625,7 @@ local function __TheoClearGelatekPoseCache()
 end
 
 local function __TheoCaptureGelatekControllerPose(character, dt)
-	if not __TheoIsExternal()
+	if not Reanimate.UsesAnimatorPhase(character)
 		or typeof(character) ~= "Instance"
 		or not character.Parent
 	then
@@ -101876,10 +102654,9 @@ local function __TheoCaptureGelatekControllerPose(character, dt)
 end
 
 local function __TheoHasPlayingRobloxTrack(character)
-	local humanoid =
-		character and character:FindFirstChildOfClass("Humanoid")
-	local animator =
-		humanoid and humanoid:FindFirstChildOfClass("Animator")
+	local owner = character and (character:FindFirstChildOfClass("Humanoid")
+        or character:FindFirstChildOfClass("AnimationController"))
+	local animator = owner and owner:FindFirstChildOfClass("Animator")
 	if not animator then
 		return false
 	end
@@ -102200,7 +102977,7 @@ end
 -- PreSimulation it restores legacy Heartbeat-written Transform first; a modern
 -- AnimLib animator bound to PreSimulation then writes its fresh pose afterward.
 RunService.PreSimulation:Connect(function()
-	if not __TheoIsExternal() then
+	if not Reanimate.UsesAnimatorPhase(Reanimate.Character)then
 		return
 	end
 
@@ -102224,6 +103001,7 @@ RunService.PreSimulation:Connect(function()
 		end
 	end end
     Reanimate.CharacterMotion.ApplyIK(character)
+    Reanimate.CharacterMotion.AfterPose(character)
 end)
 
 task.spawn(function()
@@ -102751,6 +103529,7 @@ local function IsUserModuleScript(path)
         or path:sub(-8) == ".lua.txt" or path:sub(-9) == ".luau.txt"
 end
 local function ForceModuleReload(force)
+    TeardownAnimationRuntime(Reanimate.Character,false)
     Util.ModuleBudget.Reset()
 	IsUhhhhhhFullyLoaded = false
 	InitLogsText.Reset("Init Logs -- This is where you check what happened.")
@@ -103148,6 +103927,7 @@ StreamRuntime = Steve110.Require("main/market_stream")({
         local canonical,isNew=ModuleIdentity.Register(m,factory,context,m._UhhhhhhSource)
         if not isNew then
             if canonical~=m then
+                if m._UhhhhhhLibraryRelease then m._UhhhhhhLibraryRelease()end
                 for animator in pairs(AnimLib.ActiveAnimators or {})do
                     if animator._UhhhhhhModuleOwner==m then pcall(function()animator:Destroy(false)end)end
                 end
@@ -103168,10 +103948,11 @@ StreamRuntime = Steve110.Require("main/market_stream")({
     end,
     Build = function(factory, context)
         assert(type(factory) == "function", "Entry is not a function")
-        local bindOwner=GiveFunctionsToFunction(factory, context)
-        local m = factory()
+        local bindOwner,releaseFactory=GiveFunctionsToFunction(factory, context)
+        local ran,m=pcall(factory)
+        if not ran then releaseFactory()error(m,0)end
         local valid, reason = ValidateModuleObject(m)
-        if not valid then return nil, reason end
+        if not valid then releaseFactory()return nil, reason end
         bindOwner(m)
         ResolveModuleAssets(m, context)
         GetModuleHash(m)
@@ -103578,7 +104359,7 @@ local runtimeSnapshot=Steve110.Require("main/runtime_state").Snapshot({
     OwnershipDetail=Util.OwnershipProbe.Snapshot,Animators=AnimLib.ActiveAnimators,
     Build=function()
         local env=(getgenv and getgenv())or _G
-        return env.UhhhhhhLaunchInfo and env.UhhhhhhLaunchInfo.Build or "followup-20261109"
+        return env.UhhhhhhLaunchInfo and env.UhhhhhhLaunchInfo.Build or "ragdoll-velocity-20261110"
     end,
     Ready=function()return IsUhhhhhhFullyLoaded end,
     Playback=function()
@@ -103593,6 +104374,10 @@ local runtimeSnapshot=Steve110.Require("main/runtime_state").Snapshot({
 _G_Uhhhhhh.GetRuntimeState=runtimeSnapshot
 SCREENGUI.Destroying:Once(function()
     if _G_Uhhhhhh.GetRuntimeState==runtimeSnapshot then _G_Uhhhhhh.GetRuntimeState=nil end
+end)
+SCREENGUI.Destroying:Once(function()
+    TeardownAnimationRuntime(Reanimate.Character,false)
+    ReleaseModuleLibraries()
 end)
 ForceModuleReload(false)
 
