@@ -20,7 +20,6 @@ Thou shalth not steal. Point at this source if you used a snippet here.
 ]]
 
 -- Uhhhhhh Reanimate Modded
--- Fork integration/editor: mxsynry. Full source credits are in the Credits page.
 assert(not _G.UhhhhhhLoaded, "Rejoin before installing the update")
 local required = {"writefile", "readfile", "isfile", "isfolder", "makefolder", "loadstring"}
 for _, name in ipairs(required) do
@@ -234,7 +233,7 @@ return {
     ["UhhhhhhReanim/System/launch.lua"] = [=====[
 
 local ROOT = "UhhhhhhReanim/System"
-local BUILD = "ragdoll-velocity-20261110"
+local BUILD = "ragdoll-shared-frame-20261115"
 local HttpService = game:GetService("HttpService")
 
 local function compile(source, label)
@@ -515,7 +514,7 @@ return function(Context)
     replicationWriters.GelatekHead = "ReplicateCurrentAngle6D"
     local backend = {
         Name = "Gelatek",
-        Build = "ragdoll-velocity-20261110",
+        Build = "ragdoll-shared-frame-20261115",
         DetectedRig = nil,
         ControllerRig = nil,
         Rig = nil,
@@ -2287,7 +2286,7 @@ return function(Context)
         )
         UI.CreateText(
             parent,
-            "Non-PD keeps the original root and torso connected when their motors are available. PD and torso/bullet modes use detached followers.",
+            "non-PD keeps root + torso together when the motors survive. PD / torso / bullet modes split the bits up.",
             10,
             Enum.TextXAlignment.Center
         )
@@ -2311,7 +2310,7 @@ return function(Context)
             parent,
             "Direct Position Correction",
             "DirectPositionCorrection",
-            "Corrects owned limbs and accessories before physics, including constraint alignment mode."
+            "nudge owned limbs + hats back before physics gets ideas. works with constraint alignment too."
         )
         addSwitch(parent, "Teleport Back When Voided", "TeleportBackWhenVoided")
         addSwitch(parent, "Recover Before Void", "RecoverBeforeVoid",
@@ -2320,13 +2319,13 @@ return function(Context)
             parent,
             "Disable Directional Walking",
             "DisableDirectionalWalking",
-            "Uses vanilla MovementRelative unshiftlocked and CameraRelative in shiftlock/first-person."
+            "back to Roblox walking: movement-relative normally, camera-relative in shiftlock / first person."
         )
         addSwitch(
             parent,
             "Show me how I look!",
             "ShowMeHowILook",
-            "Preview the committed physics Head pose at full rate. Keep this off for the latest local controller pose."
+            "show the last physics Head pose. leave off for the freshest controller pose on your screen."
         )
 
         UI.CreateText(parent, "<b>Physical recovery</b>", 12, Enum.TextXAlignment.Left)
@@ -2396,23 +2395,23 @@ return function(Context)
         )
 
         UI.CreateText(advancedPage, "<b>Rig / animation</b>", 12, Enum.TextXAlignment.Left)
-        UI.CreateText(advancedPage, "R6 controller with your avatar's appearance and accessory joints. R15 body segments follow the matching R6 limb.", 9, Enum.TextXAlignment.Left)
+        UI.CreateText(advancedPage, "your avatar, our dance controller. R15 limbs use the shared body map; the hats brought their joints too :D", 9, Enum.TextXAlignment.Left)
         addSwitch(
             advancedPage,
             "Disable Gelatek's Own Animator",
             "AnimationsDisabled",
-            "The controller Roblox Animator is still preserved for generic AnimationTrack content."
+            "turn off Gelatek's own idle / walk. the Roblox Animator stays for normal AnimationTracks."
         )
         addSwitch(
             advancedPage,
             "Break Accessory Welds",
             "BreakAccessoryWelds",
-            "Drive the original accessory handles independently. Losing ownership pauses writes and keeps the handoff stable. PD also handles mounts lost through death."
+            "let the real hat handles dance on their own. ownership gone? hands off until it comes back. PD can use the saved mounts after death."
         )
 
         UI.CreateText(advancedPage, "<b>Core followers</b>", 12, Enum.TextXAlignment.Left)
         UI.CreateText(advancedPage,
-            "Live accessory mounts stay connected unless detached here. PD submits original handle poses; each handle needs native network ownership.",
+            "hats stay welded until you tell them otherwise. PD follows the real handles; we still need to own every one.",
             9, Enum.TextXAlignment.Left)
         addSwitch(
             advancedPage,
@@ -9232,6 +9231,7 @@ end)]==], "generation-scoped initialization error handoff")
     end
 
     function backend.Fling(target, duration)
+        if Reanimate.IsSelf and Reanimate.IsSelf(target)then return false end
         if not backend.Running or not target or target == backend.Rig or target == backend.RealCharacter then
             return false
         end
@@ -9279,7 +9279,7 @@ end
 return function(rootPath)
     local cache, loading, nodes = {}, {}, {}
     local base = getfenv(1)
-    local Loader = {Version = "1.1.0 DEV", PayloadSHA256 = "87e733744c6a574a1a68e4bef8e681f91c6342893ef1f43cb207d28ab55ffeee"}
+    local Loader = {Version = "1.1.0 DEV", PayloadSHA256 = "bd9a9d558a21d41752ff4ce5cf59f06e0c950eaba6de5ad1a1d01923a32dbac0"}
     local function node(path)
         if nodes[path] then return nodes[path] end
         local current = {ModulePath = path}
@@ -14597,9 +14597,14 @@ AddModule(function()
 	local sndpoint, climbforce = nil, nil
 
 	local lastupdate = 0
+	local pendingTime = 0
 	local rs, ls, rh, lh = {V = 0, D = 0, C = 0}, {V = 0, D = 0, C = 0}, {V = 0, D = 0, C = 0}, {V = 0, D = 0, C = 0}
 
 	m.Init = function(figure: Model)
+		lastpose, pose, toolAnim, toolAnimTime = "", "Standing", "None", 0
+		canClimb, hipHeight, lastupdate, pendingTime = false, 0, os.clock(), 0
+		for _, joint in ipairs({rs, ls, rh, lh}) do joint.V, joint.D, joint.C = 0, 0, 0 end
+		rs.V, ls.V, rh.V, lh.V = 0.15, 0.15, 0.1, 0.1
 		local hum = figure:FindFirstChild("Humanoid")
 		hum.AutoRotate = true
 		hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
@@ -14855,12 +14860,13 @@ AddModule(function()
 
 		local function stepjoint(a, b, c)
 			local d = a.D - a.C
-			if math.abs(d) < a.V then
+			local step = a.V * 30 * c
+			if math.abs(d) <= step then
 				a.C = a.D
 			elseif d > 0 then
-				a.C += a.V * 30 * c
+				a.C += step
 			else
-				a.C -= a.V * 30 * c
+				a.C -= step
 			end
 			local e = a.C
 			if m.Snap then
@@ -14870,14 +14876,14 @@ AddModule(function()
 			b.Transform = CFrame.Angles(0, 0, e)
 		end
 
-		local delta = 1 / 30
-		if not m.FPS30 then
-			lastupdate = 0
-			delta = dt
-		end
-
-		if t - lastupdate > 1 / 30 then
-			lastupdate = t
+		local elapsed = math.clamp(t - lastupdate, 0, 0.25)
+		lastupdate = t
+		pendingTime += elapsed
+		local step = 1 / 30
+		local count = m.FPS30 and math.floor((pendingTime + 1e-8) / step) or 1
+		local delta = m.FPS30 and step or pendingTime
+		if not m.FPS30 then pendingTime = 0 else pendingTime = math.max(0, pendingTime - count * step) end
+		for _ = 1, count do
 			rj.Transform = CFrame.identity
 			nj.Transform = CFrame.identity
 			stepjoint(rs, rsj, delta)
@@ -28908,6 +28914,68 @@ return function(ctx)
     return Files
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/animation_frames.lua"] = [=====[
+-- Keep module time running even when a module waits for an asset or event.
+return function(ctx)
+    local api={}
+    local phases={}
+    local samples=setmetatable({}, {__mode="k"})
+    local connections={}
+    local destroyed=false
+    local function valid(dt)return type(dt)=="number"and dt==dt and dt>=0 and dt<math.huge end
+    local function phase(name)
+        local state=phases[name]
+        if not state then state={Time=0,Serial=0,Delta=0}phases[name]=state end
+        return state
+    end
+    function api.Advance(name,dt)
+        local state=phase(name)
+        if destroyed then return state.Serial end
+        state.Delta=valid(dt)and dt or 0
+        state.Time+=state.Delta state.Serial+=1
+        return state.Serial
+    end
+    function api.Serial(name)return phase(name).Serial end
+    function api.Reset(key,rig,name)
+        samples[key]={Rig=rig,Phase=name,Time=phase(name).Time}
+    end
+    function api.Forget(key)samples[key]=nil end
+    function api.Take(key,rig,name,fallback)
+        local now=phase(name).Time
+        local previous=samples[key]
+        local dt=valid(fallback)and fallback or 0
+        if previous and previous.Rig==rig and previous.Phase==name then dt=math.max(now-previous.Time,0)end
+        samples[key]={Rig=rig,Phase=name,Time=now}
+        return dt
+    end
+    -- Fire our waiter only after recording the frame. A yielding module can
+    -- miss callbacks, but the clock continues on the independent connection.
+    if ctx.RunService then
+        for _,name in ipairs({"PreAnimation","Heartbeat"})do
+            local state=phase(name)
+            state.Event=ctx.New("BindableEvent")
+            connections[#connections+1]=ctx.RunService[name]:Connect(function(dt)
+                if destroyed then return end
+                api.Advance(name,dt)state.Event:Fire(state.Delta)
+            end)
+        end
+    end
+    function api.Wait(name)
+        if destroyed then return nil end
+        return assert(phase(name).Event,"animation phase cannot be waited on").Event:Wait()
+    end
+    function api.Destroy()
+        if destroyed then return end
+        destroyed=true
+        for _,connection in ipairs(connections)do connection:Disconnect()end
+        table.clear(connections)table.clear(samples)
+        for _,state in pairs(phases)do
+            if state.Event then state.Event:Fire(nil)state.Event:Destroy()state.Event=nil end
+        end
+    end
+    return api
+end
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/animation_sources.lua"] = [=====[
 -- Enumerate data we can actually edit. Module scripts are never run by this picker.
 return function(ctx)
@@ -28980,6 +29048,10 @@ function Policy.AfterAnimator(rig,backend)
     if backend and backend.AnimatorEvaluation=="BeforePhysics"then return true end
     local owner=rig and (rig:FindFirstChildOfClass("Humanoid")or rig:FindFirstChildOfClass("AnimationController"))
     return owner~=nil and owner:FindFirstChildOfClass("Animator")~=nil
+end
+function Policy.CanWritePose(rig,state)
+    return not(state and state.Current and rig==state.Character
+        and (state.ControllerNativeTrackActive==true or state.RagdollNativeAnimationActive==true))
 end
 return Policy
 ]=====],
@@ -29066,6 +29138,40 @@ AnimLib.JointGroups = {
 	},
 }
 AnimLib.ActiveAnimators = setmetatable({}, { __mode = "k" })
+local bindOrder=0
+local function animationOwner(animator)
+    local rig=animator._requestedRig or animator.rig
+    return Context.RigAdapter and Context.RigAdapter.Owner(rig)or rig
+end
+local function physicsOwner(animator)
+    if animator._defaultPhysicsBinding and animator._updateConnection and Context.PhysicsPoseOwner then
+        return Context.PhysicsPoseOwner(animationOwner(animator))
+    end
+end
+-- Run default tracks before the physical body reads them, even if a dance was
+-- selected after reanimation started. Explicit Bind(signal) stays caller-owned.
+function AnimLib.UpdatePhysicsPose(rig,dt,serial)
+    local pending={}
+    for animator in pairs(AnimLib.ActiveAnimators)do
+        if not animator._destroyed and physicsOwner(animator)and animationOwner(animator)==rig then
+            pending[#pending+1]=animator
+        end
+    end
+    table.sort(pending,function(a,b)return a._bindOrder<b._bindOrder end)
+    for _,animator in ipairs(pending)do
+        local owner=physicsOwner(animator)
+        if owner and not animator._destroyed and not animator._physicsPoseBusy and animationOwner(animator)==rig
+            and not(animator._physicsPoseOwner==owner and animator._physicsPoseSerial==serial)then
+            if animator._physicsPoseOwner~=owner and Context.AnimationFrames then Context.AnimationFrames.Forget(animator)end
+            animator._physicsPoseOwner,animator._physicsPoseSerial=owner,serial
+            animator._physicsPoseBusy=true
+            local elapsed=Context.AnimationFrames and Context.AnimationFrames.Take(animator,rig,"PreSimulation",dt)or dt
+            local ok,why=xpcall(function()animator:Update(elapsed)end,debug.traceback)
+            animator._physicsPoseBusy=nil
+            if not ok then warn(why)end
+        end
+    end
+end
 function AnimLib.GetJointGroup(key)
 	for _, group in AnimLib.JointGroups do
 		if group.Key == key then
@@ -30420,7 +30526,14 @@ do
 		local defaultSignal = afterAnimator and "PreSimulation"or "PreAnimation"
 		local resolved, name = ResolveRunSignal(signal, defaultSignal)
 		self._boundSignal = name
+		self._defaultPhysicsBinding=signal==nil and name=="PreSimulation"
+		bindOrder+=1 self._bindOrder=bindOrder
 		self._updateConnection = resolved:Connect(function(dt)
+			if physicsOwner(self)then return end
+            if self._physicsPoseOwner then
+                self._physicsPoseOwner,self._physicsPoseSerial=nil,nil
+                if Context.AnimationFrames then Context.AnimationFrames.Forget(self)end
+            end
 			self:Update(dt)
 		end)
 		return self
@@ -30431,6 +30544,9 @@ do
 			self._updateConnection = nil
 		end
 		self._boundSignal = nil
+		self._defaultPhysicsBinding=nil self._bindOrder=nil
+		self._physicsPoseOwner=nil self._physicsPoseSerial=nil
+		if Context.AnimationFrames then Context.AnimationFrames.Forget(self)end
 		return self
 	end
 	function Animator:GetBoundSignal()
@@ -30517,10 +30633,14 @@ do
 		self._markerEvent:Destroy()
 	end
 	function Animator:Step(t)
+		assert(type(t) == "number", "time must be a number")
+        if Context.ShouldWritePose and not Context.ShouldWritePose(self._requestedRig or self.rig)then
+            self.timePosition=math.max(t,0)
+            return
+        end
         if Context.RigAdapter then Context.RigAdapter.BeginTrack(self.rig,self) end
         if Context.RigAdapter then Context.RigAdapter.Prepare(self.rig) end
         if Context.CharacterMotion then Context.CharacterMotion.BeforePose(self.rig) end
-		assert(type(t) == "number", "time must be a number")
 		local syncSound, usingDanceMusicClock = self:_GetSyncSound()
 		if syncSound then
 			t = math.max((MusicClock and MusicClock.Read(syncSound) or syncSound.TimePosition) + self._soundOffset, 0)
@@ -64671,6 +64791,117 @@ return function(Context)
     return Cache
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/audio_activity.lua"] = [=====[
+-- App-owned/current-character music discovery. No Workspace-wide scan or hooks.
+return function(ctx)
+    local api={}
+    local entries,active,roots,connections={},{},{},{}
+    local destroyed=false
+    local clock=ctx.Clock or os.clock
+    local function sound(object)
+        local ok,value=pcall(function()return object:IsA("Sound")end)
+        return ok and value
+    end
+    local function playing(object)
+        local ok,value=pcall(function()return object.IsPlaying==true or object.Playing==true end)
+        return ok and value
+    end
+    local function forget(object)
+        local state=entries[object]
+        if not state then return end
+        for _,connection in ipairs(state.Connections)do connection:Disconnect()end
+        entries[object],active[object]=nil,nil
+    end
+    local function track(object,priority,label,manual)
+        if not sound(object)then return end
+        local state=entries[object]
+        if state then
+            if priority>state.Priority then state.Priority=priority end
+            if manual then state.Manual=true state.Label=label end
+            return
+        end
+        state={Priority=priority,Label=label,Manual=manual,Connections={}}entries[object]=state
+        local function update()
+            if entries[object]~=state then return end
+            if playing(object)then
+                if not active[object]then state.Started=clock()end
+                active[object]=state
+            else active[object]=nil end
+        end
+        for _,property in ipairs({"Playing","IsPlaying"})do
+            local ok,signal=pcall(object.GetPropertyChangedSignal,object,property)
+            if ok then table.insert(state.Connections,signal:Connect(update))end
+        end
+        table.insert(state.Connections,object.Destroying:Connect(function()forget(object)end))
+        update()
+    end
+    local function refresh()
+        local wanted={}
+        for _,entry in ipairs(ctx.Roots and ctx.Roots()or {})do
+            local root,priority
+            if typeof(entry)=="Instance"then root,priority=entry,15 else root,priority=entry.Root,entry.Priority or 15 end
+            if root then wanted[root]=math.max(wanted[root]or 0,priority)end
+        end
+        local changed=false
+        for root,priority in pairs(wanted)do if roots[root]~=priority then changed=true break end end
+        if not changed then for root in pairs(roots)do if not wanted[root]then changed=true break end end end
+        if not changed then return end
+        for _,connection in ipairs(connections)do connection:Disconnect()end table.clear(connections)
+        local old={}for object,state in pairs(entries)do if not state.Manual then table.insert(old,object)end end
+        for _,object in ipairs(old)do forget(object)end
+        roots=wanted
+        for root,priority in pairs(roots)do
+            for _,object in ipairs(root:GetDescendants())do track(object,priority,nil,false)end
+            table.insert(connections,root.DescendantAdded:Connect(function(object)track(object,priority,nil,false)end))
+            table.insert(connections,root.DescendantRemoving:Connect(function(object)
+                local state=entries[object]if state and not state.Manual then forget(object)end
+            end))
+        end
+    end
+    local function audible(object,explicit)
+        local ok,value=pcall(function()
+            if not object.Parent or not playing(object)or object.IsLoaded==false then return false end
+            local volume=object.Volume
+            if type(volume)~="number"or volume~=volume or volume<=0 then return false end
+            return explicit or object.Looped==true or (tonumber(object.TimeLength)or 0)>=(ctx.MinimumMusicLength or 8)
+        end)
+        return ok and value
+    end
+    function api.Track(object,label)
+        assert(not destroyed,"this audio tracker has stopped")
+        assert(sound(object),"register a Sound for the sunset")
+        track(object,70,label,true)
+        return function()forget(object)end
+    end
+    function api.Pick()
+        if destroyed then return nil,"quiet for now :)"end
+        refresh()
+        local best,name,rank,started=nil,nil,-math.huge,-math.huge
+        local function consider(object,label,priority,at,explicit)
+            if audible(object,explicit)and(priority>rank or priority==rank and at>started)then
+                best,name,rank,started=object,label or object.Name,priority,at
+            end
+        end
+        local known=ctx.Sounds or {}
+        consider(known.DanceMusic,nil,60,0,true)
+        consider(known.MovesetMusic,nil,50,0,true)
+        consider(known.Music,nil,20,0,true)
+        for object,state in pairs(active)do
+            consider(object,state.Label,state.Priority,state.Started or 0,state.Manual)
+        end
+        return best,name or "quiet for now :)"
+    end
+    function api.Destroy()
+        if destroyed then return end
+        destroyed=true
+        for _,connection in ipairs(connections)do connection:Disconnect()end table.clear(connections)
+        local old={}for object in pairs(entries)do table.insert(old,object)end
+        for _,object in ipairs(old)do forget(object)end
+        table.clear(roots)
+    end
+    return api
+end
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/bounded_log.lua"] = [=====[
 
 return function(label, maximum)
@@ -65844,6 +66075,48 @@ return function(context)
     return cleanup
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/controller_states.lua"] = [=====[
+-- Optional moveset states. Humanoid states and Roblox AnimationTracks still
+-- work through their own APIs; this attribute only selects an authored slot.
+local States={Names={"idle","walk","run","jump","fall","climb","swim","sit","toolhold","toolslash","toollunge"}}
+function States.Name(value)
+    if type(value)~="string"then return nil end
+    local name=value:match("^%s*(.-)%s*$"):lower()
+    return #name>0 and #name<=64 and name:match("^[%w_][%w_ %-]*$")and name or nil
+end
+function States.Set(figure,name)
+    local humanoid=figure and figure:FindFirstChildOfClass("Humanoid")
+    assert(humanoid,"the animation character is not ready")
+    local normalized=name~=nil and States.Name(name)or nil
+    assert(name==nil or normalized,"use a state name with up to 64 letters, numbers, spaces, - or _")
+    humanoid:SetAttribute("UhhhhhhAnimationState",normalized)
+end
+function States.Resolve(humanoid,available)
+    if not humanoid then return nil end
+    local figure=humanoid.Parent
+    local custom=States.Name(humanoid:GetAttribute("UhhhhhhAnimationState")
+        or figure and figure:GetAttribute("UhhhhhhAnimationState"))
+    if custom and(not available or available[custom])then return custom end
+    local state=humanoid:GetState()
+    local name=type(state)=="string"and state or state and state.Name
+    if name=="Jumping"then return "jump"end
+    if name=="Freefall"or name=="FallingDown"then return "fall"end
+    if name=="Climbing"then return "climb"end
+    if name=="Swimming"then return "swim"end
+    if humanoid.Sit or name=="Seated"then return "sit"end
+    local tool=figure and figure:FindFirstChildOfClass("Tool")
+    if tool then
+        local message=tool:FindFirstChild("toolanim")
+        local action=message and message.Value
+        local key=action=="Slash"and "toolslash"or action=="Lunge"and "toollunge"or "toolhold"
+        if not available or available[key]then return key end
+        if available.toolhold then return "toolhold"end
+    end
+    if humanoid.MoveDirection.Magnitude<.05 then return "idle"end
+    return humanoid.WalkSpeed>18 and "run"or "walk"
+end
+return States
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/creator_compat.lua"] = [=====[
 -- BlaaBlaa stable Animation Creator data, rewritten for the shared animator.
 -- Read the returned data only; never invoke the generator's preview callbacks.
@@ -65943,10 +66216,8 @@ end
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/data.lua"] = [=====[
 
--- Compatibility data for the mod entrypoint; stock Prefabs retains its original API.
 return {
     Name = "Uhhhhhh Reanimate", Version = "1.1.0 DEV",
-    -- Keep the existing user cache/settings instead of silently creating a new Dev directory.
     Directory = "UhhhhhhReanim", TextFont = Enum.Font.Code,
     Lang = {Get = function(_, key)
         return ({UI_SEARCH_PLACEHOLDER = "Search...", MODULE_STOP = "Stop", MODULE_PLAY = "Play"})[key] or key
@@ -65954,15 +66225,11 @@ return {
 }
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/dropdown_bounds.lua"] = [=====[
--- Shared native popup/window geometry. Keep fitting separate from input and
--- tween state so menus, dragging and restore positions use the same bounds.
 local Bounds={}
 function Bounds.Window(viewport,position,size,anchor)
     local sw,sh=math.max(1,viewport.X),math.max(1,viewport.Y)
     local w,h=math.max(0,size.X),math.max(0,size.Y)
     anchor=anchor or Vector2.new(.5,.5)
-    -- A fitting window stays wholly visible. An oversized one can still pan
-    -- horizontally, but its top edge/header must remain reachable.
     local left,right=anchor.X*w,sw-(1-anchor.X)*w
     if left>right then left,right=right,left end
     local top,bottom=anchor.Y*h,sh-(1-anchor.Y)*h
@@ -65995,11 +66262,8 @@ function Bounds.Place(viewport,anchor,anchorSize,width,height)
     local above=math.max(0,anchor.Y-my)
     local y=anchor.Y+anchorSize.Y
     if h<=below then
-        -- Enough space below keeps the control and its selected value visible.
     elseif h<=above then y=anchor.Y-h
     elseif math.max(above,below)>=1 then
-        -- Scroll the list in the larger available side instead of sliding an
-        -- oversized popup over the control which opened it.
         if above>below then h=math.min(h,above)y=anchor.Y-h
         else h=math.min(h,below)end
     end
@@ -66008,8 +66272,6 @@ end
 return Bounds
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/effect_pose.lua"] = [=====[
--- Sample what is displayed. Netless velocity is transport, not a prediction
--- offset for afterimages or visualizer anchors.
 local Pose={}
 local finite=require(script.Parent.head_tracking).Finite
 local r15=require(script.Parent.reanimation.gelatek_r15)
@@ -66061,8 +66323,37 @@ function Pose.Anchor(figure,mode)
 end
 return Pose
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/fling_dispatch.lua"] = [=====[
+-- One shared front door; each reanimator keeps its own physical writer.
+-- A target request never makes an unsupported method borrow another's limbs.
+return function(ctx)
+    local api={}
+    local identity=ctx.Identity or require(script.Parent.self_identity)(ctx)
+    function api.Status()
+        local backend=ctx.Reanimate.Current
+        local result={Backend=backend and backend.Name,Supported=false}
+        if not backend or backend.Running==false then result.Reason="start reanimation first"
+        elseif backend.IgnoreSharedFling then result.Reason="this method handles its own target actions"
+        elseif type(backend.Fling)~="function"then result.Reason="this reanimator brought no target flinger"
+        elseif type(backend.CanTargetFling)=="function"then
+            local okay,reason=backend.CanTargetFling()
+            result.Supported=okay==true result.Reason=not result.Supported and reason or nil
+        else result.Supported=true end
+        return result
+    end
+    function api.Call(target,duration)
+        if not target or identity.Is(target)then return false,"that's us :P"end
+        local state=api.Status()
+        if not state.Supported then return false,state.Reason end
+        local backend=ctx.Reanimate.Current
+        return backend.Fling(identity.Character(target),duration)
+    end
+    function api.Destroy()if not ctx.Identity then identity.Destroy()end end
+    return api
+end
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/fling_fallback.lua"] = [=====[
--- Independent adaptation of Nooby's .6s / 60-stud NaN-to-velocity fallback.
+-- adaptation of Nooby's .6s / 60-stud NaN-to-velocity fallback.
 -- Reference: Elliot12-wq/Uh-reanimation-modded-by-nooby, blob
 -- 6ab2b34f56cb07a0db5bb6bb83df2bbad3323070. This is not true NaN state.
 local Fallback={Window=.6,Distance=60,Velocity=16384}
@@ -66089,7 +66380,7 @@ function Fallback.Contact(target,now,position,enabled)
     return target._NaNContact
 end
 function Fallback.Duration(explicit,normal,enabled,profile)
-    if finite(explicit)then return math.max(0,explicit)end -- a caller's timeout remains authoritative
+    if finite(explicit)then return math.max(0,explicit)end
     if not finite(normal)or normal<0 then normal=.5 end
     if not enabled and profile=="Weak"then return .4 end
     if not enabled and profile=="Contact"then return math.max(normal,2)end
@@ -66131,7 +66422,6 @@ end
 return Fallback
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/fork_credits.lua"] = [=====[
--- One data-driven source page. Original contributor/asset credits stay intact.
 return function(ctx)
     local page
     local sources = ctx.Sources
@@ -66171,7 +66461,6 @@ end
 
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/fork_sources.lua"] = [=====[
--- Generated by tools/build_fork_catalog.py from the pinned source audit.
 return {
     ["AuditDate"] = "2026-11-06",
     ["PublicForks"] = 31,
@@ -66936,7 +67225,7 @@ return function(ctx)
         ctx.Clear(pane)
         UI.CreateButton(pane,"&lt; Back",18).Activated:Connect(function()UI.Workspace.Back(page,ctx.Parent)end)
         local text=UI.CreateText(pane,"Hats for "..owner.Name,16,Enum.TextXAlignment.Left)text.RichText=false
-        UI.CreateText(pane,"Use hats already on your avatar. Mounts restore when this module stops. Add their joints to an editor clip with File → Add current rig / hat joints.",11,Enum.TextXAlignment.Left)
+        UI.CreateText(pane,"bring your own hats :D mounts go back when the module stops.\nwant them in a clip? File → Add current rig / hat joints.",11,Enum.TextXAlignment.Left)
         local hats=service.List(ctx.Real())local labels,selectors={},{}local counts={}
         for _,hat in ipairs(hats)do
             counts[hat.Name]=(counts[hat.Name]or 0)+1
@@ -69114,7 +69403,7 @@ return function(ctx)
         if ctx.Theme then ctx.Theme.ApplyFrame(viewport,{Depthed=true})end
         local world=ctx.New("WorldModel",viewport)
         local camera=ctx.New("Camera",viewport)camera.FieldOfView=45 viewport.CurrentCamera=camera
-        local status=UI.CreateText(host,"Choose a clip and press Play. Preview loads on demand.",11,Enum.TextXAlignment.Left)status.RichText=false
+        local status=UI.CreateText(host,"pick a clip, press Play, let the tiny guy cook :D",11,Enum.TextXAlignment.Left)status.RichText=false
         local sources=ctx.Sources()
         local rows=sources.List(module)local index=1 local labels={}
         for _,row in ipairs(rows)do table.insert(labels,row.Name)end
@@ -69159,7 +69448,7 @@ return function(ctx)
                     end)
                 else model:Destroy()api.Model=nil end
             end
-            status.Text="No authored clip is exposed. Open the editor and use Record for this module's procedural motion."
+            status.Text="this one dances with code, no clip to borrow! open the editor and hit Record."
             return page
         end
         UI.CreateDropdown(host,"Preview clip",labels,1).Changed:Connect(function(value)
@@ -71274,6 +71563,10 @@ end
 function UI.Button(parent, text, size)
 text = require(script.Parent.navigation_label)(text)
 local Container = Util.Instance("Frame", parent)
+local caption=tostring(text):gsub("&lt;","<"):gsub("^%s+","")
+if caption:match("^<%s*Hurry back%f[%A]")or caption:match("^Hurry back%f[%A]")then
+Container:SetAttribute("_UhhhhhhNavigationBack",true)
+end
 Container.Size = UDim2.new(1, 0, 0, 67)
 Container.BackgroundTransparency = 1
 Container.LayoutOrder = #parent:GetChildren()
@@ -72322,11 +72615,11 @@ return function(ctx)
         controller.Name="AnimationController" animator.Parent=controller controller.Parent=rig
         return rig
     end
-    function api.Ensure(owner)
+    function api.Ensure(owner,sourceTemplate)
         local state=api.States[owner]
         if state and state.Rig.Parent==owner then return state end
         if state then api.Release(owner) end
-        local template=ctx.Template and ctx.Template(owner)
+        local template=sourceTemplate or ctx.Template and ctx.Template(owner)
         local rig=template and template:Clone() or api.CreateTemplate()
         local root=rig:FindFirstChild("HumanoidRootPart")
         state={Owner=owner,Rig=rig,Root=root,Joints={},Targets={},Users=setmetatable({}, {__mode="k"}),
@@ -72574,8 +72867,6 @@ end
 -- Original component and adaptation record: references/awes-original-ragdoll.*
 -- Shared root/torso assemblies are driven by their animated Torso. The host
 -- filters the whole physical shell before simulation, including skipped parts.
--- This fork corrects angular-velocity coordinates and stale motion history;
--- its post-physics commit is a separate, reversible timing adjustment.
 return function(...)
 local __context=...
 local game=__context.Game or game
@@ -72585,6 +72876,15 @@ local task=__context.Task or task
 __context.SaveData.Reanimator=__context.SaveData.Reanimator or {}
 local __CollisionGuard=require(script.Parent.collision_guard)
 local ctx = ...
+-- BEGIN PHYSICAL PLAYER CONTEXT
+-- Raw player scripts control the exposed controller. This component and its
+-- followers keep an explicit view of the server-backed physical character.
+if ctx.PhysicalPlayer then
+    local sharedContext=ctx
+    ctx=setmetatable({Player=ctx.PhysicalPlayer},{__index=sharedContext,
+        __newindex=function(_,key,value)sharedContext[key]=value end})
+end
+-- END PHYSICAL PLAYER CONTEXT
 local Player = ctx.Player
 local Reanimate = ctx.Reanimate
 local Util = ctx.Util
@@ -72598,7 +72898,21 @@ physics.RenderPose=SaveData.Reanimator.RagdollRenderPose~=false
 physics.Observe=SaveData.Reanimator.RagdollPhysicsDiagnostics==true
 physics.Follower=SaveData.Reanimator.RagdollFollower or "Gelatek motion"
 physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(SaveData.Reanimator.RagdollPoseVelocity)
-local gelatekFollower=require(script.Parent.ragdoll_gelatek)({Player=Player,Reanimate=Reanimate,Physics=physics,Clock=ctx.Clock})
+physics.BoundVelocity=require(script.Parent.ragdoll_pose_velocity).Bounded
+physics.RetentionSpeed=require(script.Parent.body_follower).RetentionSpeed
+physics.R15Baseline=false
+local function r15BaselineOwnership(part)
+    if physics.Follower~="Awes motion"and type(Util.GetAssemblyOwnership)=="function"then
+        local okay,owned,source=pcall(Util.GetAssemblyOwnership,part,true)
+        if okay and type(owned)=="boolean"then return owned,source or "native assembly ownership"end
+    end
+    return part.ReceiveAge==0,physics.Follower=="Awes motion"and "Awes ReceiveAge gate"or "ReceiveAge fallback (native unavailable)"
+end
+local gelatekFollower=require(script.Parent.ragdoll_gelatek)({Player=Player,Reanimate=Reanimate,Physics=physics,Clock=ctx.Clock,
+    Owned=function(part)
+        if physics.OwnBody then return physics.OwnBody(part)end
+        return part.ReceiveAge==0
+    end})
 local forgetPhysics=physics.Forget
 physics.Forget=function(part)
     forgetPhysics(part)gelatekFollower.Forget(part)
@@ -72612,7 +72926,7 @@ for _, name in DriveNames do
 	DriveSet[name] = true
 end
 -- BEGIN RIG MAPPING
-local bodyMap=require(script.Parent.ragdoll_body_map)(ctx)
+local bodyMap=require(script.Parent.ragdoll_body_map)(ctx,{BaselineR15=true})
 local lastNames
 local function refreshDriveNames(body)
     local names=bodyMap.Names(body)
@@ -72820,7 +73134,8 @@ end
 
 local function DrivePart(part, targetCF, dt, t, visualOnly)
 	if part:IsGrounded() then LastCF[part]=nil physics.Forget(part) return false end
-	local owned = part.ReceiveAge == 0
+	local owned = physics.OwnBody and physics.OwnBody(part)
+	if owned==nil then owned=part.ReceiveAge==0 end
 	local st = Status[part.Name]
 	if st then
 		st.Owned = owned
@@ -72863,6 +73178,16 @@ local function DrivePart(part, targetCF, dt, t, visualOnly)
 	else
 		part.AssemblyAngularVelocity = idle
 	end
+-- BEGIN AWES VELOCITY LIMIT
+if not physics.R15Baseline then
+    local settings=physics.PoseVelocity
+    local minimum=physics.RetentionSpeed(Reanimate.NetlessVelocity)
+    local linear,clipped=physics.BoundVelocity(part.AssemblyLinearVelocity,math.max(settings.LinearLimit,minimum))
+    local angular,spinClipped=physics.BoundVelocity(part.AssemblyAngularVelocity,settings.AngularLimit)
+    part.AssemblyLinearVelocity=linear part.AssemblyAngularVelocity=angular
+    physics.NoteVelocityClamp(part,clipped,spinClipped)
+end
+-- END AWES VELOCITY LIMIT
 	LastCF[part] = targetCF
 	physics.Record(part,targetCF,dt)
 	return true
@@ -72878,6 +73203,7 @@ local function DriveBody(body, fake, dt, t, visualOnly, phase)
 	for _, name in DriveNames do
 		local part, target = body:FindFirstChild(name), bodyMap.ControllerPart(fake,name)
 		if part and target and part:IsA("BasePart") and target:IsA("BasePart") then
+			physics.NoteAssembly(part)
 			local assembly = part.AssemblyRootPart or part
 			if driven[assembly] then
 				LastCF[part]=nil physics.Forget(part)
@@ -72942,6 +73268,9 @@ local function ShowHitboxes()
 	end
 end
 
+-- BEGIN GENERATION RESET HOOK
+local ResetOriginalBody=function()end
+-- END GENERATION RESET HOOK
 local function Start()
 	local InitCFrame = nil
 	local char = Player.Character
@@ -73004,32 +73333,260 @@ local function Start()
 	end
 
 	CharConn:Disconnect()
-	local h = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-	if h then
-		h:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-		h:ChangeState(Enum.HumanoidStateType.Dead)
-	end
+	ResetOriginalBody()
 end
 
 -- BEGIN MANAGED ADAPTER
 -- Lifecycle/settings glue and the reversible post-physics pose commit.
+local headAccessories=require(script.Parent.ragdoll_head_accessories)(ctx,bodyMap,physics)
+local tools=require(script.Parent.ragdoll_tools)(ctx,bodyMap,physics)
+local r6Joints=require(script.Parent.ragdoll_r6_joints)(ctx,bodyMap,physics)
+local r15Joints=require(script.Parent.ragdoll_r15_joints)(ctx,bodyMap,physics)
+local controllerBridge=require(script.Parent.ragdoll_controller_bridge)(ctx)
+local r6Revision
+local ownerStep,owners=nil,{}
+local jointRelease=require(script.Parent.loose_joint_guard).new({
+    BodyNames=function()return DriveSet end,JointParts=Util.GetCharacterJointParts,
+    KeepJoint=r6Joints.Keep,
+    CanReleaseConstraint=function(_,a,b)
+        local body=Player.Character local hum=body and body:FindFirstChildOfClass("Humanoid")
+        if not hum or a.Parent~=body or b.Parent~=body then return false end
+        local state=hum:GetState()local name=type(state)=="string"and state or state and state.Name
+        -- A socket-only Running rig keeps its detector intact. Release the
+        -- physical solver only during an explicit game-ragdoll state.
+        if not(hum.PlatformStand or name=="Physics"or name=="Ragdoll"or name=="PlatformStanding"or name=="Dead")then return false end
+        if ownerStep~=physics.StepSerial then ownerStep=physics.StepSerial table.clear(owners)end
+        for _,part in ipairs({a,b})do
+            local root=part.AssemblyRootPart or part
+            if root.Anchored or part:IsGrounded()then return false end
+            if owners[root]==nil then
+                local ok,owned=pcall(function()return Util.GetAssemblyOwnership(part,true)end)
+                owners[root]=ok and owned==true
+            end
+            if not owners[root]then return false end
+        end
+        return true
+    end,
+})
+local generation,serial=nil,0
+local managedPhases=false
+local phaseResult={}
+local r6Names=bodyMap.Names(nil)
+local bodyOwnerStep,bodyOwnerPhase,bodyOwnerModel,bodyOwners=nil,nil,nil,{}
+-- Preserve the working self-filter build's native-first R15 gate. R6 keeps
+-- its newer zero-age-first route and confirmed-native-owner fallback.
+physics.OwnBody=function(part)
+    if physics.R15Baseline then return r15BaselineOwnership(part)end
+    local body=Player.Character
+    if not part or not part.Parent or not body or not part:IsDescendantOf(body)then return false,"missing body part"end
+    local root=part.AssemblyRootPart or part
+    if not root:IsDescendantOf(body)then return false,"foreign assembly"end
+    if part.Anchored or root.Anchored then return false,"anchored assembly"end
+    if bodyMap.Names(body)~=r6Names then
+        if physics.Follower~="Awes motion"and type(Util.GetAssemblyOwnership)=="function"then
+            local ok,owned,source=pcall(Util.GetAssemblyOwnership,part,true)
+            if ok and type(owned)=="boolean"then return owned,source or "native assembly ownership"end
+        end
+        return part.ReceiveAge==0,physics.Follower=="Awes motion"and "Awes ReceiveAge gate"or "ReceiveAge fallback (native unavailable)"
+    end
+    if part.ReceiveAge==0 then return true,"ReceiveAge"end
+    if root.ReceiveAge==0 then return true,"ReceiveAge assembly"end
+    if bodyOwnerStep~=physics.StepSerial or bodyOwnerPhase~=physics.OwnershipPhase or bodyOwnerModel~=body then
+        bodyOwnerStep,bodyOwnerPhase,bodyOwnerModel=physics.StepSerial,physics.OwnershipPhase,body table.clear(bodyOwners)
+    end
+    local row=bodyOwners[root]
+    if not row then
+        local ok,owned,source=pcall(function()return Util.GetAssemblyOwnership(part,true)end)
+        row={Owned=ok and owned==true,Source=ok and source or "native ownership unavailable"}bodyOwners[root]=row
+    end
+    return row.Owned,row.Source or "native ownership unavailable"
+end
+local clock=ctx.Clock or os.clock
+local function matches(body)
+    if not generation or generation.Body~=body then return false end
+    if not body then return true end
+    if generation.Humanoid~=body:FindFirstChildOfClass("Humanoid")or generation.Names~=bodyMap.Names(body)then return false end
+    for _,name in ipairs(generation.Names)do
+        if generation.Parts[name]~=body:FindFirstChild(name)then return false end
+    end
+    return true
+end
+local function syncBody(body)
+    if body==Reanimate.Character then body=nil end
+    if not matches(body)then
+        r6Joints.Clear()r15Joints.Clear()controllerBridge.Clear()jointRelease.Clear()headAccessories.Clear()tools.Clear()bodyMap.Clear()
+        gelatekFollower.Clear()physics.Bind(nil)
+        table.clear(Prepared)table.clear(Ready)table.clear(LastCF)
+        table.clear(phaseResult)table.clear(owners)ownerStep=nil
+        Status,Skipped,LastShared={},{},""
+        serial+=1
+        generation={Body=body,Humanoid=body and body:FindFirstChildOfClass("Humanoid"),
+            Names=bodyMap.Names(body),Parts={},Serial=serial,Since=clock(),State="waiting for character"}
+        if body then for _,name in ipairs(generation.Names)do generation.Parts[name]=body:FindFirstChild(name)end end
+        bodyMap.CapturePhysical(body)bodyMap.CaptureController(Reanimate.Character)
+    end
+    physics.R15Baseline=body~=nil and generation.Names~=r6Names
+    refreshDriveNames(body)
+    return body and body.Parent and Player.Character==body and not ctx.IsStopping()
+end
+local function gameRagdoll(body,humanoid)
+    if not humanoid then return false end
+    local state=humanoid:GetState()
+    local name=type(state)=="string"and state or state and state.Name
+    if humanoid.PlatformStand or name=="Physics"or name=="Ragdoll"or name=="PlatformStanding"or name=="Dead"then return true end
+    -- Some games keep a Running Humanoid while enabling real body sockets.
+    -- A hat socket or an animation motor alone is not a ragdoll signal.
+    for object in pairs(physics.Objects)do
+        if (object.ClassName=="BallSocketConstraint"or object.ClassName=="HingeConstraint"or object.ClassName=="UniversalConstraint")
+            and object.Enabled~=false then
+            local a,b=object.Attachment0,object.Attachment1
+            a,b=a and a.Parent,b and b.Parent
+            if a and b and a~=b and a.Parent==body and b.Parent==body and DriveSet[a.Name]and DriveSet[b.Name]then return true end
+        end
+    end
+    return false
+end
+local initialGeneration
+-- Preparation no longer leaves a task waiting on a discarded avatar. Each
+-- step checks the model, Humanoid, rig type and actual body-part identities.
+Prepare=function(body)
+    if not syncBody(body)then return end
+    local current=generation
+    if not current.Humanoid then return end
+    if not HasAllParts(body)and clock()-current.Since<5 then
+        current.State="waiting for body parts"return
+    end
+    local ragdolled=gameRagdoll(body,current.Humanoid)
+    local legacy=Ragdoll.RCDless and (current==initialGeneration or ragdolled)
+    if current.Names==r6Names then
+        local previous=current.State
+        if ragdolled or legacy then
+            r6Joints.Prepare(body,Reanimate.Character)
+            local dirty=jointRelease.Dirty
+            if r6Joints.Revision~=r6Revision then jointRelease.Dirty=true dirty=true r6Revision=r6Joints.Revision end
+            if jointRelease.Character~=body then jointRelease.Bind(body)dirty=true else jointRelease.Enforce()end
+            current.State=r6Joints.Snapshot().ActiveMotors>0 and "R6 native joint poses + loose-part follower"or "R6 ragdoll joints released"
+            if dirty then current.Check=true end
+        else
+            r6Joints.Clear()
+            r6Joints.FallbackReason="waiting for the game's ragdoll; body motors retained"
+            if jointRelease.Character then jointRelease.Clear()end
+            current.State="waiting for game ragdoll"
+        end
+        -- R6 uses the reversible guard even in RCDLESS. Do not destroy Neck
+        -- on the newly spawned rig or pretend one assembly is seven limbs.
+        if not Prepared[body]or current.Check or previous~=current.State then CheckBody(body,false)current.Check=false end
+    elseif legacy and not Prepared[body]then
+        -- Retain the upstream R15 RCDLESS recipe, protecting Neck first.
+        local safe=pcall(function()current.Humanoid.RequiresNeck=false end)
+        if safe and current.Humanoid.RequiresNeck==false then CheckBody(body,true)else CheckBody(body,false)end
+        current.State="R15 legacy preparation"
+    elseif not Prepared[body]then
+        CheckBody(body,false)current.State="R15 game ragdoll"
+    end
+    if current.Names~=r6Names then
+        if ragdolled or legacy then r15Joints.Prepare(body,Reanimate.Character)else r15Joints.Clear()end
+    end
+    if not Prepared[body]then
+        Prepared[body]=true
+        ctx.Notify(current.Names==r6Names and "Ragdoll: R6 is here. waiting for the game's ragdoll if the limbs are still joined :)"or "Ragdoll: new body, new pose targets :D")
+    end
+    Ready[body]=true
+end
+local function preparationSnapshot()
+    return {Generation=generation and generation.Serial or serial,Rig=generation and (generation.Names==r6Names and "R6"or "R15"),
+        State=generation and generation.State or "stopped",DeclaredRig=generation and generation.Humanoid and tostring(generation.Humanoid.RigType),ReleasedJoints=jointRelease.Released or 0,
+        ReleasedConstraints=jointRelease.ReleasedConstraints or 0,
+        PosePolicy=physics.R15Baseline and "R15 self-filter baseline"or "R6 accepted rollback",
+        RequiresGameRagdoll=not(Ragdoll.RCDless and generation==initialGeneration)}
+end
+physics.Preparation=preparationSnapshot
+physics.Clock=ctx.Clock or os.clock
+physics.HeadAccessories=headAccessories.Snapshot
+physics.Tools=tools.Snapshot
+physics.ControllerBridge=controllerBridge.Snapshot
+physics.R6Joints=r6Joints.Snapshot
+physics.R15Joints=r15Joints.Snapshot
+physics.JointPartState=function(part)
+    if physics.R15Baseline then return r15Joints.PartState(part)end
+    return r6Joints.PartState(part)
+end
+physics.AnimationMotionAngular=function()return Reanimate.UseAngularVelocity==true end
+physics.HeadTracking=function()return Reanimate.GetHeadTrackingState and Reanimate.GetHeadTrackingState()end
+local __driveBody=DriveBody
+local phaseWrites=0
+DriveBody=function(body,fake,dt,t,visualOnly,phase)
+    if ctx.IsStopping()or not matches(body)then return false end
+    if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return false end
+    if phase==nil and managedPhases then return phaseResult[visualOnly and "RenderPose"or "PreSimulation"]==true end
+    phase=phase or (visualOnly and "RenderPose"or "PreSimulation")
+    physics.OwnershipPhase=phase
+    if phase=="RenderPose"and not physics.RenderPose then return true end
+    phaseWrites=0
+    headAccessories.Prepare(body,fake,phase)
+    tools.Prepare(body,fake,phase)
+    bodyMap.HeadHideAllowed=headAccessories.HeadHideReady
+    local result
+    local joints=physics.R15Baseline and r15Joints or r6Joints
+    if #joints.Components>0 then
+        bodyMap.Begin(body,fake)
+        if not visualOnly then ApplyLTM(body)end
+        local writes
+        result,writes=joints.Step(body,fake,dt,phase,t)phaseWrites+=writes
+        local driven={}
+        for _,component in ipairs(joints.Components)do driven[component.Carrier.AssemblyRootPart or component.Carrier]=true end
+        for _,name in ipairs(DriveNames)do
+            local part=body:FindFirstChild(name)
+            if part and part:IsA("BasePart")then physics.NoteAssembly(part)end
+            if not(part and part:IsA("BasePart"))then result=false
+            elseif not joints.Handles(part)then
+                local target=bodyMap.ControllerPart(fake,name)
+                local root=part.AssemblyRootPart or part
+                if target and not driven[root]then
+                    driven[root]=true
+                    if not DrivePart(part,bodyMap.Target(part,target,fake),dt,t,visualOnly,phase)then result=false end
+                else LastCF[part]=nil physics.Forget(part)result=false end
+            end
+        end
+    else result=__driveBody(body,fake,dt,t,visualOnly,phase)end
+    physics.NotePhase(phase,physics.Clock(),phaseWrites)
+    headAccessories.Step(body,fake,dt,phase,t)
+    tools.Step(body,fake,dt,phase,t)
+    phaseResult[phase]=result
+    return result
+end
 local __drivePart=DrivePart
 DrivePart=function(part,target,dt,t,visualOnly,phase)
     if physics.RenderPose==false and (phase=="RenderPose"or phase==nil and visualOnly)then return true end
-    if physics.Follower=="Awes motion"then return __drivePart(part,target,dt,t,visualOnly)end
-    return gelatekFollower.Write(part,target,dt,phase or (visualOnly and "RenderPose"or "PreSimulation"),Reanimate.Character,t)
+    local written
+    if physics.Follower=="Awes motion"then
+        if phase=="PostSimulation"then physics.NoteCorrection(part)end
+        written=__drivePart(part,target,dt,t,visualOnly)
+    else written=gelatekFollower.Write(part,target,dt,phase or (visualOnly and "RenderPose"or "PreSimulation"),Reanimate.Character,t)end
+    if written then phaseWrites+=1 end
+    return written
 end
 local __statusText=StatusText
-StatusText=function()return __statusText().."\n"..physics.StatusText()end
+StatusText=function()
+    local status
+    if physics.R15Baseline and r15Joints.Snapshot().ActiveMotors>0 then status="R15: connected parts use Motor6Ds"
+    else status=r6Joints.Snapshot().ActiveMotors>0 and "R6: native motors carry the connected limbs"or __statusText()end
+    return status.."\n"..preparationSnapshot().State.."\n"..physics.StatusText()
+end
 local __config=Config
 Config=function(parent)
+    UI.CreateSwitch(parent,"Detach / animate head accessories",SaveData.Reanimator.RagdollHeadAccessories==true).Changed:Connect(function(value)
+        SaveData.Reanimator.RagdollHeadAccessories=value==true
+        if not value then headAccessories.Clear()bodyMap.HeadHideAllowed=true end
+    end)
+    UI.CreateText(parent,"let the hair dance too :D\nKeep head accessories waits until the hats are loose and owned. stop puts our weld changes back.",11,Enum.TextXAlignment.Left)
     local names={"Gelatek motion","Gelatek netless","Awes motion","Pose velocity (fallback)"}
     UI.CreateDropdown(parent,"Ragdoll follower",names,table.find(names,physics.Follower)or 1).Changed:Connect(function(value)
         physics.Follower=names[value]or names[1]SaveData.Reanimator.RagdollFollower=physics.Follower
         gelatekFollower.Clear()table.clear(LastCF)
     end)
-    UI.CreateText(parent,"Gelatek motion shares Gelatek poses and pre-physics support, then sends controller motion with zero spin. Gelatek netless retains its netless output; Awes motion keeps the preceding writer.",11,Enum.TextXAlignment.Left)
-    UI.CreateText(parent,"Pose velocity is an opt-in comparison: exports target COM movement and world rotation after the pose commit. Local pose error cannot detect a remote-only failure.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"Gelatek motion: moving arms get arm speed, even if you're dancing in one spot :D\nApply RotVelocity also sends their turning speed. netless keeps the upward pulse; Awes keeps the older recipe.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"Pose velocity makes the limbs carry their own movement speed. try it if the usual recipe looks weird. your friend's screen gets the final vote.",11,Enum.TextXAlignment.Left)
     local function limit(key,value)
         physics.PoseVelocity[key]=value
         physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(physics.PoseVelocity)
@@ -73051,14 +73608,38 @@ Config=function(parent)
     UI.CreateSwitch(parent,"Correct physical pose before render",physics.RenderPose).Changed:Connect(function(value)
         physics.RenderPose=value==true SaveData.Reanimator.RagdollRenderPose=physics.RenderPose
     end)
-    UI.CreateText(parent,"Disable render correction to compare the actual post-physics body without extra physical CFrame writes. The animation controller still runs.",11,Enum.TextXAlignment.Left)
-    UI.CreateText(parent,"R6/R15 target mapping is available. Modern R15 AnimationConstraint preparation is experimental; mapping alone does not establish remote replication.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"render correction is the last little pose touch-up on YOUR screen. turn it off to see what physics left us with.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"R6 sockets fighting the pose? owned body constraints take a break while you're actually ragdolled :D\nstop puts our joint changes back. fresh respawns get to live. more local updates != more packets; check with a friend :)",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"R6 motors still there? let them carry the limbs :D\nloose bits keep the usual follower. accepted writes still need your friend's screen to get the final vote.",11,Enum.TextXAlignment.Left)
+    local route=UI.CreateText(parent,"",11,Enum.TextXAlignment.Left)
+    local function showRoute()
+        if physics.R15Baseline then
+            local state=r15Joints.Snapshot()
+            route.Text=state.Unsupported and state.FallbackReason
+                or state.ActiveMotors>0 and ("R15: %d Motor6Ds; loose parts use CFrame"):format(state.ActiveMotors)
+                or "R15: loose parts use CFrame; no active Motor6Ds"
+            return
+        end
+        local state=r6Joints.Snapshot()
+        route.Text=("R6: %d native motors, %d groups\n%s"):format(state.ActiveMotors,state.ConnectedGroups,
+            state.FallbackReason or "native joint poses active; friend's screen still gets the final vote :D")
+    end
+    showRoute()
+    local elapsed=0
+    Util.LinkDestroyI2C(route,RunService.Heartbeat:Connect(function(dt)
+        elapsed+=dt if elapsed>=.25 then elapsed=0 showRoute()end
+    end))
     return __config(parent)
 end
 local __start=Start
 Start=function()
     local previousHeight=workspace.FallenPartsDestroyHeight
-    local collisions=__CollisionGuard.new()
+    local collisions=__CollisionGuard.new({HideFromQueries=true})
+    generation=nil initialGeneration=nil
+    managedPhases=true table.clear(phaseResult)
+    syncBody(Player.Character)initialGeneration=generation
+    -- Deanimate releases our leases; it is not a request to reset the avatar.
+    ResetOriginalBody=function()end
     local create=ctx.CreateCharacter
     ctx.CreateCharacter=function(...)
         local result=create(...)
@@ -73066,24 +73647,48 @@ Start=function()
         return result
     end
     ctx.OnStop(function()
+        r6Joints.Clear()r15Joints.Clear()controllerBridge.Clear()
+        headAccessories.Clear()
+        tools.Clear()
         bodyMap.Clear()
         physics.Stop()
         gelatekFollower.Clear()
         collisions.Clear()
+        jointRelease.Clear()
         pcall(function()workspace.FallenPartsDestroyHeight=previousHeight end)
-        local h=Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-        if h and h:GetState()~=Enum.HumanoidStateType.Dead then
-            h:SetStateEnabled(Enum.HumanoidStateType.Dead,true)
-            h:ChangeState(Enum.HumanoidStateType.Dead)
-        end
+        ResetOriginalBody()
+        table.clear(Prepared)table.clear(Ready)table.clear(LastCF)generation=nil
+        managedPhases=false table.clear(phaseResult)
     end)
-    local function filterPhysicalShell()
+    local function filterPhysicalShell(dt)
         local physical=Player.Character
         if physical==Reanimate.Character then physical=nil end
-        if physics.Body~=physical then gelatekFollower.Clear()bodyMap.CapturePhysical(physical)end
+        syncBody(physical)
+        if ctx.CanDriveBody and not ctx.CanDriveBody(physical)then
+            if physics.Body or collisions.Character then
+                r6Joints.Clear()r15Joints.Clear()jointRelease.Clear()headAccessories.Clear()tools.Clear()
+                gelatekFollower.Clear()physics.Bind(nil)collisions.Clear()bodyMap.Clear()
+                table.clear(LastCF)table.clear(phaseResult)
+            end
+            if generation then generation.State="waiting for game ragdoll"end
+            return
+        end
         physics.Bind(physical)
+        physics.PartNames=bodyMap.Names(physical)
+        if dt then physics.BeginStep(dt,clock())end
+        physics.OwnershipPhase="PreSimulation"
         if collisions.Character~=physical then collisions.Bind(physical)end
         collisions.Enforce()
+        tools.Prepare(physical,Reanimate.Character)
+        controllerBridge.Step(physical,Reanimate.Character)
+        if SaveData.Reanimator.RagdollHeadAccessories==true then headAccessories.Bind(physical)end
+        if dt and physical and Reanimate.Character then
+            Prepare(physical)
+            if Ready[physical]then
+                bodyMap.Camera(physical,Reanimate.Character)
+                DriveBody(physical,Reanimate.Character,dt,physics.MotionTime or clock(),false,"PreSimulation")
+            end
+        end
     end
     filterPhysicalShell()
     if Reanimate.Current then Reanimate.Current.RagdollPhysics=physics end
@@ -73092,16 +73697,27 @@ Start=function()
         if ctx.IsStopping()then return end
         local body,fake=Player.Character,Reanimate.Character
         physics.AfterPhysics(body)
-        if (physics.Follower~="Awes motion"or physics.PostPhysics)and body and fake and Ready[body]then
+        if (physics.Follower~="Awes motion"or physics.PostPhysics)and body and fake and matches(body)and Ready[body]then
             DriveBody(body,fake,dt,os.clock(),true,"PostSimulation")
         end
+    end)
+    ctx.Connect(RunService.PreRender,function(dt)
+        local body,fake=Player.Character,Reanimate.Character
+        if body and fake and matches(body)and Ready[body]then DriveBody(body,fake,dt,physics.MotionTime or clock(),true,"RenderPose")end
     end)
     return __start()
 end
 
 return "Ragdoll Reanimator (module)", Start, {
+	ExposeController = false,
 	Config = Config,
 	ShowHitboxes = ShowHitboxes,
+-- BEGIN MANAGED OPTIONS
+    SupportsHeadAccessories=true,
+    StatusText=StatusText,
+    ApplySettings=require(script.Parent.ragdoll_settings)({Saved=SaveData.Reanimator,Physics=physics,Ragdoll=Ragdoll,
+        HeadAccessories=headAccessories,Reset=function()gelatekFollower.Clear()table.clear(LastCF)end}),
+-- END MANAGED OPTIONS
 }
 
 end
@@ -73138,10 +73754,13 @@ function Follower.MotionVelocity(root)
     local value=root and root.AssemblyLinearVelocity
     return finiteVector(value)and value or Vector3.zero
 end
-function Follower.RetentionVelocity(root,configured)
+function Follower.RetentionSpeed(configured)
     local speed=tonumber(configured)or 25.1
     if speed~=speed or math.abs(speed)==math.huge then speed=25.1 end
-    speed=math.clamp(speed,25.01,50)
+    return math.clamp(speed,25.01,50)
+end
+function Follower.RetentionVelocity(root,configured)
+    local speed=Follower.RetentionSpeed(configured)
     local velocity=Follower.MotionVelocity(root)
     local horizontal=Vector3.new(velocity.X,0,velocity.Z)
     if horizontal.Magnitude>speed then horizontal=horizontal.Unit*speed end
@@ -73237,27 +73856,32 @@ return Subject
 -- Ragdoll games often put welded hitboxes in nested models; they need the
 -- same filter as the driven limbs, even while ownership has not arrived.
 local Guard={}
-function Guard.new()
+function Guard.new(options)
+    local properties={"CanCollide"}
+    if options and options.HideFromQueries then table.insert(properties,"CanQuery")end
     local api={Parts={},Connections={}}
     local function release(part)
         local state=api.Parts[part]if not state then return end
         api.Parts[part]=nil
-        if state.Connection then state.Connection:Disconnect()end
-        pcall(function()part.CanCollide=state.CanCollide end)
+        for _,connection in ipairs(state.Connections)do connection:Disconnect()end
+        for _,key in ipairs(properties)do pcall(function()part[key]=state[key]end)end
     end
     local function enforce(part,state)
         if state.Writing then return end
         state.Writing=true
-        pcall(function()if part.CanCollide then part.CanCollide=false end end)
+        for _,key in ipairs(properties)do pcall(function()if part[key]then part[key]=false end end)end
         state.Writing=false
     end
     local function add(part)
         if not api.Character or not part:IsDescendantOf(api.Character)
             or not part:IsA("BasePart")or api.Parts[part]then return end
-        local state={CanCollide=part.CanCollide}api.Parts[part]=state
-        state.Connection=part:GetPropertyChangedSignal("CanCollide"):Connect(function()
-            if api.Parts[part]==state then enforce(part,state)end
-        end)
+        local state={Connections={}}api.Parts[part]=state
+        for _,key in ipairs(properties)do
+            state[key]=part[key]
+            table.insert(state.Connections,part:GetPropertyChangedSignal(key):Connect(function()
+                if api.Parts[part]==state then enforce(part,state)end
+            end))
+        end
         enforce(part,state)
     end
     function api.Clear()
@@ -73286,6 +73910,218 @@ function Guard.new()
 end
 return Guard
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/controller_floor.lua"] = [=====[
+-- Void Float must also protect controller pieces separated from RootJoint.
+local Floor={}
+function Floor.Detached(character,root)
+    local torso=character:FindFirstChild("Torso")or character:FindFirstChild("UpperTorso")
+    return torso and torso:IsA("BasePart")and (torso.AssemblyRootPart or torso)~=(root.AssemblyRootPart or root)or false
+end
+function Floor.new(character,root)
+    local api={SafeY={}}
+    for _,part in ipairs(character:GetChildren())do
+        if part:IsA("BasePart")then api.SafeY[part]=part.Position.Y end
+    end
+    function api.Step(world,params,lastSafe,floorY,scale,hipHeight,enabled)
+        local rootAssembly=root.AssemblyRootPart or root
+        if not Floor.Detached(character,root)then
+            for _,part in ipairs(character:GetChildren())do
+                if part:IsA("BasePart")then api.SafeY[part]=part.Position.Y end
+            end
+            return
+        end
+        if not enabled then return end
+        local visited={}
+        for _,part in ipairs(character:GetChildren())do
+            if part:IsA("BasePart")then
+                local assembly=part.AssemblyRootPart or part
+                if assembly~=rootAssembly and not visited[assembly]and not assembly.Anchored
+                    and assembly:IsDescendantOf(character)then
+                    visited[assembly]=true
+                    local position=assembly.Position
+                    local hit=world:Raycast(position,Vector3.new(0,-65536,0),params)
+                    local safeY=api.SafeY[assembly]or api.SafeY[part]or lastSafe.Position.Y
+                    if hit and hit.Distance<=3*scale+8+hipHeight then
+                        api.SafeY[assembly]=position.Y
+                    elseif enabled and not hit and position.Y<safeY then
+                        assembly.CFrame+=Vector3.new(0,safeY-position.Y,0)
+                        local velocity=assembly.AssemblyLinearVelocity
+                        assembly.AssemblyLinearVelocity=Vector3.new(velocity.X,math.max(0,velocity.Y),velocity.Z)
+                    elseif position.Y<floorY+3*scale then
+                        assembly.CFrame+=Vector3.new(0,safeY-position.Y,0)
+                        assembly.AssemblyLinearVelocity=Vector3.zero
+                    end
+                end
+            end
+        end
+    end
+    return api
+end
+return Floor
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/controller_tool_mirror.lua"] = [=====[
+-- Steve's Limb tool proxy/Grip/toolanim contract, shared with Ragdoll.
+-- Only the invisible controller prop is new. The equipped game Tool stays put.
+local valid=require(script.Parent.Parent.head_tracking).Finite
+return function(ctx)
+    local api={Records={},Connections={},ControllerTools={}}
+    local create=ctx.Create or ctx.Util and ctx.Util.Instance or Instance.new
+    local clock=ctx.Clock or os.clock
+    local function hand(figure)
+        return figure and (figure:FindFirstChild("RightHand")or figure:FindFirstChild("Right Arm"))
+    end
+    function api.GripMount(part)
+        local attachment=part and part:FindFirstChild("RightGripAttachment")
+        if attachment and attachment:IsA("Attachment")and valid(attachment.CFrame)then return attachment.CFrame,"hand attachment"end
+        if part and part.Name=="Right Arm"then
+            -- Standard R6 grip orientation from Steve's RIGHTGRIP_C0. The
+            -- mount's translation comes from this rig's actual arm length.
+            local rotation=ctx.RightGripC0 and ctx.RightGripC0.Rotation or CFrame.Angles(-math.pi/2,0,0)
+            return CFrame.new(0,-part.Size.Y/2,0)*rotation,"R6 arm mount"
+        end
+    end
+    local function disconnectMessage(record)
+        for _,connection in ipairs(record.MessageConnections or {})do connection:Disconnect()end
+        record.MessageConnections={}record.MessageSource=nil
+    end
+    local function remove(tool)
+        local record=api.Records[tool]if not record then return end
+        api.Records[tool]=nil
+        api.Dirty=true
+        disconnectMessage(record)
+        for _,connection in ipairs(record.Connections)do connection:Disconnect()end
+        if record.Proxy.Parent then record.Proxy:Destroy()end
+    end
+    local function copyMessage(record,object)
+        if record.Message and record.Message.Parent then record.Message:Destroy()end
+        local copy=create("StringValue")copy.Name,copy.Value="toolanim",object.Value
+        copy.Parent=record.Proxy record.Message=copy record.Expires=clock()+1
+        record.LastMessage=object.Value record.Messages=(record.Messages or 0)+1
+        -- Limb disables the real Animate script and retains its original
+        -- one-second expiry. Ragdoll leaves game-owned messages alone.
+    end
+    local function message(record,object)
+        if object.Parent~=record.Tool or object.ClassName~="StringValue"or object.Name~="toolanim"or record.Seen[object]then return end
+        record.Seen[object]=true
+        disconnectMessage(record)
+        record.MessageSource=object
+        local lastValue=object.Value
+        copyMessage(record,object)
+        -- A Tool can keep one StringValue and change its Value for each action.
+        -- Only the newest message stays watched; consumed copies are not replayed.
+        table.insert(record.MessageConnections,object:GetPropertyChangedSignal("Value"):Connect(function()
+            if record.MessageSource~=object or object.Parent~=record.Tool or object.Name~="toolanim"then return end
+            if object.Value~=lastValue then lastValue=object.Value copyMessage(record,object)end
+        end))
+        local function retire()
+            if record.MessageSource==object and(object.Parent~=record.Tool or object.Name~="toolanim")then disconnectMessage(record)end
+        end
+        table.insert(record.MessageConnections,object:GetPropertyChangedSignal("Parent"):Connect(retire))
+        table.insert(record.MessageConnections,object:GetPropertyChangedSignal("Name"):Connect(retire))
+        table.insert(record.MessageConnections,object.Destroying:Connect(function()
+            if record.MessageSource==object then disconnectMessage(record)end
+        end))
+        if ctx.ConsumeMessages and ctx.Debris then ctx.Debris:AddItem(object,1)end
+    end
+    local function update(record)
+        local source,proxy=record.Tool,record.Proxy
+        proxy.Grip=valid(source.Grip)and source.Grip or CFrame.identity
+        local handle=source:FindFirstChild("Handle")
+        proxy.RequiresHandle=source.RequiresHandle~=false or handle~=nil and handle:IsA("BasePart")
+        proxy.Enabled=source.Enabled~=false
+        if handle and handle:IsA("BasePart")then record.Handle.Size=handle.Size end
+        local mount=api.GripMount(record.Hand)
+        if mount then record.Grip.C0=mount end
+        record.Grip.C1=proxy.Grip
+        if record.Message and record.Message.Parent and clock()>=record.Expires then record.Message:Destroy()end
+    end
+    function api.Add(tool)
+        if api.Records[tool]then return api.Records[tool].Proxy,false end
+        if not api.Body or not api.Controller or not api.Controller.Parent or tool.Parent~=api.Body
+            or not tool:IsA("Tool")or tool:GetAttribute("_UhhhhhhToolProxy")then return end
+        local arm=hand(api.Controller)if not arm then return end
+        local proxy=create("Tool")proxy.Name="faketool"proxy:SetAttribute("_UhhhhhhToolProxy",true)
+        proxy:SetAttribute("_UhhhhhhToolName",tool.Name)
+        proxy:SetAttribute("_UhhhhhhToolRole","animation-state-only")
+        local handle=create("Part")handle.Name="Handle"handle.Transparency=1 handle.CanCollide=false
+        handle.CanTouch=ctx.Touch~=nil handle.CanQuery=false handle.Massless=true handle.Parent=proxy
+        local grip=create("Weld")grip.Name="RightGrip"grip.Part0,grip.Part1=arm,handle grip.Parent=handle
+        local record={Tool=tool,Proxy=proxy,Handle=handle,Hand=arm,Grip=grip,Connections={},MessageConnections={},Seen=setmetatable({}, {__mode="k"})}
+        api.Records[tool]=record update(record)proxy.Parent=api.Controller
+        table.insert(record.Connections,proxy:GetPropertyChangedSignal("Grip"):Connect(function()
+            if proxy.Parent and valid(proxy.Grip)then grip.C1=proxy.Grip end
+        end))
+        table.insert(record.Connections,proxy.Destroying:Connect(function()remove(tool)end))
+        if ctx.Touch then
+            table.insert(record.Connections,handle.Touched:Connect(function(part)ctx.Touch(tool,part,0)end))
+            table.insert(record.Connections,handle.TouchEnded:Connect(function(part)ctx.Touch(tool,part,1)end))
+        end
+        for _,object in ipairs(tool:GetChildren())do message(record,object)end
+        return proxy,true
+    end
+    function api.Clear()
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end table.clear(api.Connections)
+        local list={}for tool in pairs(api.Records)do table.insert(list,tool)end
+        for _,tool in ipairs(list)do remove(tool)end
+        table.clear(api.ControllerTools)
+        api.Body,api.Controller=nil,nil api.Dirty=false
+    end
+    function api.Bind(body,controller)
+        if body==controller then body=nil end
+        if api.Body==body and api.Controller==controller then return end
+        api.Clear()api.Body,api.Controller=body,controller
+        if not body or not controller then return end
+        table.insert(api.Connections,body.DescendantAdded:Connect(function(object)
+            if object:IsA("Tool")and object.Parent==body then api.Add(object)end
+            local record=api.Records[object.Parent]if record then message(record,object)end
+        end))
+        table.insert(api.Connections,body.DescendantRemoving:Connect(function(object)
+            if api.Records[object]and object.Parent~=body then remove(object)end
+        end))
+        local function controllerTool(object)
+            if object:IsA("Tool")and object.Parent==controller and not object:GetAttribute("_UhhhhhhToolProxy")then
+                api.ControllerTools[object]=true
+            end
+        end
+        table.insert(api.Connections,controller.DescendantAdded:Connect(controllerTool))
+        table.insert(api.Connections,controller.DescendantRemoving:Connect(function(object)api.ControllerTools[object]=nil end))
+        for _,object in ipairs(controller:GetChildren())do controllerTool(object)end
+        for _,object in ipairs(body:GetChildren())do if object:IsA("Tool")then api.Add(object)end end
+    end
+    function api.Step(body,controller)
+        api.Bind(body,controller)
+        local removed={}
+        for tool,record in pairs(api.Records)do
+            if tool.Parent~=body or not record.Proxy.Parent or record.Proxy.Parent~=controller then removed[#removed+1]=tool
+            else update(record)end
+        end
+        for _,tool in ipairs(removed)do remove(tool)end
+        if api.Dirty and body and controller then
+            api.Dirty=false
+            for _,tool in ipairs(body:GetChildren())do if tool:IsA("Tool")then api.Add(tool)end end
+        end
+    end
+    function api.Snapshot()
+        local result={Count=0,ToolHolding=false,Parts={},ControllerOnlyProxy=true,ServerVisibilityVerified=false,
+            ActivationForwarded=false,ControllerOnlyTools={},ControllerOnlyToolCount=0}
+        for tool,record in pairs(api.Records)do
+            result.Count+=1
+            if #result.Parts<32 then table.insert(result.Parts,{Name=tool.Name,RequiresHandle=tool.RequiresHandle~=false,
+                Message=record.LastMessage,MessagesForwarded=record.Messages or 0,
+                ProxyRole="animation-state-only",ServerVisibilityVerified=false})else result.Truncated=true end
+        end
+        for tool in pairs(api.ControllerTools)do if tool.Parent==api.Controller then
+            result.ControllerOnlyToolCount+=1
+            if #result.ControllerOnlyTools<32 then table.insert(result.ControllerOnlyTools,{Name=tool.Name,
+                Handling="unsupported",AutomaticEquip=false,ServerVisibilityVerified=false,
+                Reason="Tool is on the controller; automatic equip is not enabled"})
+            else result.ControllerOnlyToolsTruncated=true end
+        end end
+        result.ToolHolding=result.Count>0 return result
+    end
+    return api
+end
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/custom_methods.lua"] = [=====[
 -- Awes955's custom-method tuple API, independently integrated with bounded
 -- startup, per-run contexts, tracked resources and the shared stop lifecycle.
@@ -73295,6 +74131,23 @@ return function(deps)
     local taskApi=deps.Task or task
     local clock=deps.Clock or os.clock
     local active
+    local stopSerial=0
+    local function physicalCharacter()
+        local raw=deps.Player.Character
+        if active and active.ExposeController then
+            if raw and not active.Controllers[raw]and raw~=deps.Reanimate.Character then active.PhysicalCharacter=raw end
+            return active.PhysicalCharacter
+        end
+        return raw
+    end
+    local physicalMethods={}
+    local physicalPlayer=setmetatable({}, {__index=function(_,key)
+        if key=="Character"then return physicalCharacter()end
+        local value=deps.Player[key]
+        if type(value)~="function"then return value end
+        if not physicalMethods[key]then physicalMethods[key]=function(_,...)return value(deps.Player,...)end end
+        return physicalMethods[key]
+    end})
     local reported={}
     local function notify(message) if deps.Notify then deps.Notify(message) end end
     local function errorRecord(file,reason)
@@ -73337,7 +74190,8 @@ return function(deps)
             "AnimatorEvaluation must be BeforeAnimation or BeforePhysics")
         assert(extras.SelectionPartKind==nil or type(extras.SelectionPartKind)=="string"and #extras.SelectionPartKind<=40,
             "SelectionPartKind must be a short label")
-        for _,key in ipairs({"Config","Fling","ShowHitboxes","SelectionParts","GetPresentationCharacter"}) do
+        assert(extras.ExposeController==nil or type(extras.ExposeController)=="boolean","ExposeController must be a boolean")
+        for _,key in ipairs({"Config","Fling","ShowHitboxes","SelectionParts","GetPresentationCharacter","RestartForRig"}) do
             assert(extras[key]==nil or type(extras[key])=="function",key.." must be a function")
         end
         return name,method,extras
@@ -73356,13 +74210,14 @@ return function(deps)
     local function makeContext(session)
         local context=table.clone(deps.Context or {})
         context.Player,context.Reanimate,context.UI=deps.Player,deps.Reanimate,deps.UI
+        context.PhysicalPlayer=physicalPlayer
         context.AnimLib=deps.Reanimate.AnimLib
         context.Notify=notify
         local function live() return session and active==session and not session.Finished end
         local function requireLive() assert(live(),"this method run has stopped") end
         context.IsStopping=function() return not live() or deps.Reanimate.Current~=session.Backend or deps.Reanimate.Stopping==true end
         context.GetCharacter=function()
-            local character=deps.Player.Character
+            local character=physicalCharacter()
             local humanoid=character and character:FindFirstChildOfClass("Humanoid")
             return character,humanoid,humanoid and humanoid.RootPart
         end
@@ -73401,6 +74256,25 @@ return function(deps)
         end
         context.Task=table.clone(taskApi)
         context.Task.spawn,context.Task.defer=context.Spawn,context.Spawn
+        local function exposeController()
+            if not live()or not session.ExposeController then return end
+            local controller=deps.Reanimate.Character
+            if not controller or not controller.Parent then return end
+            physicalCharacter() -- retain a newly spawned physical model first
+            if session.Controller~=controller then
+                local humanoid=controller:FindFirstChildOfClass("Humanoid")
+                if humanoid and not humanoid:FindFirstChildOfClass("Animator")then
+                    local factory=context.Util and context.Util.Instance or Instance.new
+                    factory("Animator",humanoid)
+                end
+                session.Controller=controller session.Controllers[controller]=true
+            end
+            if deps.Player.Character==controller then session.Backend.ExposesController=true return end
+            local ok,why=pcall(function()deps.Player.Character=controller end)
+            session.Backend.ExposesController=ok and deps.Player.Character==controller
+            if not ok and not session.ExposureError then session.ExposureError=why notify("couldn't hand scripts the controller :( "..tostring(why))end
+        end
+        context.ExposeController=exposeController
         context.Ready=function()
             requireLive()
             assert(deps.Reanimate.Character,"create a controller before Ready")
@@ -73413,6 +74287,7 @@ return function(deps)
             local result=deps.Reanimate.CreateCharacter(cf)
             if not live() then return nil end
             session.OwnsController=true context.Ready()
+            exposeController()
             return result or deps.Reanimate.Character
         end
         context.Stop=function(reason) if live() then session.Finish(reason or "stopped") end end
@@ -73428,17 +74303,25 @@ return function(deps)
     local function create(file,source,name,extras,builtin)
         local backend={Name=name,File=file,Id=file,IsCustom=not builtin,IsBuiltin=builtin==true,ManagedLifecycle=true,Running=false,Status="ready",
             AnimatorEvaluation=extras.AnimatorEvaluation,SelectionPartKind=extras.SelectionPartKind}
+        function backend.GetPhysicalCharacter()
+            return active and active.Backend==backend and physicalCharacter()or backend.RealCharacter
+        end
         function backend.Config(parent)
-            local label=deps.UI.CreateText(parent,(backend.IsBuiltin and "Bundled method: "or "Custom method: ")..file,12,Enum.TextXAlignment.Left)
-            label.RichText=false
-            if extras.Config then
-                local ok,reason=pcall(extras.Config,parent)
+            if not backend.IsBuiltin then
+                local label=deps.UI.CreateText(parent,"Custom method: "..file,12,Enum.TextXAlignment.Left)
+                label.RichText=false
+            end
+            local session=active
+            local options=session and session.Backend==backend and session.Extras or extras
+            if options.Config then
+                local ok,reason=pcall(options.Config,parent)
                 if not ok then errorRecord(file,"settings: "..tostring(reason)) end
             end
         end
         function backend.Start()
             if active then deps.Reanimate.Starting=false notify("deanimate the current custom method first") return false end
-            local session={Backend=backend,Cleanups={},Threads={},Before=deps.Reanimate.Character,Started=clock()}
+            local session={Backend=backend,Cleanups={},Threads={},Before=deps.Reanimate.Character,Started=clock(),
+                ExposeController=extras.ExposeController==true,Controllers=setmetatable({}, {__mode="k"}),PhysicalCharacter=deps.Player.Character}
             active=session backend.RealCharacter=deps.Player.Character backend.Status="starting"
             local function finish(reason,failed)
                 if session.Finished then return end
@@ -73452,6 +74335,12 @@ return function(deps)
                     if not ok then errorRecord(file,"cleanup: "..tostring(why)) end
                 end
                 table.clear(session.Threads) table.clear(session.Cleanups)
+                local raw=deps.Player.Character
+                if session.ExposeController and(session.Controllers[raw]or deps.Reanimate.Current==backend and raw==deps.Reanimate.Character)then
+                    local physical=physicalCharacter()
+                    pcall(function()deps.Player.Character=physical and physical.Parent and physical or nil end)
+                end
+                backend.ExposesController=false
                 if deps.Reanimate.Current==backend then
                     if deps.Reanimate.Character and (session.OwnsController or deps.Reanimate.Character~=session.Before) then
                         local ok,why=pcall(deps.Reanimate.DestroyCharacter)
@@ -73469,11 +74358,20 @@ return function(deps)
             if timeout~=timeout then timeout=30 end
             timeout=math.clamp(timeout,1,120)
             session.Monitor=deps.RunService.PreSimulation:Connect(function()
-                if backend.IsBuiltin then backend.RealCharacter=deps.Player.Character end
+                if backend.IsBuiltin or session.ExposeController then backend.RealCharacter=physicalCharacter()end
                 if deps.Reanimate.Current~=backend or deps.Reanimate.Stopping or (deps.Alive and not deps.Alive()) then
                     finish("stopped")
+                elseif session.Ready and session.Extras and session.Extras.RestartForRig and session.Extras.RestartForRig()then
+                    local serial=stopSerial
+                    finish("avatar rig changed")
+                    taskApi.defer(function()
+                        if stopSerial~=serial or active or deps.Reanimate.Current or deps.Alive and not deps.Alive()then return end
+                        deps.Reanimate.Current=backend deps.Reanimate.Starting=true deps.Reanimate.Stopping=false
+                        backend.Start()
+                    end)
                 elseif not session.Ready and clock()-session.Started>=timeout then finish("startup timed out",true)
-                elseif session.Ready and not deps.Reanimate.Character then finish("controller removed") end
+                elseif session.Ready and(not deps.Reanimate.Character or not deps.Reanimate.Character.Parent)then finish("controller removed")
+                elseif session.Ready then session.Context.ExposeController()end
             end)
             session.Context=makeContext(session)
             session.Threads[1]=taskApi.defer(function()
@@ -73579,7 +74477,7 @@ return function(deps)
         selected=selected or math.clamp(math.floor(old),1,#builtins)
         return methods,names,selected
     end
-    function api.Stop() if active then active.Finish("stopped") end end
+    function api.Stop()stopSerial+=1 if active then active.Finish("stopped")end end
     return api
 end
 ]=====],
@@ -74590,8 +75488,8 @@ return function(ctx)
             ctx.Complete(backend)
         end
         backend.Config=function(parent)
-            ctx.UI.CreateText(parent,kind=="tools"and "uses your handled tools as limbs. Corpse Claim resets your real character once, rescues tools and checks their grips / ownership."
-                or "ragdoll in the game first, then start. joined or server-owned limbs are shown below.",12,Enum.TextXAlignment.Center)
+            ctx.UI.CreateText(parent,kind=="tools"and "your tools have been promoted to limbs :D\nCorpse Claim resets you once, scoops up the dropped tools, then checks whose handles they are."
+                or "ragdoll in the game first, THEN start. the bits still glued together / not ours are down here.",12,Enum.TextXAlignment.Center)
             if kind=="ragdoll"then
                 local releaseSwitch=ctx.UI.CreateSwitch(parent,"Release local motors (legacy RCD-off)",
                     settings.ReleaseMotors==true and ctx.RCDDisabled==true)
@@ -74604,12 +75502,12 @@ return function(ctx)
                     ctx.SaveData.Reanimator.RagdollRCDless=settings.ReleaseMotors
                 end)
                 ctx.UI.CreateText(parent,"RejectCharacterDeletions is "..(ctx.RCDDisabled and "disabled"or "not disabled")
-                    ..". This only releases local motors and restores them on stop. It does not reproduce the historical deletion/respawn method or grant ownership.",11,Enum.TextXAlignment.Left)
+                    ..". this just unhooks local motors, then puts them back on stop. no time machine to 2022 and no free ownership :P",11,Enum.TextXAlignment.Left)
             else
                 ctx.UI.CreateDropdown(parent,"Tool Method",{"Direct Handles","Corpse Claim"},settings.ToolMethod=="Corpse Claim"and 2 or 1).Changed:Connect(function(value)
                     settings.ToolMethod=value==2 and "Corpse Claim"or "Direct Handles"
                 end)
-                ctx.UI.CreateText(parent,"Method changes apply on the next start. Corpse Claim needs a game that drops tools after death; stop restores surviving tools.",11,Enum.TextXAlignment.Left)
+                ctx.UI.CreateText(parent,"pick a method, then restart. Corpse Claim needs the game to actually drop your tools when you die. stop puts the surviving tools back.",11,Enum.TextXAlignment.Left)
             end
             local label=ctx.UI.CreateText(parent,backend.DiagnosticText(),12,Enum.TextXAlignment.Left)
             local age=0 ctx.Util.LinkDestroyI2C(label,RunService.Heartbeat:Connect(function(dt)
@@ -74676,27 +75574,59 @@ return Motion
 -- Reversible RCDLESS joint release. Awes' source destroys these joints; retain
 -- their endpoints/enabled state here so stop, respawn and failed starts restore.
 local Guard={}
-function Guard.new()
-    local api={Joints={},Connections={},Dirty=false}
+function Guard.new(options)
+    options=options or {}
+    local api={Joints={},Connections={},Dirty=false,PhysicalCount=0}
+    local rigidSelection={}
+    local physical={BallSocketConstraint=true,HingeConstraint=true,UniversalConstraint=true,
+        RodConstraint=true,RopeConstraint=true,SpringConstraint=true,CylindricalConstraint=true,PrismaticConstraint=true}
+    local function isPhysical(joint)return options.CanReleaseConstraint and physical[joint.ClassName]==true end
     local function endpoints(joint)
         if joint:IsA("JointInstance")or joint:IsA("WeldConstraint")then return joint.Part0,joint.Part1 end
+        if joint.ClassName=="AnimationConstraint"or joint.ClassName=="RigidConstraint"or isPhysical(joint)then
+            if options.JointParts and joint.ClassName=="AnimationConstraint"then
+                local a,b=options.JointParts(joint)if a and b then return a,b end
+            end
+            local a,b=joint.Attachment0,joint.Attachment1
+            return a and a.Parent,b and b.Parent
+        end
     end
     local function inside(part)
         return part and part:IsA("BasePart")and api.Character and part:IsDescendantOf(api.Character)
     end
-    local function bodyPart(part)return inside(part)and part.Parent==api.Character end
+    local function bodyPart(part)
+        local names=options.BodyNames and options.BodyNames()
+        return inside(part)and part.Parent==api.Character and (not names or names[part.Name]==true and api.Character:FindFirstChild(part.Name)==part)
+    end
+    local function sameEndpoints(joint,state)
+        local a,b=endpoints(joint)
+        return a==state.Part0 and b==state.Part1 and (not state.Physical or joint.Parent==state.Parent)
+            and (joint.ClassName~="AnimationConstraint"and joint.ClassName~="RigidConstraint"and not isPhysical(joint)
+                or joint.Attachment0==state.Attachment0 and joint.Attachment1==state.Attachment1)
+    end
     local function release(joint)
         local state=api.Joints[joint]if not state then return end
         api.Joints[joint]=nil
+        if state.Physical then api.PhysicalCount-=1 end
         for _,connection in ipairs(state.Connections)do connection:Disconnect()end
-        pcall(function()joint.Enabled=state.Enabled end)
+        -- A game may reuse this joint for a different body. Restore only the
+        -- exact link that we changed, while it still has our disabled value.
+        if state.Changed and joint.Parent and sameEndpoints(joint,state)then
+            pcall(function()if joint.Enabled==false then joint.Enabled=state.Enabled end end)
+        end
     end
     local function add(joint)
-        if api.Joints[joint]or not(joint:IsA("JointInstance")or joint:IsA("WeldConstraint"))then return end
+        if api.Joints[joint]or not(joint:IsA("JointInstance")or joint:IsA("WeldConstraint")
+            or joint.ClassName=="RigidConstraint"or joint.ClassName=="AnimationConstraint"or isPhysical(joint))then return end
         local ok,enabled=pcall(function()return joint.Enabled end)if not ok then return end
-        local state={Enabled=enabled,Connections={}}
+        local state={Enabled=enabled,Connections={},Physical=isPhysical(joint)}
+        if state.Physical then api.PhysicalCount+=1 end
         api.Joints[joint]=state
-        for _,property in ipairs({"Part0","Part1","Enabled"})do
+        local properties={"Part0","Part1","Enabled"}
+        if joint.ClassName=="AnimationConstraint"or joint.ClassName=="RigidConstraint"or state.Physical then
+            properties={"Attachment0","Attachment1","Enabled"}
+        end
+        for _,property in ipairs(properties)do
             table.insert(state.Connections,joint:GetPropertyChangedSignal(property):Connect(function()
                 if not state.Writing then api.Dirty=true end
             end))
@@ -74707,8 +75637,22 @@ function Guard.new()
         for _,connection in ipairs(api.Connections)do connection:Disconnect()end table.clear(api.Connections)
         local list={}for joint in pairs(api.Joints)do table.insert(list,joint)end
         for _,joint in ipairs(list)do release(joint)end
-        if api.Humanoid then pcall(function()api.Humanoid.RequiresNeck=api.RequiresNeck end)end
+        -- Turning RequiresNeck back on with a game-deleted Neck would itself
+        -- kill the avatar. Check the current links after restoring ours.
+        if api.Humanoid then
+            local neckConnected=not(api.DetachedNeck or api.HadNeck)
+            for _,joint in ipairs(list)do
+                local a,b=endpoints(joint)
+                if joint.Parent and not isPhysical(joint)and joint.Enabled~=false and bodyPart(a)and bodyPart(b)and(a.Name=="Head"or b.Name=="Head")then neckConnected=true end
+            end
+            if not api.RequiresNeck or neckConnected then
+                pcall(function()if api.Humanoid.RequiresNeck==false then api.Humanoid.RequiresNeck=api.RequiresNeck end end)
+            end
+        end
         api.Character,api.Humanoid=nil,nil api.Dirty=false api.Released=0
+        api.DetachedNeck=false api.HadNeck=false
+        api.PhysicalCount=0 api.ReleasedConstraints=0
+        table.clear(rigidSelection)
     end
     function api.Bind(character)
         api.Clear()api.Character=character
@@ -74723,13 +75667,16 @@ function Guard.new()
         api.Dirty=true api.Enforce()
     end
     function api.Enforce()
-        if not api.Dirty or not api.Character then return end api.Dirty=false
+        if not api.Character or not api.Dirty and api.PhysicalCount==0 then return end
+        local dirty=api.Dirty api.Dirty=false
+        local selected
+        if dirty then
         -- Only sever paths that connect two direct body parts. A hat weld or
         -- a dangling hitbox cannot cause all of an accessory's joints to break.
         local adjacency={}
         for joint,state in pairs(api.Joints)do
             local a,b=endpoints(joint)
-            if state.Enabled~=false and inside(a)and inside(b)and a~=b then
+            if not state.Physical and state.Enabled~=false and inside(a)and inside(b)and a~=b then
                 adjacency[a]=adjacency[a]or {}adjacency[b]=adjacency[b]or {}
                 table.insert(adjacency[a],{Part=b,Joint=joint})table.insert(adjacency[b],{Part=a,Joint=joint})
             end
@@ -74746,7 +75693,7 @@ function Guard.new()
                 if not bodyPart(edge.Part)and degree[edge.Part]==1 then table.insert(queue,edge.Part)end
             end end
         end
-        local selected,seen={},{}
+        local seen={}selected={}
         for start in pairs(adjacency)do if not seen[start]then
             local component,links,bodies={start},{},0 cursor=1 seen[start]=true
             while cursor<=#component do
@@ -74758,20 +75705,48 @@ function Guard.new()
             end
             if bodies>=2 then for joint in pairs(links)do selected[joint]=true end end
         end end
+        rigidSelection=selected
+        else selected=rigidSelection end
         local humanoid=api.Character:FindFirstChildOfClass("Humanoid")
         if humanoid~=api.Humanoid then
             if api.Humanoid then pcall(function()api.Humanoid.RequiresNeck=api.RequiresNeck end)end
             api.Humanoid,api.RequiresNeck=humanoid,humanoid and humanoid.RequiresNeck
         end
-        if api.Humanoid then api.Humanoid.RequiresNeck=false end
-        local count=0
+        local neckSafe=true
+        if api.Humanoid then
+            neckSafe=pcall(function()api.Humanoid.RequiresNeck=false end)and api.Humanoid.RequiresNeck==false
+        end
+        local count,constraints=0,0
         for joint,state in pairs(api.Joints)do
             state.Writing=true
-            joint.Enabled=if selected[joint]then false else state.Enabled
+            local a,b=endpoints(joint)
+            local chosen=selected[joint]
+            if state.Physical then
+                chosen=state.Enabled~=false and bodyPart(a)and bodyPart(b)and a~=b
+                    and options.CanReleaseConstraint(joint,a,b)==true
+            end
+            if chosen and not state.Physical and options.KeepJoint and options.KeepJoint(joint)==true then chosen=false end
+            local neck=bodyPart(a)and a.Name=="Head"or bodyPart(b)and b.Name=="Head"
+            if neck and not state.Physical and bodyPart(a)and bodyPart(b)and joint.Enabled~=false then api.HadNeck=true end
+            if chosen and (not neck or neckSafe)then
+                if state.Changed and not sameEndpoints(joint,state)then state.Changed=false state.Enabled=joint.Enabled end
+                if joint.Enabled~=false then
+                    state.Part0,state.Part1,state.Parent=a,b,joint.Parent
+                    if joint.ClassName=="AnimationConstraint"or joint.ClassName=="RigidConstraint"or state.Physical then
+                        state.Attachment0,state.Attachment1=joint.Attachment0,joint.Attachment1
+                    end
+                    state.Changed=true joint.Enabled=false
+                end
+                if neck and state.Changed and not state.Physical then api.DetachedNeck=true end
+                count+=1
+                if state.Physical then constraints+=1 end
+            elseif state.Changed and sameEndpoints(joint,state)then
+                joint.Enabled=state.Enabled state.Changed=false
+            end
             state.Writing=false
-            if selected[joint]then count+=1 end
         end
         api.Released=count
+        api.ReleasedConstraints=constraints
     end
     return api
 end
@@ -74970,7 +75945,10 @@ return function(ctx)
     local humanoids, scanConnections, connections = nil, {}, {}
     local active, scanAge, rejected = nil, 0, setmetatable({}, {__mode = "k"})
     local guard = require(script.Parent.collision_guard).new()
+    local follower = require(script.Parent.body_follower)
     local fling = require(script.Parent.Parent.fling_fallback)
+    api.FollowHealth=require(script.Parent.Parent.runtime_state).Follow(clock)
+    api.Diagnostics={}
     local flingHome
     local realHumanoid, realFlags
 
@@ -75002,8 +75980,10 @@ return function(ctx)
     end
 
     local function owned(part)
-        if not part or part.Anchored or part:IsGrounded() then return false end
-        local ok, answer = pcall(ctx.Owned, part)
+        if not part then return false end
+        local ok, answer = pcall(function()
+            return part:IsA("BasePart")and not part.Anchored and not part:IsGrounded()and ctx.Owned(part)==true
+        end)
         return ok and answer == true
     end
 
@@ -75071,10 +76051,14 @@ return function(ctx)
     function api.Detach(reason)
         local previous = active
         active, api.ActiveNPC, api.Cur = nil, nil, nil
+        table.clear(api.Diagnostics)
         guard.Clear()
         if previous then
+            if ctx.PoseProvider and ctx.PoseProvider.ReleaseControllerIndex then
+                ctx.PoseProvider.ReleaseControllerIndex(previous.Controller)
+            end
             for joint, snapshot in pairs(previous.Poses) do
-                if joint.Parent then
+                if joint.Parent and joint.Part0==snapshot.Part0 and joint.Part1==snapshot.Part1 then
                     pcall(ctx.Write, joint, snapshot.C0 * snapshot.Transform * snapshot.C1:Inverse())
                     pcall(function() joint.Enabled = snapshot.Enabled joint.Transform = snapshot.Transform end)
                 end
@@ -75090,6 +76074,7 @@ return function(ctx)
             end
         end
         api.Status = reason or "NPC released"
+        api.FollowHealth.Finish(true,reason)
     end
 
     function api.Attach(model)
@@ -75117,6 +76102,7 @@ return function(ctx)
         if #references == 0 then return false, "NPC joints do not match the current controller rig" end
         api.Detach()
         active = candidate
+        active.Controller=controller
         active.Hum=candidate.Humanoid
         api.Cur=active
         active.References, active.Poses, active.Properties = references, {}, {}
@@ -75125,16 +76111,22 @@ return function(ctx)
         candidate.Humanoid.AutoRotate, candidate.Humanoid.PlatformStand = false, true
         for _, reference in ipairs(references) do
             local joint = reference.Joint
-            active.Poses[joint] = {C0 = joint.C0, C1 = joint.C1, Transform = joint.Transform, Enabled = joint.Enabled}
+            active.Poses[joint] = {C0 = joint.C0, C1 = joint.C1, Transform = joint.Transform, Enabled = joint.Enabled,
+                Part0=joint.Part0,Part1=joint.Part1}
             joint.Enabled = false
         end
         guard.Bind(model)
         api.ActiveNPC, api.Target = model, model
         api.PausedPick = false
         api.Status = "controlling " .. model.Name .. " · ownership observed locally"
+        api.FollowHealth.Begin(api.FollowHealth.Generation+1)
         return true
     end
 
+    function api.CanTargetFling()
+        if settings.NPCFling~=true then return false,"NPC target fling is switched off (it uses your real character)"end
+        return true
+    end
     function api.Fling(target, duration)
         if not api.Running or not settings.NPCFling then return false, "enable NPC target fling first" end
         local part = target and (target:IsA("BasePart") and target or root(target))
@@ -75168,25 +76160,65 @@ return function(ctx)
         end
         if scanAge >= 2.5 then
             scanAge = 0
-            if settings.NPCAutoRescan then api.Scan() end
+            local rows=settings.NPCAutoRescan and api.Scan()or nil
             if not active and settings.NPCAutoPick and not api.PausedPick then
-                for _, row in ipairs(api.Scan()) do if api.Attach(row.Model) then break end end
+                for _, row in ipairs(rows or api.Scan()) do if api.Attach(row.Model) then break end end
+            end
+        end
+        if active and active.Controller~=reanimate.Character then
+            local model=active.Model
+            local okay,why=api.Attach(model)
+            if not okay then api.Detach(why)end
+        end
+        if active then
+            for _,reference in ipairs(active.References)do
+                if not reference.Joint.Parent or reference.Joint.Part0~=reference.Parent or reference.Joint.Part1~=reference.Part
+                    or not reference.Part:IsDescendantOf(active.Model)or not reference.Parent:IsDescendantOf(active.Model)
+                    or not reference.Source0:IsDescendantOf(reanimate.Character)or not reference.Source1:IsDescendantOf(reanimate.Character)then
+                    api.Detach("NPC joints changed; pick me again")break
+                end
             end
         end
         if active then
-            guard.Enforce()
-            active.Root.CFrame = controllerRoot.CFrame
-            active.Root.AssemblyLinearVelocity = controllerRoot.AssemblyLinearVelocity
-            active.Root.AssemblyAngularVelocity = Vector3.zero
-            for _, reference in ipairs(active.References) do
-                if not reference.Joint.Parent or not reference.Part.Parent then
-                    api.Detach("NPC lost a joint")
-                    break
-                end
-                local offset = reference.Source0.CFrame:ToObjectSpace(reference.Source1.CFrame)
-                ctx.Write(reference.Joint, offset)
-                reference.Part.CFrame = reference.Parent.CFrame * offset
+            local provider=ctx.PoseProvider
+            local poses=provider and provider.ControllerBodyPoses(reanimate.Character,true)or {}
+            if reanimate.ResolveTrackedHeadPose then
+                local head,pose=reanimate.ResolveTrackedHeadPose(reanimate.Character,poses)
+                if head and pose then poses[head]=pose end
             end
+            local rootPose=poses[controllerRoot]or controllerRoot.CFrame
+            if not follower.ValidPose(rootPose)then api.Status="NPC: controller pose went sideways (invalid frame)"return end
+            guard.Enforce()
+            active.Root.CFrame = rootPose
+            active.Root.AssemblyLinearVelocity = follower.MotionVelocity(controllerRoot)
+            active.Root.AssemblyAngularVelocity = Vector3.zero
+            local accepted={[active.Root]=true}
+            local drivers={[active.Root.AssemblyRootPart or active.Root]=active.Root}
+            local following,unowned,invalid,joined=1,0,0,0
+            table.clear(api.Diagnostics)
+            for _, reference in ipairs(active.References) do
+                local a,b=poses[reference.Source0]or reference.Source0.CFrame,poses[reference.Source1]or reference.Source1.CFrame
+                local isOwned=owned(reference.Part)
+                local assembly=reference.Part.AssemblyRootPart or reference.Part
+                local shared=drivers[assembly]
+                local ready=not shared and accepted[reference.Parent]and isOwned and follower.ValidPose(a)and follower.ValidPose(b)
+                local row={Skipped=not ready,SharesWith=shared and shared.Name}
+                api.Diagnostics[reference.Part.Name]=row
+                if ready then
+                    local offset=a:ToObjectSpace(b)
+                    local target=reference.Parent.CFrame*offset
+                    if follower.ValidPose(target)then
+                        ctx.Write(reference.Joint, offset)
+                        reference.Part.CFrame=target
+                        accepted[reference.Part]=true drivers[assembly]=reference.Part following+=1 row.TargetPosition=target.Position
+                    else invalid+=1 row.Skipped=true end
+                else
+                    if shared then joined+=1 elseif not isOwned then unowned+=1 else invalid+=1 end
+                end
+            end
+            api.FollowHealth.Update(following,#active.References+1,joined+invalid,unowned,0)
+            api.Status=string.format("%s: %d / %d bits dancing locally%s",active.Model.Name,following,#active.References+1,
+                unowned>0 and ("; "..unowned.." not ours right now")or joined>0 and "; waiting for loose joints"or invalid>0 and "; waiting on a parent / pose"or " :D")
         end
         local current, now = api.FlingTargets[1], clock()
         if current then
@@ -75238,7 +76270,7 @@ return function(ctx)
 
     function api.Config(parent)
         local UI = ctx.UI
-        UI.CreateText(parent, "Experimental: controls a locally owned NPC. Games can reclaim ownership; a local pose does not prove other players see it.", 12, Enum.TextXAlignment.Left)
+        UI.CreateText(parent, "borrow an NPC and teach it your dance :D\nonly the bits you own can follow. the game can ask for them back, and your friend's screen gets the final vote.", 12, Enum.TextXAlignment.Left)
         local rows = {}
         local picker, label = UI.CreateCallbackDropdown(parent, "Owned NPCs", api.Target and api.Target.Name or "Choose", function()
             rows = api.Scan()
@@ -75299,7 +76331,1672 @@ return function(ctx)
     return api
 end
 ]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_activity.lua"] = [=====[
+local R15=require(script.Parent.gelatek_r15)
+local Activity={}
+local names={HumanoidRootPart=true,Torso=true,Head=true,["Left Arm"]=true,["Right Arm"]=true,["Left Leg"]=true,["Right Leg"]=true}
+for _,entry in ipairs(R15.Segments)do names[entry.Name]=true end
+local states={Physics=true,Ragdoll=true,PlatformStanding=true,FallingDown=true,Dead=true}
+local flags={"Ragdolled","IsRagdolled","Ragdoll","RagdollActive"}
+function Activity.Read(body,schema)
+    if not body or not body.Parent then return false,"waiting for character"end
+    local humanoid=body:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false,"waiting for Humanoid"end
+    local current=humanoid:GetState()
+    local name=type(current)=="string"and current or current and current.Name
+    if humanoid.PlatformStand or states[name]then return true,"ragdolled"end
+    for _,key in ipairs(flags)do
+        if body:GetAttribute(key)==true or humanoid:GetAttribute(key)==true then return true,"ragdolled"end
+    end
+    local first,separate,parts=nil,false,{}
+    for _,part in ipairs(body:GetChildren())do
+        if part:IsA("BasePart")and names[part.Name]then
+            local root=part.AssemblyRootPart
+            if root and not root.Anchored and root:IsDescendantOf(body)then
+                parts[part]=part
+                if first and root~=first then separate=true end
+                first=root
+            end
+        end
+    end
+    if separate then
+        if schema then
+            local function root(part)while parts[part]~=part do part=parts[part]end return part end
+            for _,node in ipairs(schema.Get(body).Nodes)do
+                local joint,a,b=node.Joint,node.ParentPart,node.Part
+                if joint.Parent and joint.Enabled~=false and parts[a]and parts[b]
+                    and (joint:IsA("Motor6D")and joint.Active~=false
+                        or joint.ClassName=="AnimationConstraint"and joint.IsKinematic~=false)then
+                    parts[root(b)]=root(a)
+                end
+            end
+            local connected,anchor=true,nil
+            for part in pairs(parts)do
+                local group=root(part)
+                if anchor and group~=anchor then connected=false break end
+                anchor=group
+            end
+            if connected then return false,"waiting for ragdoll"end
+        end
+        return true,"loose body parts"
+    end
+    return false,"waiting for ragdoll"
+end
+return Activity
+]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_body_map.lua"] = [=====[
+-- R6 controller poses mapped onto the physical avatar's actual rig type.
+local R15=require(script.Parent.gelatek_r15)
+local CameraSubject=require(script.Parent.camera_subject)
+local Alignment=require(script.Parent.Parent.head_alignment)
+return function(ctx,options)
+    options=options or {}
+    local api={}
+    local r6={"Torso","HumanoidRootPart","Head","Left Arm","Right Arm","Left Leg","Right Leg"}
+    local r15={"UpperTorso","LowerTorso","HumanoidRootPart","Head"}
+    for _,entry in ipairs(R15.Segments)do
+        if entry.Name~="UpperTorso"and entry.Name~="LowerTorso"then table.insert(r15,entry.Name)end
+    end
+    local subject=CameraSubject.new({World=ctx.Workspace,Enabled=function()return not ctx.Reanimate.SceneCameraActive end})
+    function api.Names(body)
+        -- Games can rebuild a character in place before replacing/updating its
+        -- Humanoid. An unambiguous physical torso takes precedence over that
+        -- stale declaration; partial/mixed rebuilds retain the declared rig.
+        local torso=body and body:FindFirstChild("Torso")
+        local upper=body and body:FindFirstChild("UpperTorso")
+        local lower=body and body:FindFirstChild("LowerTorso")
+        local r6Spine=torso and torso:IsA("BasePart")
+        local r15Spine=upper and upper:IsA("BasePart")and lower and lower:IsA("BasePart")
+        if r6Spine and not(upper or lower)then return r6 end
+        if r15Spine and not r6Spine then return r15 end
+        local humanoid=body and body:FindFirstChildOfClass("Humanoid")
+        local kind=humanoid and humanoid.RigType
+        if kind and kind==Enum.HumanoidRigType.R15 or not kind and body and body:FindFirstChild("UpperTorso")then return r15 end
+        return r6
+    end
+    function api.ControllerPart(figure,name)
+        return figure:FindFirstChild(name)or R15.Groups[name]and figure:FindFirstChild(R15.Groups[name])
+    end
+    function api.CapturePhysical(body)
+        local schema=ctx.Reanimate.RigSchema
+        if body and schema and ctx.Util.GetCharacterJointParts then
+            local index=schema.Get(body)
+            if api.Physical~=body or api.Revision~=index.Revision then
+                api.Physical,api.Revision=body,index.Revision api.Joints={}
+                for _,node in ipairs(index.Nodes)do table.insert(api.Joints,node.Joint)end
+            end
+            api.Binding=Alignment.Capture(body,api.Joints,ctx.Util,api.Binding)
+        end
+    end
+    function api.CaptureController(figure)
+        local provider=ctx.PoseProvider
+        local index=provider and provider.ControllerIndex(figure)
+        if index then api.Controller=Alignment.Controller(figure,index.BodyJoints,ctx.Util,nil,api.Controller)end
+    end
+    function api.Begin(body,figure)
+        api.PhysicalR15=api.Names(body)==r15
+        local provider=ctx.PoseProvider
+        api.Poses=provider and provider.ControllerBodyPoses(figure,true)or nil
+        if ctx.Reanimate.ResolveTrackedHeadPose then
+            local head,pose=ctx.Reanimate.ResolveTrackedHeadPose(figure,api.Poses)
+            if head and pose then
+                api.Poses=api.Poses or {}api.Poses[head]=pose
+            end
+        end
+        api.CapturePhysical(body)api.CaptureController(figure)
+    end
+    local function rawTarget(part,target,figure)
+        local pose=api.Poses and api.Poses[target]or target.CFrame
+        local offset=part.Name~=target.Name and R15.Offsets[part.Name]
+        if offset then
+            local ok,scale=pcall(figure.GetScale,figure)
+            scale=ok and tonumber(scale)or 1
+            if not scale or scale~=scale or scale<=0 or scale==math.huge then scale=1 end
+            pose*=CFrame.new(offset.Position*scale)*offset.Rotation
+        end
+        local bridge=ctx.Reanimate.R15Animation
+        local state=bridge and bridge.States[figure]
+        local backend=ctx.Reanimate.Current
+        local outside=options.BaselineR15~=true and backend and backend.ExposesController==true and ctx.Reanimate.ControllerNativeTrackActive==true
+        if api.PhysicalR15 and state and state.Active and not outside then
+            local native=bridge.PartPose(figure,part.Name,api.Poses and api.Poses[target]or target.CFrame)
+            if native then return native,true end
+        end
+        return pose
+    end
+    function api.UnhiddenTarget(part,target,figure)
+        local pose,native=rawTarget(part,target,figure)
+        if part.Name=="Head"and not native and api.Binding and api.Controller then
+            local torso=api.Binding.Torso
+            local anchor=api.ControllerPart(figure,torso.Name)
+            if anchor then
+                local controllerTorso=api.Controller.Torso
+                local controllerPose=api.Poses and api.Poses[controllerTorso]or controllerTorso.CFrame
+                local ok,scale=pcall(figure.GetScale,figure)
+                pose=Alignment.Resolve(api.Binding,api.Controller,rawTarget(torso,anchor,figure),
+                    controllerPose,pose,ok and scale or 1)or pose
+            end
+        end
+        if api.PhysicalR15 and options.BaselineR15 then
+            local settings=ctx.SaveData and ctx.SaveData.Reanimator or {}
+            local manual=tonumber(settings.RagdollVerticalOffset)or 0
+            if manual~=manual or math.abs(manual)==math.huge then manual=0 end
+            return pose+Vector3.new(0,manual,0)
+        end
+        return pose
+    end
+    function api.Target(part,target,figure)
+        local pose=api.UnhiddenTarget(part,target,figure)
+        if ctx.Reanimate.ResolveBodyHideTargetCFrame and not (part.Name=="Head"and api.HeadHideAllowed==false)then
+            pose=ctx.Reanimate.ResolveBodyHideTargetCFrame(part,pose,part.Name,false)
+        end
+        return pose
+    end
+    function api.Camera(body,figure)subject.Bind(body,figure)subject.Step()end
+    function api.Clear()
+        api.HeadHideAllowed=nil
+        api.PhysicalR15=nil
+        subject.Clear()
+        local provider=ctx.PoseProvider
+        if provider and provider.ReleaseControllerIndex then provider.ReleaseControllerIndex(ctx.Reanimate.Character)end
+        api.Poses,api.Binding,api.Controller,api.Physical,api.Revision,api.Joints=nil,nil,nil,nil,nil,nil
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_controller_bridge.lua"] = [=====[
+-- Commands aimed at Player.Character must reach the movement controller too.
+-- Initial physical R15 HipHeight is deliberately not copied onto an R6 rig.
+return function(ctx)
+    local api={Connections={},Movement={}}
+    local reanimate=ctx.Reanimate or {}
+    local previousJumpResolver
+    local jumpSerial=0
+    local properties={"HipHeight","WalkSpeed","JumpPower","JumpHeight","UseJumpPower","Sit","Jump"}
+    local movement={WalkSpeed=true,JumpPower=true,JumpHeight=true,UseJumpPower=true}
+    local function copyGameMovement()
+        local saved=ctx.SaveData and ctx.SaveData.Reanimator
+        return saved and saved.RagdollGameMovement==true
+    end
+    local function releaseMovement()
+        for key,lease in pairs(api.Movement)do
+            if api.Controller and api.Controller.Parent and api.Controller[key]==lease.Value then api.Controller[key]=lease.Before end
+        end
+        table.clear(api.Movement)
+    end
+    function api.ResolveJump(humanoid,input,phase)
+        if humanoid~=api.Controller then return input==true end
+        local request=reanimate.RagdollJumpRequest
+        if not request or request.Owner~=api or request.Humanoid~=humanoid then return input==true end
+        if reanimate.FlightActive then reanimate.RagdollJumpRequest=nil return false end
+        if phase=="PostSimulation"and request.Applied then
+            reanimate.RagdollJumpRequest=nil
+            return input==true
+        end
+        if phase=="PreAnimation"then request.Applied=true end
+        return true
+    end
+    local function requestJump()
+        if not api.Controller then return end
+        jumpSerial+=1
+        reanimate.RagdollJumpRequest={Owner=api,Humanoid=api.Controller,Serial=jumpSerial,Applied=false}
+    end
+    local function clear()
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end table.clear(api.Connections)
+        releaseMovement()
+        local request=reanimate.RagdollJumpRequest
+        if request and request.Owner==api then reanimate.RagdollJumpRequest=nil end
+        if reanimate.ResolveRagdollJump==api.ResolveJump then reanimate.ResolveRagdollJump=previousJumpResolver end
+        previousJumpResolver=nil
+        if api.Controller and api.Controller.Parent then
+            if api.HipHeight~=nil and api.Controller.HipHeight==api.HipHeight then api.Controller.HipHeight=api.BaseHeight end
+            if api.LastState~=nil and api.Controller:GetAttribute("UhhhhhhAnimationState")==api.LastState then
+                api.Controller:SetAttribute("UhhhhhhAnimationState",api.PreviousState)
+            end
+        end
+        api.Physical,api.Controller,api.HipHeight,api.LastState,api.BaseHeight,api.ExplicitHeight=nil,nil,nil,nil,nil,nil
+    end
+    local function enforceHeight()
+        local hum=api.Controller
+        if hum and api.ExplicitHeight and api.HipHeight~=nil and hum.HipHeight~=api.HipHeight then hum.HipHeight=api.HipHeight end
+    end
+    function api.Bind(body,figure)
+        local physical=body and body:FindFirstChildOfClass("Humanoid")
+        local controller=figure and figure:FindFirstChildOfClass("Humanoid")
+        if physical==api.Physical and controller==api.Controller then return end
+        clear()api.Physical,api.Controller=physical,controller
+        if not physical or not controller then return end
+        previousJumpResolver=reanimate.ResolveRagdollJump
+        reanimate.ResolveRagdollJump=api.ResolveJump
+        api.BaseHeight=controller.HipHeight
+        api.PreviousState=controller:GetAttribute("UhhhhhhAnimationState")
+        if type(physical.Sit)=="boolean"then controller.Sit=physical.Sit end
+        if physical.Jump==true then requestJump()controller.Jump=true end
+        for _,key in ipairs(properties)do
+            table.insert(api.Connections,physical:GetPropertyChangedSignal(key):Connect(function()
+                if api.Physical~=physical or api.Controller~=controller then return end
+                local value=physical[key]
+                if key=="HipHeight"then
+                    if type(value)~="number"or value~=value or math.abs(value)==math.huge then return end
+                    api.HipHeight=value api.ExplicitHeight=false controller.HipHeight=value
+                elseif movement[key]then
+                    if copyGameMovement()then
+                        local lease=api.Movement[key]or {Before=controller[key]}
+                        lease.Value=value api.Movement[key]=lease controller[key]=value
+                    end
+                else
+                    if key=="Jump"and value==true then requestJump()end
+                    controller[key]=value
+                end
+            end))
+        end
+        table.insert(api.Connections,controller:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if controller.HipHeight~=api.HipHeight then
+                api.BaseHeight=controller.HipHeight
+                if not api.ExplicitHeight then api.HipHeight=nil end
+            end
+            enforceHeight()
+        end))
+    end
+    function api.SetHipHeight(value)
+        assert(value==nil or type(value)=="number"and value==value and math.abs(value)<math.huge,"enter a finite hip height")
+        local previous=api.HipHeight api.HipHeight=value api.ExplicitHeight=value~=nil
+        if value==nil and api.Controller and api.Controller.HipHeight==previous then api.Controller.HipHeight=api.BaseHeight end
+        enforceHeight()
+    end
+    function api.Step(body,figure)
+        api.Bind(body,figure)enforceHeight()
+        if not copyGameMovement()then releaseMovement()end
+        if api.Physical and api.Controller then
+            local state=api.Physical:GetAttribute("UhhhhhhAnimationState")
+                or body:GetAttribute("UhhhhhhAnimationState")
+            if state~=api.LastState then
+                if state~=nil or api.Controller:GetAttribute("UhhhhhhAnimationState")==api.LastState then
+                    api.Controller:SetAttribute("UhhhhhhAnimationState",state)
+                end
+                api.LastState=state
+            end
+        end
+    end
+    function api.Snapshot()
+        local request=reanimate.RagdollJumpRequest
+        return {Bound=api.Physical~=nil and api.Controller~=nil,HipHeightOverride=api.HipHeight,CustomState=api.LastState,
+            JumpPending=request~=nil and request.Owner==api}
+    end
+    function api.Clear()clear()api.LastState=nil end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_gelatek.lua"] = [=====[
+-- Gelatek's pose-first following with the game's existing ragdoll/ownership
+-- preparation. It does not run Gelatek's death or character-handoff routines.
+local Follow=require(script.Parent.body_follower)
+local Motion=require(script.Parent.ragdoll_pose_velocity)
+return function(ctx)
+    local api={States={}}
+    local lastOptions,lastLinear,lastAngular,limits=nil,nil,nil,Motion.Settings()
+    local function writeVelocity(part,linear,angular)
+        if ctx.Physics.R15Baseline then
+            -- The selected R15 baseline already limits target derivatives.
+            -- Preserve its outputs rather than applying the later R6 clamp.
+            part.AssemblyLinearVelocity=linear part.AssemblyAngularVelocity=angular
+            return
+        end
+        local options=ctx.Physics.PoseVelocity
+        local l,a=options and options.LinearLimit,options and options.AngularLimit
+        if options~=lastOptions or l~=lastLinear or a~=lastAngular then
+            limits=Motion.Settings(options)lastOptions,lastLinear,lastAngular=options,l,a
+        end
+        local minimum=Follow.RetentionSpeed(ctx.Reanimate.NetlessVelocity)
+        local v,clipped=Motion.Bounded(linear,math.max(limits.LinearLimit,minimum))
+        local w,spinClipped=Motion.Bounded(angular,limits.AngularLimit)
+        part.AssemblyLinearVelocity=v part.AssemblyAngularVelocity=w
+        if ctx.Physics.NoteVelocityClamp then ctx.Physics.NoteVelocityClamp(part,clipped,spinClipped)end
+    end
+    function api.Clear()
+        for part,state in pairs(api.States)do
+            Follow.ClearPose(part)Follow.ClearPose(state.Assembly)
+            ctx.Physics.Forget(part)
+        end
+        table.clear(api.States)
+    end
+    function api.Forget(part)
+        local state=api.States[part]
+        Follow.ClearPose(part)
+        if state then Follow.ClearPose(state.Assembly)end
+        api.States[part]=nil
+    end
+    function api.Write(part,target,dt,phase,controller,now)
+        local physical=ctx.Player.Character
+        local assembly=part.AssemblyRootPart or part
+        local root=controller and controller:FindFirstChild("HumanoidRootPart")
+        local owned=part.ReceiveAge==0
+        if ctx.Owned then owned=ctx.Owned(part,assembly)==true end
+        if not Follow.ValidPose(target)or part:IsGrounded()or not owned or not physical or not part:IsDescendantOf(physical)
+            or assembly.Anchored or not assembly:IsDescendantOf(physical)
+            or root and (root.AssemblyRootPart or root)==assembly then
+            api.Forget(part)ctx.Physics.Forget(part)return false
+        end
+        local state=api.States[part]
+        if state and (state.Assembly~=assembly or state.Controller~=controller)then api.Forget(part)state=nil end
+        local poseMotion=ctx.Physics.Follower=="Gelatek motion"or ctx.Physics.Follower=="Pose velocity (fallback)"
+        local spin=poseMotion and (ctx.Physics.Follower=="Pose velocity (fallback)"or ctx.Reanimate.UseAngularVelocity==true)
+        if phase=="RenderPose"and not state then return false end
+        local history,linear,angular,motion
+        if (phase=="PreSimulation"or phase=="PostSimulation")and poseMotion then
+            -- Read COM in the driven part's frame BEFORE changing the assembly.
+            local okay,localCOM=pcall(function()
+                return part.CFrame:PointToObjectSpace(assembly.AssemblyCenterOfMass)
+            end)
+            history,linear,angular,motion=Motion.Sample(state and state.Motion,target,okay and localCOM or nil,
+                ctx.Physics.MotionTime or (ctx.Clock and ctx.Clock()or now or os.clock()),Follow.MotionVelocity(root),ctx.Physics.PoseVelocity)
+            -- A stationary root is not a stationary arm. Export each accepted
+            -- target's COM motion; angular motion still respects the existing
+            -- switch unless the explicit full-velocity fallback was selected.
+            if not spin then angular=Vector3.zero end
+            motion.AngularExported=spin
+        end
+        if phase=="PostSimulation"and ctx.Physics.NoteCorrection then ctx.Physics.NoteCorrection(part)end
+        if not Follow.CommitPose(part,target)then api.Forget(part)return false end
+        Follow.MarkPose(assembly,assembly.CFrame)
+        if phase=="PreSimulation"then
+            local support=Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)
+            if linear then support=Vector3.new(linear.X,math.max(linear.Y,support.Y),linear.Z)end
+            writeVelocity(part,support,angular or Vector3.zero)
+            api.States[part]=state or {Assembly=assembly,Controller=controller}
+            -- Only PostSimulation advances the trajectory history. Reusing
+            -- the pre sample here would differentiate a second time at dt=0.
+            ctx.Physics.Record(part,target,dt,motion)
+            return true
+        end
+        if phase=="PostSimulation"then
+            -- The configured netless pulse remains in PreSimulation. Do not
+            -- advertise it as upward avatar movement after the pose commit.
+            writeVelocity(part,linear or (ctx.Physics.Follower=="Gelatek netless"
+                and Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)or Follow.MotionVelocity(root)),angular or Vector3.zero)
+            api.States[part]=state or {Assembly=assembly,Controller=controller}
+            api.States[part].Motion=history
+            ctx.Physics.Record(part,target,dt,motion)
+        end
+        return true
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_head_accessories.lua"] = [=====[
+-- Optional Ragdoll head-accessory transport. Reuses the shared follower, not
+-- Gelatek's death/handoff machinery. Only our reversible link changes restore.
+local Free=require(script.Parent.tool_grip_guard)
+local Follow=require(script.Parent.ragdoll_gelatek)
+local valid=require(script.Parent.body_follower).ValidPose
+return function(ctx,map,physics)
+    local api={Records={},Connections={},Rows={},Dirty=true,HeadHideReady=true}
+    local byHandle={}
+    local function enabled()return ctx.SaveData.Reanimator.RagdollHeadAccessories==true end
+    local function keep()
+        local settings=ctx.Reanimate.AnimLib and ctx.Reanimate.AnimLib.Settings or ctx.SaveData.AnimLibOptions or {}
+        return settings.KeepAccessoriesWhenHiding~=false
+    end
+    local function endpoints(link)
+        if link:IsA("JointInstance")or link:IsA("WeldConstraint")then return link.Part0,link.Part1 end
+        if link.ClassName=="RigidConstraint"then
+            return link.Attachment0 and link.Attachment0.Parent,link.Attachment1 and link.Attachment1.Parent
+        end
+    end
+    local function restore(record)
+        for _,saved in ipairs(record.Links)do
+            local link=saved.Link
+            if link.Parent and saved.Changed and link.Enabled==false then
+                local a,b=endpoints(link)
+                if a==saved.Part0 and b==saved.Part1 then link.Enabled=saved.Enabled end
+            end
+        end
+        for property,value in pairs(record.Properties)do
+            if record.Handle.Parent and record.Handle[property]==false then record.Handle[property]=value end
+        end
+    end
+    local function owns(handle)
+        local record=byHandle[handle]
+        if not record then return false end
+        local root=handle.AssemblyRootPart or handle
+        if handle.Anchored or root.Anchored or handle:IsGrounded()then
+            record.Reason="anchored / grounded"record.Ready=false return false
+        end
+        local fn=ctx.Util.GetAssemblyOwnership
+        local ok,owned,source=pcall(function()
+            if not fn then return nil,"native ownership unavailable"end
+            return fn(handle,true) -- no ReceiveAge inference for new accessory writes
+        end)
+        record.Owned=ok and owned==true
+        record.OwnershipSource=ok and tostring(source or "native ownership")or "ownership query failed"
+        if not record.Owned then record.Reason="waiting for native ownership"record.Ready=false return false end
+        return true
+    end
+    local function freeOwned(handle)
+        local record=byHandle[handle]
+        if not record or not owns(handle)then return false end
+        local separate,why=Free.IsFree(handle,record.Accessory)
+        record.Separate=separate record.Ready=separate
+        record.Reason=separate and "ready"or (why or "waiting for a separate assembly")
+        return separate
+    end
+    local proxy=setmetatable({Forget=function(part)api.Rows[part]=nil end,
+        Record=function(part,pose,dt,motion)api.Rows[part]={Motion=motion,Phase=api.Phase}end}, {__index=physics})
+    local follower=Follow({Player=ctx.Player,Reanimate=ctx.Reanimate,Physics=proxy,Clock=ctx.Clock,Owned=freeOwned})
+    function api.Clear()
+        follower.Clear()
+        for _,record in ipairs(api.Records)do restore(record)end
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end
+        table.clear(api.Connections)table.clear(api.Records)table.clear(byHandle)table.clear(api.Rows)
+        api.Body,api.Controller,api.Head=nil,nil,nil api.Dirty=true api.HeadHideReady=true
+    end
+    local function attachmentMount(head,handle)
+        for _,item in ipairs(handle:GetChildren())do
+            if item:IsA("Attachment")then
+                local other=head:FindFirstChild(item.Name)
+                if other and other:IsA("Attachment")and valid(item.CFrame)and valid(other.CFrame)then
+                    return other.CFrame*item.CFrame:Inverse()
+                end
+            end
+        end
+    end
+    local function jointMount(head,handle,link)
+        local a,b=endpoints(link)
+        if (a~=head or b~=handle)and (a~=handle or b~=head)then return end
+        if link:IsA("JointInstance")and valid(link.C0)and valid(link.C1)then
+            return a==head and link.C0*link.C1:Inverse()or link.C1*link.C0:Inverse()
+        end
+        if link.ClassName=="RigidConstraint"then
+            local c0,c1=link.Attachment0.CFrame,link.Attachment1.CFrame
+            return a==head and c0*c1:Inverse()or c1*c0:Inverse()
+        end
+    end
+    local function meshKey(accessory)
+        local handle=accessory:FindFirstChild("Handle")
+        local shape=handle and handle:FindFirstChildOfClass("SpecialMesh")
+        local m,t="",""
+        if handle and handle:IsA("MeshPart")then m,t=handle.MeshId,handle.TextureID
+        elseif shape then m,t=shape.MeshId,shape.TextureId end
+        return (tostring(m):match("%d+")or "")..":"..(tostring(t):match("%d+")or "")
+    end
+    local function declaredHeadwear(accessory)
+        local okay,name=pcall(function()
+            local kind=accessory.AccessoryType
+            return type(kind)=="string"and kind or kind and kind.Name
+        end)
+        return okay and ({Hair=true,Hat=true,Face=true,Eyebrow=true,Eyelash=true})[name]==true
+    end
+    function api.Bind(body)
+        if api.Body~=body then
+            api.Clear()api.Body=body
+            if body then
+                for _,name in ipairs({"DescendantAdded","DescendantRemoving"})do
+                    table.insert(api.Connections,body[name]:Connect(function()api.Dirty=true end))
+                end
+            end
+        end
+        if not body or not api.Dirty then return end
+        local head=body:FindFirstChild("Head")
+        if not head then return end
+        if api.Head and api.Head~=head then
+            for _,record in ipairs(api.Records)do restore(record)end
+            follower.Clear()table.clear(api.Records)table.clear(byHandle)
+        end
+        api.Head=head
+        local old={}for _,record in ipairs(api.Records)do old[record.Accessory]=record end
+        local joints=body:GetDescendants()local records,ordinals={},{}
+        for _,accessory in ipairs(body:GetChildren())do
+            local handle=accessory:IsA("Accessory")and accessory:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart")then
+                local record=old[accessory]
+                if record and record.Handle~=handle then restore(record)follower.Forget(record.Handle)record=nil end
+                local links={}
+                for _,link in ipairs(joints)do
+                    local a,b=endpoints(link)
+                    if a==head and b and b:IsDescendantOf(accessory)or b==head and a and a:IsDescendantOf(accessory)then
+                        table.insert(links,link)
+                    end
+                end
+                if not record or record.Unsupported then
+                    local mount=attachmentMount(head,handle)
+                    for _,link in ipairs(links)do mount=mount or jointMount(head,handle,link)end
+                    if #links>0 then mount=mount or head.CFrame:ToObjectSpace(handle.CFrame)end
+                    if #links>0 or mount or declaredHeadwear(accessory)then
+                        record=record or {Accessory=accessory,Handle=handle,Links={},Properties={}}
+                        record.Mount=valid(mount)and mount or nil record.Unsupported=record.Mount==nil
+                        record.HeadSize,record.HandleSize=head.Size,handle.Size
+                    end
+                end
+                if record then
+                    local known={}for _,saved in ipairs(record.Links)do known[saved.Link]=true end
+                    for _,link in ipairs(links)do if not known[link]then
+                        local a,b=endpoints(link)
+                        table.insert(record.Links,{Link=link,Enabled=link.Enabled~=false,Part0=a,Part1=b})
+                    end end
+                    record.Key=accessory.Name.."/"..meshKey(accessory)
+                    ordinals[record.Key]=(ordinals[record.Key]or 0)+1 record.Ordinal=ordinals[record.Key]
+                    table.insert(records,record)old[accessory]=nil byHandle[handle]=record
+                end
+            end
+        end
+        for _,record in pairs(old)do restore(record)follower.Forget(record.Handle)byHandle[record.Handle]=nil end
+        for _,record in ipairs(records)do record.MatchCount=ordinals[record.Key]end
+        api.Records=records api.Dirty=false
+    end
+    local function pair(record,figure,groups)
+        local matches=groups[record.Key]or {}
+        local accessory=#matches==record.MatchCount and matches[record.Ordinal]or nil
+        local handle=accessory and accessory:FindFirstChild("Handle")
+        local head=figure:FindFirstChild("Head")
+        local okay,scale=pcall(figure.GetScale,figure)scale=okay and scale or 1
+        if record.ControllerHandle~=handle or record.Controller~=figure or record.ControllerScale~=scale
+            or record.ControllerHeadSize~=(head and head.Size)or record.ControllerHandleSize~=(handle and handle.Size)then
+            record.ControllerHandle,record.Controller,record.ControllerMount=handle,figure,nil
+            record.ControllerScale,record.ControllerHeadSize,record.ControllerHandleSize=scale,head and head.Size,handle and handle.Size
+            if handle and head then
+                record.ControllerMount=attachmentMount(head,handle)
+                for _,joint in ipairs(figure:GetDescendants())do
+                    record.ControllerMount=record.ControllerMount or jointMount(head,handle,joint)
+                end
+            end
+        end
+    end
+    function api.Prepare(body,figure,phase)
+        if not enabled()then if api.Body then api.Clear()end return end
+        api.Bind(body)
+        if not body or not figure then api.HeadHideReady=false return end
+        if api.Mode~=physics.Follower or api.Limits~=physics.PoseVelocity then
+            follower.Clear()api.Mode,api.Limits=physics.Follower,physics.PoseVelocity
+        end
+        local groups={}
+        if #api.Records>0 then for _,item in ipairs(figure:GetChildren())do
+            if item:IsA("Accessory")then
+                local key=item.Name.."/"..meshKey(item)
+                groups[key]=groups[key]or {}table.insert(groups[key],item)
+            end
+        end end
+        local ready=true
+        for _,record in ipairs(api.Records)do
+            if not record.Unsupported and (record.HeadSize~=api.Head.Size or record.HandleSize~=record.Handle.Size)then
+                local mount=attachmentMount(api.Head,record.Handle)
+                for _,saved in ipairs(record.Links)do
+                    if saved.Link.Parent then mount=mount or jointMount(api.Head,record.Handle,saved.Link)end
+                end
+                if valid(mount)then record.Mount=mount follower.Forget(record.Handle)end
+                record.HeadSize,record.HandleSize=api.Head.Size,record.Handle.Size
+            end
+            pair(record,figure,groups)
+            if record.Unsupported then
+                record.Reason="no rigid Head mount"record.Ready=false ready=false
+            elseif owns(record.Handle)and phase~="RenderPose"then
+                for _,saved in ipairs(record.Links)do
+                    local a,b=endpoints(saved.Link)
+                    if saved.Link.Parent and a==saved.Part0 and b==saved.Part1 and saved.Link.Enabled~=false then
+                        saved.Changed=true saved.Link.Enabled=false
+                    end
+                end
+                for _,key in ipairs({"CanTouch","CanQuery"})do
+                    if record.Properties[key]==nil then record.Properties[key]=record.Handle[key]end
+                    record.Handle[key]=false
+                end
+            end
+            if not record.Unsupported and not freeOwned(record.Handle)then ready=false end
+        end
+        local hidden=ctx.Reanimate.ShouldBodyHidePart and ctx.Reanimate.ShouldBodyHidePart("Head")
+        api.HeadHideReady=not (hidden and keep())or ready
+    end
+    function api.Step(body,figure,dt,phase,now)
+        if not enabled()or api.Body~=body or not api.Head or not figure then return end
+        if phase=="RenderPose"and physics.RenderPose==false then return end
+        local controllerHead=figure:FindFirstChild("Head")
+        if not controllerHead then return end
+        local headPose=map.UnhiddenTarget(api.Head,controllerHead,figure)
+        if not valid(headPose)then return end
+        api.Phase=phase
+        for _,record in ipairs(api.Records)do
+            if record.Unsupported then record.Following=false continue end
+            local target=headPose*record.Mount record.TargetSource="original Head mount"
+            local provider=ctx.PoseProvider
+            if record.ControllerHandle and record.ControllerMount and provider and provider.ControllerPose then
+                local live=provider.ControllerPose(record.ControllerHandle,nil,nil,map.Poses)
+                local base=map.Poses and map.Poses[controllerHead]or controllerHead.CFrame
+                if valid(live)and valid(base)then
+                    target=headPose*record.Mount*record.ControllerMount:Inverse()*base:ToObjectSpace(live)
+                    record.TargetSource="controller accessory weld"
+                end
+            end
+            if ctx.Reanimate.ResolveBodyHideTargetCFrame then
+                target=ctx.Reanimate.ResolveBodyHideTargetCFrame(record.Handle,target,"Head",true)
+            end
+            record.Following=follower.Write(record.Handle,target,dt,phase,figure,now)
+        end
+    end
+    function api.Snapshot()
+        local result={Enabled=enabled(),Count=#api.Records,HeadHideReady=api.HeadHideReady,Parts={}}
+        for _,record in ipairs(api.Records)do
+            if #result.Parts==32 then result.Truncated=true break end
+            table.insert(result.Parts,{Name=record.Accessory.Name,Owned=record.Owned==true,Separate=record.Separate==true,
+                Following=record.Following==true,Reason=record.Reason,OwnershipSource=record.OwnershipSource,
+                TargetSource=record.TargetSource})
+        end
+        return result
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_physics.lua"] = [=====[
+-- Client-only, bounded observations made before the post-physics pose commit.
+-- These are solver deltas, not measurements of another client's replication.
+local Physics={}
+function Physics.new()
+    local api={Samples={},Objects={},Connections={},Rows={},Cadence={},PostPhysics=true,RenderPose=true,Observe=false,Running=false}
+    api.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings()
+    api.LastAssembly=setmetatable({}, {__mode="kv"})
+    local function resetStability()
+        api.Stability={VelocityClamps={Linear=0,Angular=0},PositionCorrections={Count=0,MaxStuds=0},AssemblyChanges=0}
+        table.clear(api.LastAssembly)
+    end
+    resetStability()
+    function api.NoteVelocityClamp(part,linear,angular)
+        if not linear and not angular then return end
+        local row=api.Stability.VelocityClamps
+        row.Linear+=linear and 1 or 0 row.Angular+=angular and 1 or 0
+        row.LastPart=part.Name row.LastAt=api.MotionTime
+    end
+    function api.NoteCorrection(part)
+        local sample=api.Samples[part]
+        if not sample or sample.StepSerial~=api.StepSerial or sample.Phase~="PreSimulation"then return end
+        local distance=(part.CFrame.Position-sample.Target.Position).Magnitude
+        if distance~=distance or distance==math.huge or distance<=part.Size.Magnitude then return end
+        local row=api.Stability.PositionCorrections
+        row.Count+=1 row.MaxStuds=math.max(row.MaxStuds,distance)
+        row.LastPart=part.Name row.LastAt=api.MotionTime row.LastStuds=distance
+    end
+    function api.BeginStep(dt,now)
+        api.StepSerial=(api.StepSerial or 0)+1
+        -- Capture once at the physics boundary. All body/tool/hair samples in
+        -- this step share it, regardless of post-callback delay or loop cost.
+        if type(now)=="number"and now==now and math.abs(now)<math.huge then api.MotionTime=now
+        elseif type(dt)=="number"and dt>0 and dt<math.huge then api.MotionTime=(api.MotionTime or 0)+dt
+        else api.MotionTime=nil end
+    end
+    local function resetConnections()
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end
+        table.clear(api.Connections)table.clear(api.Objects)table.clear(api.Samples)
+        resetStability()
+    end
+    local function include(object)
+        if object:IsA("Constraint")or object:IsA("BodyMover")or object:IsA("Motor6D")then
+            api.Objects[object]=true
+        end
+    end
+    function api.Bind(body)
+        if api.Body==body then return end
+        resetConnections()api.Body=body api.Rows={}api.Running=body~=nil
+        api.MotionTime=nil api.StepSerial=0
+        table.clear(api.Cadence)
+        api.HasSample=false api.LastObservedAt=nil api.LastReadError=nil
+        if not body then return end
+        for _,object in ipairs(body:GetDescendants())do include(object)end
+        table.insert(api.Connections,body.DescendantAdded:Connect(include))
+        table.insert(api.Connections,body.DescendantRemoving:Connect(function(object)api.Objects[object]=nil api.Forget(object)end))
+    end
+    function api.Forget(part)api.Samples[part]=nil end
+    function api.NoteAssembly(part)
+        local root=part.AssemblyRootPart or part
+        local previous=api.LastAssembly[part]
+        if previous and previous~=root then
+            api.Stability.AssemblyChanges+=1
+            api.Stability.LastAssemblyPart=part.Name api.Stability.LastAssemblyAt=api.MotionTime
+            api.Stability.LastAssemblyFrom=previous.Name api.Stability.LastAssemblyTo=root.Name
+        end
+        api.LastAssembly[part]=root
+    end
+    function api.AssemblyChanged(part)
+        local previous=api.Samples[part]
+        return previous~=nil and previous.Assembly~=(part.AssemblyRootPart or part)
+    end
+    function api.Record(part,target,dt,motion)
+        local sample=api.Samples[part]or {}api.Samples[part]=sample
+        api.NoteAssembly(part)
+        sample.Target,sample.DeltaTime,sample.Assembly=target,dt,part.AssemblyRootPart or part
+        sample.StepSerial,sample.Phase=api.StepSerial,api.OwnershipPhase
+        if motion then sample.Motion=table.clone(motion)end
+    end
+    -- Count accepted local batches, never infer a server/observer packet rate.
+    function api.NotePhase(phase,now,writes)
+        if phase~="PreSimulation"and phase~="PostSimulation"and phase~="RenderPose"then return end
+        if type(now)~="number"or now~=now or math.abs(now)==math.huge then return end
+        local row=api.Cadence[phase]
+        if not row or now<row.At then
+            api.Cadence[phase]={At=now,Since=now,Calls=0,Batches=0,Writes=0,MaxGap=0}
+            return
+        end
+        row.MaxGap=math.max(row.MaxGap,now-row.At)row.At=now
+        row.Calls+=1 row.Batches+=writes>0 and 1 or 0 row.Writes+=writes
+        local elapsed=now-row.Since
+        if elapsed>=1 then
+            row.Rates={CallbackHz=row.Calls/elapsed,PoseHz=row.Batches/elapsed,BodyWritesPerSecond=row.Writes/elapsed,
+                WindowSeconds=elapsed,MaxGapSeconds=row.MaxGap}
+            row.Since=now row.Calls,row.Batches,row.Writes,row.MaxGap=0,0,0,0
+        end
+    end
+    function api.CadenceSnapshot()
+        local result={LocalOnly=true,NetworkRateMeasured=false,Phases={}}
+        local now=(api.Clock or os.clock)()
+        for phase,row in pairs(api.Cadence)do
+            local elapsed=row.At-row.Since
+            local value=row.Rates and table.clone(row.Rates)or {
+                CallbackHz=elapsed>0 and row.Calls/elapsed or 0,PoseHz=elapsed>0 and row.Batches/elapsed or 0,
+                BodyWritesPerSecond=elapsed>0 and row.Writes/elapsed or 0,WindowSeconds=elapsed,MaxGapSeconds=row.MaxGap}
+            value.LastAt=row.At
+            if now-row.At>1 then value.CallbackHz,value.PoseHz,value.BodyWritesPerSecond=0,0,0 value.Stale=true end
+            result.Phases[phase]=value
+        end
+        return result
+    end
+    function api.AfterPhysics(body)
+        if not api.Observe or body~=api.Body then return end
+        local rows={}
+        for part,sample in pairs(api.Samples)do
+            if #rows==32 then break end
+            if part.Parent and part:IsDescendantOf(body)then
+                local okay,row=pcall(function()
+                    local observed=part.CFrame
+                    local _,angle=sample.Target:ToObjectSpace(observed):ToAxisAngle()
+                    local delta=(observed.Position-sample.Target.Position).Magnitude
+                    assert(delta==delta and delta<math.huge and angle==angle,"invalid solver pose")
+                    local linear,angular=part.AssemblyLinearVelocity.Magnitude,part.AssemblyAngularVelocity.Magnitude
+                    assert(linear==linear and linear<math.huge and angular==angular and angular<math.huge,"invalid solver velocity")
+                    return {Name=part.Name,ReceiveAgeZero=part.ReceiveAge==0,
+                        SolverDeltaStuds=delta,SolverDeltaRadians=math.abs(angle),DeltaTime=sample.DeltaTime,
+                        LinearSpeed=linear,AngularSpeed=angular,
+                        AssemblyChanged=sample.Assembly~=(part.AssemblyRootPart or part)}
+                end)
+                if okay then table.insert(rows,row)else api.LastReadError=tostring(row):sub(1,240)end
+            end
+        end
+        table.sort(rows,function(a,b)return a.Name<b.Name end)api.Rows=rows
+        api.HasSample=true api.LastObservedAt=os.clock()
+    end
+    function api.Snapshot()
+        local result={ClientObservedOnly=true,PostPhysics=api.PostPhysics,Running=api.Running,
+            Follower=api.Follower,RenderPose=api.RenderPose,Actuators={},PoseVelocity={Enabled=api.Follower=="Pose velocity (fallback)",
+                Settings=table.clone(api.PoseVelocity),Parts={}},
+            Measuring=api.Observe,Sampled=api.HasSample==true,ObservedAt=api.LastObservedAt,
+            Phase="before post-simulation correction",Parts={},Constraints={},ConstraintCount=0,
+            MotorCount=0,MoverCount=0,AnimationConstraintCount=0,MaxSolverDeltaStuds=0}
+        result.LastReadError=api.LastReadError
+        result.LocalCadence=api.CadenceSnapshot()
+        result.Stability={ClientObservedOnly=true,NetworkRateMeasured=false,
+            VelocityClamps=table.clone(api.Stability.VelocityClamps),PositionCorrections=table.clone(api.Stability.PositionCorrections),
+            AssemblyChanges=api.Stability.AssemblyChanges,LastAssemblyPart=api.Stability.LastAssemblyPart,
+            LastAssemblyAt=api.Stability.LastAssemblyAt,LastAssemblyFrom=api.Stability.LastAssemblyFrom,LastAssemblyTo=api.Stability.LastAssemblyTo}
+        if api.Preparation then result.Preparation=api.Preparation()end
+        if api.HeadTracking then
+            local okay,value=pcall(api.HeadTracking)
+            if okay and type(value)=="table"then result.HeadTracking=table.clone(value)end
+        end
+        if api.HeadAccessories then
+            local okay,value=pcall(api.HeadAccessories)
+            if okay and type(value)=="table"then result.HeadAccessories=value end
+        end
+        if api.Tools then result.Tools=api.Tools()end
+        if api.ControllerBridge then result.ControllerBridge=api.ControllerBridge()end
+        if api.R6Joints then result.R6Joints=api.R6Joints()end
+        if api.R15Joints then result.R15Joints=api.R15Joints()end
+        result.MotionExport={Linear=api.Follower=="Gelatek motion"or api.Follower=="Pose velocity (fallback)",Parts={},
+            Angular=(api.Follower=="Pose velocity (fallback)"or api.Follower=="Gelatek motion"and api.AnimationMotionAngular and api.AnimationMotionAngular()==true)==true}
+        if api.Body then
+            local body={Expected=0,Present=0,Missing=0,OwnedParts=0,Assemblies=0,FollowingDrivers=0,SkippedJoinedParts=0,
+                ExpectedBodyParts=0,FollowingBodyParts=0,SkippedBodyParts=0,NotOwnedBodyParts=0,MissingBodyParts=0,Parts={}}
+            local assemblies={}
+            for _,name in ipairs(api.PartNames or {})do
+                if body.Expected==32 then body.Truncated=true break end
+                body.Expected+=1
+                if name~="HumanoidRootPart"then body.ExpectedBodyParts+=1 end
+                local part=api.Body:FindFirstChild(name)
+                local row={Name=name,Missing=not part or not part:IsA("BasePart")}
+                if row.Missing then
+                    body.Missing+=1
+                    if name~="HumanoidRootPart"then body.MissingBodyParts+=1 end
+                else
+                    body.Present+=1 row.ReceiveAgeZero=part.ReceiveAge==0
+                    local joint=api.JointPartState and api.JointPartState(part)
+                    local owned=joint and joint.AssemblyOwned or not joint and row.ReceiveAgeZero
+                    if api.OwnBody then owned,row.OwnershipSource=api.OwnBody(part)end
+                    row.Owned=owned==true
+                    if owned then body.OwnedParts+=1 end
+                    if name~="HumanoidRootPart"and not owned then body.NotOwnedBodyParts+=1 end
+                    local root=part.AssemblyRootPart or part
+                    row.Assembly=root.Name
+                    local seen=assemblies[root]
+                    if not seen then assemblies[root]=name body.Assemblies+=1 end
+                    if joint then
+                        row.JointDriven=joint.JointDriven row.Carrier=joint.Carrier row.AssemblyOwned=joint.AssemblyOwned
+                        row.ObserverVerified=false row.Following=joint.Following
+                        if joint.Following then
+                            if api.Samples[part]then row.PoseWriter=true body.FollowingDrivers+=1 end
+                            if name~="HumanoidRootPart"then body.FollowingBodyParts+=1 end
+                        end
+                    elseif seen then
+                        row.SkippedWith=assemblies[root]body.SkippedJoinedParts+=1
+                        if name~="HumanoidRootPart"then body.SkippedBodyParts+=1 end
+                    else
+                        if api.Samples[part]then
+                            body.FollowingDrivers+=1 row.PoseWriter=true
+                            if name~="HumanoidRootPart"then body.FollowingBodyParts+=1 end
+                        end
+                    end
+                end
+                table.insert(body.Parts,row)
+            end
+            body.CompleteBody=body.ExpectedBodyParts>0 and body.FollowingBodyParts==body.ExpectedBodyParts and body.MissingBodyParts==0
+            result.BodyTransport=body
+            local head=api.Body:FindFirstChild("Head")
+            local torso=api.Body:FindFirstChild("Torso")or api.Body:FindFirstChild("UpperTorso")
+            if head and head:IsA("BasePart")then
+                local joint=api.JointPartState and api.JointPartState(head)
+                result.PhysicalHead={ReceiveAgeZero=head.ReceiveAge==0,Anchored=head.Anchored==true,
+                    HasPoseWriter=api.Samples[head]~=nil,
+                    JointDriven=joint and joint.JointDriven or false,
+                    SharesTorsoAssembly=torso~=nil and (head.AssemblyRootPart or head)==(torso.AssemblyRootPart or torso)}
+            end
+        end
+        if result.MotionExport.Linear then
+            for part,sample in pairs(api.Samples)do
+                if #result.MotionExport.Parts==32 then break end
+                if part.Parent and sample.Motion then
+                    local row=table.clone(sample.Motion)row.Name=part.Name
+                    table.insert(result.MotionExport.Parts,row)
+                    if result.PoseVelocity.Enabled then table.insert(result.PoseVelocity.Parts,table.clone(row))end
+                end
+            end
+            table.sort(result.PoseVelocity.Parts,function(a,b)return a.Name<b.Name end)
+            table.sort(result.MotionExport.Parts,function(a,b)return a.Name<b.Name end)
+        end
+        result.TopologyScope="physical character descendants"
+        result.ExternalParentConstraintsScanned=false
+        for _,row in ipairs(api.Rows)do
+            table.insert(result.Parts,table.clone(row))
+            result.MaxSolverDeltaStuds=math.max(result.MaxSolverDeltaStuds,row.SolverDeltaStuds)
+        end
+        local inspected=0
+        for object in pairs(api.Objects)do
+            inspected+=1 if inspected>256 then result.TopologyTruncated=true break end
+            if not object.Parent then continue end
+            local enabled=true
+            pcall(function()enabled=object.Enabled~=false end)
+            if not enabled then continue end
+            local class=object.ClassName
+            if class~="NoCollisionConstraint"then
+                if #result.Actuators<32 then
+                    local row={Name=object.Name,ClassName=class}
+                    pcall(function()row.Active=object.Active end)
+                    pcall(function()
+                        local a,b
+                        if object:IsA("Motor6D")then a,b=object.Part0,object.Part1
+                        elseif object:IsA("BodyMover")then a=object.Parent
+                        else a=object.Attachment0 and object.Attachment0.Parent b=object.Attachment1 and object.Attachment1.Parent end
+                        row.Part0,row.Part1=a and a.Name,b and b.Name
+                        row.ExternalEndpoint=(a~=nil and not a:IsDescendantOf(api.Body))or(b~=nil and not b:IsDescendantOf(api.Body))or false
+                        if a and b and a:IsA("BasePart")and b:IsA("BasePart")then
+                            row.SameAssembly=(a.AssemblyRootPart or a)==(b.AssemblyRootPart or b)
+                        end
+                    end)
+                    table.insert(result.Actuators,row)
+                else result.ActuatorsTruncated=true end
+            end
+            if object:IsA("Motor6D")then result.MotorCount+=1
+            elseif object:IsA("BodyMover")then result.MoverCount+=1
+            elseif class~="NoCollisionConstraint"then
+                result.ConstraintCount+=1
+                if class=="AnimationConstraint"then result.AnimationConstraintCount+=1 end
+                if #result.Constraints<32 then
+                    local row={Name=object.Name,ClassName=class}
+                    pcall(function()row.Active=object.Active end)
+                    pcall(function()
+                        local a,b=object.Attachment0,object.Attachment1
+                        row.Part0=a and a.Parent and a.Parent.Name
+                        row.Part1=b and b.Parent and b.Parent.Name
+                    end)
+                    table.insert(result.Constraints,row)
+                end
+            end
+        end
+        local humanoid=api.Body and api.Body:FindFirstChildOfClass("Humanoid")
+        if humanoid then result.RigType=tostring(humanoid.RigType)end
+        result.R15MappingOnly=true
+        return result
+    end
+    function api.StatusText()
+        local snapshot=api.Snapshot()
+        local movement=snapshot.Sampled and string.format("%.3f studs",snapshot.MaxSolverDeltaStuds)or "not sampled"
+        local body=snapshot.BodyTransport
+        local stability=snapshot.Stability
+        local summary=body and string.format("\nBody: %d / %d parts following; %d joined body parts skipped, %d not owned, %d missing",
+            body.FollowingBodyParts,body.ExpectedBodyParts,body.SkippedBodyParts,body.NotOwnedBodyParts,body.MissingBodyParts)or ""
+        if snapshot.HeadTracking then summary..="\n"..tostring(snapshot.HeadTracking.Status)end
+        if stability then
+            local v,p=stability.VelocityClamps,stability.PositionCorrections
+            summary..=("\nvelocity catches: %d linear / %d angular; large physical corrections: %d; assembly changes: %d"):format(
+                v.Linear,v.Angular,p.Count,stability.AssemblyChanges)
+            if p.LastPart then summary..=("\nlast correction: %s, %.2f studs"):format(p.LastPart,p.LastStuds)end
+        end
+        if snapshot.HeadAccessories and snapshot.HeadAccessories.Enabled then
+            summary..="\nHead accessories: "..snapshot.HeadAccessories.Count.."; hide handoff "..(snapshot.HeadAccessories.HeadHideReady and "ready"or "waiting")
+        end
+        if snapshot.Tools and snapshot.Tools.Count>0 then
+            summary..="\nEquipped tools: "..snapshot.Tools.Count.."; controller holding state mirrored"
+            for _,tool in ipairs(snapshot.Tools.Parts)do summary..="\n"..tool.Name..": "..tostring(tool.Reason)end
+        end
+        local cadence=snapshot.LocalCadence.Phases.PostSimulation or snapshot.LocalCadence.Phases.PreSimulation
+        if cadence then summary..=string.format("\nour pose updates: %.1f /s; longest gap %.1f ms\n(this is our writer, not your friend's FPS)",
+            cadence.PoseHz,cadence.MaxGapSeconds*1000)end
+        return string.format("Follower: %s\nPhysics commit: %s; render correction: %s; pre-correction solver movement %s\n%d enabled constraints, %d animation joints, %d motors, %d movers under the character%s",
+            api.Follower or "Awes motion",
+            api.PostPhysics and "after simulation"or "original timing",api.RenderPose and "on"or "off",movement,
+            snapshot.ConstraintCount,snapshot.AnimationConstraintCount,snapshot.MotorCount,snapshot.MoverCount,summary)
+    end
+    function api.Stop()
+        resetConnections()table.clear(api.Cadence)api.Body=nil api.Running=false
+    end
+    return api
+end
+return Physics
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_pose_velocity.lua"] = [=====[
+-- Optional target-motion export for the existing CFrame-first ragdoll follower.
+-- This is feed-forward at the assembly COM, not a second pose/error servo.
+local Motion={}
+local validPose=require(script.Parent.Parent.head_tracking).Finite
+local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
+local function vector(v)return typeof(v)=="Vector3"and finite(v.X)and finite(v.Y)and finite(v.Z)end
+local function option(n,default,low,high)
+    n=tonumber(n)return finite(n)and math.clamp(n,low,high)or default
+end
+function Motion.Settings(values)
+    values=values or {}
+    return {LinearLimit=option(values.LinearLimit,120,1,500),AngularLimit=option(values.AngularLimit,30,1,100),
+        MaximumGap=option(values.MaximumGap,.25,.02,1)}
+end
+local function cap(value,limit)
+    local speed=value.Magnitude
+    if not finite(speed)then return Vector3.zero,true end
+    return speed>limit and value*(limit/speed)or value,speed>limit
+end
+function Motion.Bounded(value,limit)
+    if not vector(value)or not finite(limit)or limit<=0 then return Vector3.zero,true end
+    return cap(value,limit)
+end
+function Motion.Sample(previous,target,localCOM,now,rootVelocity,settings)
+    settings=Motion.Settings(settings)
+    local base,baseClamped=cap(vector(rootVelocity)and rootVelocity or Vector3.zero,settings.LinearLimit)
+    local info={Reason="first target sample",LinearClamped=baseClamped,AngularClamped=false,CenterOfMassUsed=false}
+    local function reset(reason,nextState)
+        info.Reason=reason info.LinearSpeed=base.Magnitude info.AngularSpeed=0
+        if nextState then nextState.Linear,nextState.Angular=base,Vector3.zero end
+        return nextState,base,Vector3.zero,info
+    end
+    if not validPose(target)or not finite(now)then return reset("invalid target or clock")end
+    if not vector(localCOM)then return reset("assembly COM unavailable")end
+    local nextState={Pose=target,COM=localCOM,At=now}
+    info.CenterOfMassUsed=true
+    if not previous then return reset("first target sample",nextState)end
+    local elapsed=now-previous.At
+    if not finite(elapsed)or elapsed<0 then return reset("clock discontinuity",nextState)end
+    if elapsed==0 then
+        info.Reason="same target sample time"
+        local linear,clipped=cap(previous.Linear or base,settings.LinearLimit)
+        local angular,spinClipped=cap(previous.Angular or Vector3.zero,settings.AngularLimit)
+        info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
+        info.LinearClamped,info.AngularClamped=clipped,spinClipped
+        return previous,linear,angular,info
+    end
+    if elapsed>settings.MaximumGap then return reset("sample gap",nextState)end
+    -- A changed mass/mount layout must not become a one-frame movement impulse.
+    if (previous.COM-localCOM).Magnitude>math.max(.001,localCOM.Magnitude*1e-4)then
+        return reset("assembly COM changed",nextState)
+    end
+    local oldCenter=previous.Pose:PointToWorldSpace(localCOM)
+    local center=target:PointToWorldSpace(localCOM)
+    if (center-oldCenter).Magnitude>settings.LinearLimit*settings.MaximumGap then
+        return reset("target discontinuity",nextState)
+    end
+    local linear=(center-oldCenter)/elapsed
+    local axis,angle=previous.Pose:ToObjectSpace(target):ToAxisAngle()
+    if math.abs(angle)>=math.pi-1e-4 then return reset("ambiguous half-turn",nextState)end
+    local angular=previous.Pose:VectorToWorldSpace(axis*(angle/elapsed))
+    if not vector(linear)or not vector(angular)then return reset("invalid target derivative",nextState)end
+    linear,info.LinearClamped=cap(linear,settings.LinearLimit)
+    angular,info.AngularClamped=cap(angular,settings.AngularLimit)
+    nextState.Linear,nextState.Angular=linear,angular
+    info.Reason,info.Elapsed="target motion",elapsed
+    info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
+    return nextState,linear,angular,info
+end
+return Motion
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_public_r15.lua"] = [=====[
+-- Awes955 / testing734 original ragdoll component; copied from betabetafork.
+-- Pin: b3c9cbf740f5afe862cc26a7a39ac02d311bb44e (same component in e766d5a).
+-- Original component and adaptation record: references/awes-original-ragdoll.*
+-- Shared root/torso assemblies are driven by their animated Torso. The host
+-- filters the whole physical shell before simulation, including skipped parts.
+return function(...)
+local __context=...
+local game=__context.Game or game
+local workspace=__context.Workspace or workspace
+local gethiddenproperty=__context.GetHiddenProperty or gethiddenproperty
+local task=__context.Task or task
+__context.SaveData.Reanimator=__context.SaveData.Reanimator or {}
+local __CollisionGuard=require(script.Parent.collision_guard)
+local ctx = ...
+local Player = ctx.Player
+local Reanimate = ctx.Reanimate
+local Util = ctx.Util
+local UI = ctx.UI
+local SaveData = ctx.SaveData
+local RunService = game:GetService("RunService")
+-- BEGIN PHYSICS OBSERVATION
+local physics=require(script.Parent.ragdoll_physics).new()
+physics.PostPhysics=SaveData.Reanimator.RagdollPostPhysics~=false
+physics.RenderPose=SaveData.Reanimator.RagdollRenderPose~=false
+physics.Observe=SaveData.Reanimator.RagdollPhysicsDiagnostics==true
+physics.Follower=SaveData.Reanimator.RagdollFollower or "Gelatek motion"
+physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(SaveData.Reanimator.RagdollPoseVelocity)
+local gelatekFollower=require(script.Parent.ragdoll_public_r15_follow)({Player=Player,Reanimate=Reanimate,Physics=physics,Clock=ctx.Clock})
+local forgetPhysics=physics.Forget
+physics.Forget=function(part)
+    forgetPhysics(part)gelatekFollower.Forget(part)
+end
+-- END PHYSICS OBSERVATION
+
+local DriveNames = {"Torso", "HumanoidRootPart", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+local LimbNames = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+local DriveSet = {}
+for _, name in DriveNames do
+	DriveSet[name] = true
+end
+-- BEGIN RIG MAPPING
+local bodyMap=require(script.Parent.ragdoll_public_r15_map)(ctx)
+local lastNames
+local function refreshDriveNames(body)
+    local names=bodyMap.Names(body)
+    if names==lastNames then return end
+    lastNames=names table.clear(DriveNames)table.clear(DriveSet)
+    for _,name in ipairs(names)do table.insert(DriveNames,name)DriveSet[name]=true end
+end
+-- END RIG MAPPING
+
+local RCDDisabled = false
+pcall(function()
+	local rcd = gethiddenproperty(workspace, "RejectCharacterDeletions")
+	if rcd.Name == "Disabled" then
+		RCDDisabled = true
+	end
+end)
+if SaveData.Reanimator.RagdollRCDless == nil then
+	SaveData.Reanimator.RagdollRCDless = RCDDisabled
+end
+
+local Ragdoll = {}
+Ragdoll.RCDless = not not SaveData.Reanimator.RagdollRCDless
+
+local Status = {}
+local Skipped = {}
+local Prepared = setmetatable({}, {__mode = "k"})
+local Ready = setmetatable({}, {__mode = "k"})
+local LastCF = setmetatable({}, {__mode = "k"})
+local LastNote = 0
+local LastShared = ""
+
+local function Note(text)
+	if os.clock() - LastNote > 3 then
+		LastNote = os.clock()
+		ctx.Notify(text)
+	end
+end
+
+local function JointOther(joint, part)
+	if joint.Part0 == part then
+		return joint.Part1
+	end
+	return joint.Part0
+end
+
+local function AssemblyGroups(body)
+	local groups = {}
+	for _, name in DriveNames do
+		local part = body:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			local root = part.AssemblyRootPart
+			if root then
+				if not groups[root] then
+					groups[root] = {}
+				end
+				table.insert(groups[root], part)
+			end
+		end
+	end
+	return groups
+end
+
+local function AllSeparate(body)
+	for _, list in AssemblyGroups(body) do
+		if #list > 1 then
+			return false
+		end
+	end
+	return true
+end
+
+local function HasAllParts(body)
+	for _, name in DriveNames do
+		if not body:FindFirstChild(name) then
+			return false
+		end
+	end
+	return true
+end
+
+local function DetachLimbs(body)
+	local broken = 0
+	for _, name in DriveNames do
+		local part = body:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			for _, j in part:GetJoints() do
+				if j:IsA("JointInstance") then
+					local other = JointOther(j, part)
+					if other and other ~= part and other.Parent == body and DriveSet[other.Name] then
+						if pcall(j.Destroy, j) then
+							broken += 1
+						end
+					end
+				end
+			end
+		end
+	end
+	for _, list in AssemblyGroups(body) do
+		if #list > 1 then
+			for i = 2, #list do
+				local part = list[i]
+				for _, j in part:GetJoints() do
+					if j:IsA("JointInstance") then
+						local other = JointOther(j, part)
+						if other and not DriveSet[other.Name] and #other:GetJoints() > 1 then
+							if pcall(j.Destroy, j) then
+								broken += 1
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return broken
+end
+
+local function CheckBody(body, detach)
+	local broken = 0
+	if detach then
+		broken = DetachLimbs(body)
+	end
+	local newStatus, newSkipped, shared = {}, {}, {}
+	for _, list in AssemblyGroups(body) do
+		for i, part in list do
+			local with = list[i == 1 and 2 or 1]
+			newStatus[part.Name] = {
+				Detached = #list == 1,
+				SharesWith = with and with.Name,
+				Owned = part.ReceiveAge == 0,
+			}
+			if i > 1 then
+				newSkipped[part] = true
+				table.insert(shared, part.Name)
+			end
+		end
+	end
+	Status = newStatus
+	Skipped = newSkipped
+	if broken > 0 then
+		ctx.Notify("Ragdoll: nuked " .. broken .. " connected joint(s)")
+	end
+	local key = table.concat(shared, ", ")
+	if key ~= LastShared then
+		LastShared = key
+		if key ~= "" then
+			Note("Ragdoll: " .. key .. " still shares an assembly (weld joints)")
+		end
+	end
+end
+
+local function Prepare(body)
+	refreshDriveNames(body)
+	if Prepared[body] then return end
+	Prepared[body] = true
+	task.spawn(function()
+		local deadline = os.clock() + 5
+		while body.Parent and not HasAllParts(body) and os.clock() < deadline do
+			task.wait()
+		end
+		if not body.Parent then return end
+		CheckBody(body, Ragdoll.RCDless)
+		local attached, notowned = 0, 0
+		for _, name in DriveNames do
+			local st = Status[name]
+			if st then
+				if not st.Detached then attached += 1 end
+				if not st.Owned then notowned += 1 end
+			end
+		end
+		ctx.Notify("Ragdoll: " .. attached .. " limb(s) connected, " .. notowned .. " not owned" .. (Ragdoll.RCDless and " (RCDLESS)" or ""))
+		Ready[body] = true
+	end)
+end
+
+local function ApplyLTM(body)
+	local ltm = Reanimate.LocalTransparencyModifier or 0
+	local function set(v)
+		local lltm = ltm
+		if Reanimate.FirstPersonBody then
+			lltm = 0
+			if v.Name == "Head" then
+				lltm = ltm
+			else
+				local lol = v:FindFirstChild("AccessoryWeld")
+				if lol and lol:IsA("Weld") and lol.Part1 and lol.Part1.Name == "Head" then
+					lltm = ltm
+				end
+			end
+		end
+		v.LocalTransparencyModifier = lltm
+	end
+	for _, v in body:GetChildren() do
+		if v:IsA("BasePart") then
+			set(v)
+		elseif v:IsA("Accessory") then
+			local h = v:FindFirstChild("Handle")
+			if h and h:IsA("BasePart") then
+				set(h)
+				h.CanCollide = false
+			end
+		end
+	end
+end
+
+local function DrivePart(part, targetCF, dt, t, visualOnly)
+	if part:IsGrounded() then LastCF[part]=nil physics.Forget(part) return false end
+	local owned = part.ReceiveAge == 0
+	local st = Status[part.Name]
+	if st then
+		st.Owned = owned
+	end
+	if not owned then
+		LastCF[part] = nil
+		physics.Forget(part)
+		return false
+	end
+	part.CanCollide = false
+	if visualOnly then
+		part.CFrame = targetCF
+		return true
+	end
+	if physics.AssemblyChanged(part)then LastCF[part]=nil end
+	dt = math.max(dt, 1e-3)
+	local idle = Vector3.new(math.sin(t * 14), math.sin(t * 15 + 1.0472), math.sin(t * 16 + 2.0944)) * 0.001
+	local last = LastCF[part] or targetCF
+	local tvel = (targetCF.Position - last.Position) / dt
+	if tvel.Magnitude > 16384 then
+		tvel = tvel.Unit * 16384
+	end
+	if tvel.Magnitude < 0.12 then
+		targetCF += idle
+	end
+	local netless = Reanimate.NetlessVelocity + (math.sin(t * 0.5) + 1) / 2
+	local flat = Vector3.new(tvel.X, 0, tvel.Z)
+	if flat.Magnitude > netless then
+		flat = flat.Unit * netless
+	end
+	if Reanimate.UsePatchmaLikeNetless then
+		part.AssemblyLinearVelocity = Vector3.new(flat.X * 10, netless, flat.Z * 10)
+	else
+		part.AssemblyLinearVelocity = Vector3.new(flat.X, math.max(tvel.Y, netless), flat.Z)
+	end
+	part.CFrame = targetCF
+	if Reanimate.UseAngularVelocity then
+		local a, b = last:ToObjectSpace(targetCF):ToAxisAngle()
+		part.AssemblyAngularVelocity = last:VectorToWorldSpace(a * b) / dt + idle
+	else
+		part.AssemblyAngularVelocity = idle
+	end
+	LastCF[part] = targetCF
+	physics.Record(part,targetCF,dt)
+	return true
+end
+
+local function DriveBody(body, fake, dt, t, visualOnly, phase)
+	local okay = true
+	local driven = {}
+	bodyMap.Begin(body,fake)
+	if not visualOnly then
+		ApplyLTM(body)
+	end
+	for _, name in DriveNames do
+		local part, target = body:FindFirstChild(name), bodyMap.ControllerPart(fake,name)
+		if part and target and part:IsA("BasePart") and target:IsA("BasePart") then
+			local assembly = part.AssemblyRootPart or part
+			if driven[assembly] then
+				LastCF[part]=nil physics.Forget(part)
+				okay = false
+			else
+				driven[assembly] = true
+				local st = Status[name]
+				if not (st and st.Detached) then
+					okay = false
+				end
+				if not DrivePart(part, bodyMap.Target(part,target,fake), dt, t, visualOnly, phase) then
+					okay = false
+				end
+			end
+		else
+			okay = false
+		end
+	end
+	return okay
+end
+
+local function StatusText()
+	local lines = {}
+	for _, name in DriveNames do
+		local st = Status[name]
+		if not st then
+			table.insert(lines, name .. ": missing")
+		else
+			local state = st.Detached and "loose" or ("ATTACHED (shares assembly with " .. tostring(st.SharesWith) .. ")")
+			table.insert(lines, name .. ": " .. state .. ", " .. (st.Owned and "owned" or "not owned"))
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
+local function Config(parent)
+	UI.CreateText(parent, "Ragdoll reanimate yay now vibecode this somewhere to add fling", 10, Enum.TextXAlignment.Center)
+	UI.CreateSwitch(parent, "RCDLESS Mode", Ragdoll.RCDless).Changed:Connect(function(val)
+		Ragdoll.RCDless = val
+		SaveData.Reanimator.RagdollRCDless = val
+	end)
+	UI.CreateText(parent, "^ Reject Character Deletion is " .. (RCDDisabled and "DISABLED" or "not disabled"), 10, Enum.TextXAlignment.Center)
+	local statustext = UI.CreateText(parent, StatusText(), 12, Enum.TextXAlignment.Left)
+	local acc = 0
+	Util.LinkDestroyI2C(statustext, RunService.Heartbeat:Connect(function(dt)
+		acc += dt
+		if acc >= 0.25 then
+			acc = 0
+			statustext.Text = StatusText()
+		end
+	end))
+end
+
+local function ShowHitboxes()
+	local body = Player.Character
+	if not body then return end
+	for _, name in DriveNames do
+		local part = body:FindFirstChild(name)
+		if part then
+			pcall(Util.ShowPartHitbox, part)
+		end
+	end
+end
+
+local function Start()
+	local InitCFrame = nil
+	local char = Player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.RootPart then
+		InitCFrame = hum.RootPart.CFrame
+	end
+	Status, Skipped, LastShared = {}, {}, ""
+
+	local CharConn = Player.CharacterAdded:Connect(function()
+		local camcfr = workspace.CurrentCamera.CFrame
+		RunService.PreRender:Once(function()
+			RunService.PreAnimation:Wait()
+			workspace.CurrentCamera.CFrame = camcfr
+		end)
+	end)
+	ctx.OnStop(function() CharConn:Disconnect() end)
+
+	ctx.CreateCharacter(InitCFrame)
+	ctx.Ready()
+
+	local lastcheck = 0
+	while not ctx.IsStopping() do
+		local dt = RunService.PreSimulation:Wait()
+		pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+		local t = os.clock()
+		local body = Player.Character
+		local fake = Reanimate.Character
+		if body then
+			Prepare(body)
+		end
+		if fake then
+			local RCHumanoid = fake:FindFirstChildOfClass("Humanoid")
+			local cam = workspace.CurrentCamera
+			if cam and RCHumanoid then
+				bodyMap.Camera(body,fake)
+			end
+			local okay = false
+			if body and Ready[body] then
+				if t - lastcheck > 0.5 then
+					lastcheck = t
+					CheckBody(body, false)
+				end
+				okay = DriveBody(body, fake, dt, t, false)
+			end
+			for _, v in fake:GetChildren() do
+				if v:IsA("BasePart") and table.find(LimbNames, v.Name) then
+					v.Transparency = okay and 1 or Reanimate.PlaceholderTransparency
+				end
+			end
+		end
+		RunService.PreRender:Wait()
+		if Reanimate:ShouldRotationType() then
+			Reanimate:CameraLockCharacter()
+		end
+		local body2, fake2 = Player.Character, Reanimate.Character
+		if body2 and fake2 and Ready[body2] then
+			DriveBody(body2, fake2, dt, os.clock(), true)
+		end
+	end
+
+	CharConn:Disconnect()
+	-- Stop leaves the physical avatar alive.
+end
+
+-- BEGIN MANAGED ADAPTER
+-- Lifecycle/settings glue and the reversible post-physics pose commit.
+local __driveBody=DriveBody
+DriveBody=function(body,...)
+    if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return false end
+    return __driveBody(body,...)
+end
+local __prepare=Prepare
+Prepare=function(body)
+    if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return end
+    return __prepare(body)
+end
+local __checkBody=CheckBody
+CheckBody=function(body,...)
+    if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return end
+    return __checkBody(body,...)
+end
+local __drivePart=DrivePart
+DrivePart=function(part,target,dt,t,visualOnly,phase)
+    if physics.RenderPose==false and (phase=="RenderPose"or phase==nil and visualOnly)then return true end
+    if physics.Follower=="Awes motion"then return __drivePart(part,target,dt,t,visualOnly)end
+    return gelatekFollower.Write(part,target,dt,phase or (visualOnly and "RenderPose"or "PreSimulation"),Reanimate.Character,t)
+end
+local __statusText=StatusText
+StatusText=function()return __statusText().."\n"..physics.StatusText()end
+local __config=Config
+Config=function(parent)
+    local names={"Gelatek motion","Gelatek netless","Awes motion","Pose velocity (fallback)"}
+    UI.CreateDropdown(parent,"Ragdoll follower",names,table.find(names,physics.Follower)or 1).Changed:Connect(function(value)
+        physics.Follower=names[value]or names[1]SaveData.Reanimator.RagdollFollower=physics.Follower
+        gelatekFollower.Clear()table.clear(LastCF)
+    end)
+    UI.CreateText(parent,"Gelatek motion shares Gelatek poses and pre-physics support, then sends controller motion with zero spin. Gelatek netless retains its netless output; Awes motion keeps the preceding writer.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"Pose velocity is an opt-in comparison: exports target COM movement and world rotation after the pose commit. Local pose error cannot detect a remote-only failure.",11,Enum.TextXAlignment.Left)
+    local function limit(key,value)
+        physics.PoseVelocity[key]=value
+        physics.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings(physics.PoseVelocity)
+        SaveData.Reanimator.RagdollPoseVelocity=table.clone(physics.PoseVelocity)
+        gelatekFollower.Clear()
+    end
+    UI.CreateSlider(parent,"Pose velocity limit (studs/s)",physics.PoseVelocity.LinearLimit,10,250,10).Changed:Connect(function(value)
+        limit("LinearLimit",value)
+    end)
+    UI.CreateSlider(parent,"Pose angular limit (rad/s)",physics.PoseVelocity.AngularLimit,1,60,1).Changed:Connect(function(value)
+        limit("AngularLimit",value)
+    end)
+    UI.CreateSwitch(parent,"Commit ragdoll pose after physics (Awes)",physics.PostPhysics).Changed:Connect(function(value)
+        physics.PostPhysics=value==true SaveData.Reanimator.RagdollPostPhysics=physics.PostPhysics
+    end)
+    UI.CreateSwitch(parent,"Measure ragdoll physics drift",physics.Observe).Changed:Connect(function(value)
+        physics.Observe=value==true SaveData.Reanimator.RagdollPhysicsDiagnostics=physics.Observe
+    end)
+    UI.CreateSwitch(parent,"Correct physical pose before render",physics.RenderPose).Changed:Connect(function(value)
+        physics.RenderPose=value==true SaveData.Reanimator.RagdollRenderPose=physics.RenderPose
+    end)
+    UI.CreateText(parent,"Disable render correction to compare the actual post-physics body without extra physical CFrame writes. The animation controller still runs.",11,Enum.TextXAlignment.Left)
+    UI.CreateText(parent,"R6/R15 target mapping is available. Modern R15 AnimationConstraint preparation is experimental; mapping alone does not establish remote replication.",11,Enum.TextXAlignment.Left)
+    return __config(parent)
+end
+local __start=Start
+Start=function()
+    local previousHeight=workspace.FallenPartsDestroyHeight
+    local collisions=__CollisionGuard.new()
+    local create=ctx.CreateCharacter
+    ctx.CreateCharacter=function(...)
+        local result=create(...)
+        bodyMap.CaptureController(Reanimate.Character)
+        return result
+    end
+    ctx.OnStop(function()
+        bodyMap.Clear()
+        physics.Stop()
+        gelatekFollower.Clear()
+        collisions.Clear()
+        pcall(function()workspace.FallenPartsDestroyHeight=previousHeight end)
+        table.clear(Prepared)table.clear(Ready)table.clear(LastCF)
+    end)
+    local function filterPhysicalShell()
+        local physical=Player.Character
+        if physical==Reanimate.Character then physical=nil end
+        if ctx.CanDriveBody and not ctx.CanDriveBody(physical)then
+            if physics.Body or collisions.Character then
+                gelatekFollower.Clear()physics.Bind(nil)collisions.Clear()bodyMap.Clear()
+            end
+            return
+        end
+        if physics.Body~=physical then gelatekFollower.Clear()bodyMap.CapturePhysical(physical)end
+        physics.Bind(physical)
+        if collisions.Character~=physical then collisions.Bind(physical)end
+        collisions.Enforce()
+    end
+    filterPhysicalShell()
+    if Reanimate.Current then Reanimate.Current.RagdollPhysics=physics end
+    ctx.Connect(RunService.PreSimulation,filterPhysicalShell)
+    ctx.Connect(RunService.PostSimulation,function(dt)
+        if ctx.IsStopping()then return end
+        local body,fake=Player.Character,Reanimate.Character
+        physics.AfterPhysics(body)
+        if (physics.Follower~="Awes motion"or physics.PostPhysics)and body and fake and Ready[body]then
+            DriveBody(body,fake,dt,os.clock(),true,"PostSimulation")
+        end
+    end)
+    return __start()
+end
+
+return "Ragdoll Reanimator (module)", Start, {
+	Config = Config,
+	ShowHitboxes = ShowHitboxes,
+-- BEGIN MANAGED OPTIONS
+    StatusText=StatusText,
+    ApplySettings=require(script.Parent.ragdoll_settings)({Saved=SaveData.Reanimator,Physics=physics,Ragdoll=Ragdoll,
+        Reset=function()gelatekFollower.Clear()table.clear(LastCF)end}),
+-- END MANAGED OPTIONS
+}
+
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_public_r15_follow.lua"] = [=====[
+-- Gelatek's pose-first following with the game's existing ragdoll/ownership
+-- preparation. It does not run Gelatek's death or character-handoff routines.
+local Follow=require(script.Parent.body_follower)
+local Motion=require(script.Parent.ragdoll_pose_velocity)
+return function(ctx)
+    local api={States={}}
+    function api.Clear()
+        for part,state in pairs(api.States)do
+            Follow.ClearPose(part)Follow.ClearPose(state.Assembly)
+            ctx.Physics.Forget(part)
+        end
+        table.clear(api.States)
+    end
+    function api.Forget(part)
+        local state=api.States[part]
+        Follow.ClearPose(part)
+        if state then Follow.ClearPose(state.Assembly)end
+        api.States[part]=nil
+    end
+    function api.Write(part,target,dt,phase,controller,now)
+        local physical=ctx.Player.Character
+        local assembly=part.AssemblyRootPart or part
+        local root=controller and controller:FindFirstChild("HumanoidRootPart")
+        if not Follow.ValidPose(target)or part:IsGrounded()or part.ReceiveAge~=0 or not physical or not part:IsDescendantOf(physical)
+            or assembly.Anchored or not assembly:IsDescendantOf(physical)
+            or root and (root.AssemblyRootPart or root)==assembly then
+            api.Forget(part)ctx.Physics.Forget(part)return false
+        end
+        local state=api.States[part]
+        if state and (state.Assembly~=assembly or state.Controller~=controller)then api.Forget(part)state=nil end
+        if phase=="PreSimulation"then
+            if not state then return false end -- no support before an accepted pose
+            part.AssemblyLinearVelocity=Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)
+            part.AssemblyAngularVelocity=Vector3.zero
+            ctx.Physics.Record(part,target,dt)
+            return true
+        end
+        if phase=="RenderPose"and not state then return false end
+        local history,linear,angular,motion
+        if phase=="PostSimulation"and ctx.Physics.Follower=="Pose velocity (fallback)"then
+            -- Read COM in the driven part's frame BEFORE changing the assembly.
+            local okay,localCOM=pcall(function()
+                return part.CFrame:PointToObjectSpace(assembly.AssemblyCenterOfMass)
+            end)
+            history,linear,angular,motion=Motion.Sample(state and state.Motion,target,okay and localCOM or nil,
+                ctx.Clock and ctx.Clock()or now or os.clock(),Follow.MotionVelocity(root),ctx.Physics.PoseVelocity)
+        end
+        if not Follow.CommitPose(part,target)then api.Forget(part)return false end
+        Follow.MarkPose(assembly,assembly.CFrame)
+        if phase=="PostSimulation"then
+            -- The configured netless pulse remains in PreSimulation. Do not
+            -- advertise it as upward avatar movement after the pose commit.
+            part.AssemblyLinearVelocity=linear or (ctx.Physics.Follower=="Gelatek netless"
+                and Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)or Follow.MotionVelocity(root))
+            part.AssemblyAngularVelocity=angular or Vector3.zero
+            api.States[part]=state or {Assembly=assembly,Controller=controller}
+            api.States[part].Motion=history
+            ctx.Physics.Record(part,target,dt,motion)
+        end
+        return true
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_public_r15_map.lua"] = [=====[
 -- R6 controller poses mapped onto the physical avatar's actual rig type.
 local R15=require(script.Parent.gelatek_r15)
 local CameraSubject=require(script.Parent.camera_subject)
@@ -75387,284 +78084,931 @@ return function(ctx)
     return api
 end
 ]=====],
-    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_gelatek.lua"] = [=====[
--- Gelatek's pose-first following with the game's existing ragdoll/ownership
--- preparation. It does not run Gelatek's death or character-handoff routines.
-local Follow=require(script.Parent.body_follower)
-local Motion=require(script.Parent.ragdoll_pose_velocity)
-return function(ctx)
-    local api={States={}}
-    function api.Clear()
-        for part,state in pairs(api.States)do
-            Follow.ClearPose(part)Follow.ClearPose(state.Assembly)
-            ctx.Physics.Forget(part)
-        end
-        table.clear(api.States)
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_r15_joints.lua"] = [=====[
+-- Use the existing Motor6D angle/offset functions for connected R15 parts.
+-- R15 moves HumanoidRootPart once; Root/Waist carry the torso animation.
+local motorJoints=require(script.Parent.ragdoll_r6_joints)
+local r15=require(script.Parent.gelatek_r15)
+return function(ctx,map,physics)
+    local r6Names=map.Names(nil)
+    local names={"HumanoidRootPart","LowerTorso","UpperTorso","Head"}
+    for _,entry in ipairs(r15.Segments)do
+        if entry.Name~="UpperTorso"and entry.Name~="LowerTorso"then table.insert(names,entry.Name)end
     end
-    function api.Forget(part)
-        local state=api.States[part]
-        Follow.ClearPose(part)
-        if state then Follow.ClearPose(state.Assembly)end
-        api.States[part]=nil
+    local bodyNames={}for _,name in ipairs(names)do bodyNames[name]=true end
+    local r15Map=setmetatable({Names=function(body)
+        if body==nil or map.Names(body)~=r6Names then return names end
+        return r6Names
+    end},{__index=map})
+    local api=motorJoints(ctx,r15Map,physics)
+    local prepare,clear,snapshot=api.Prepare,api.Clear,api.Snapshot
+    local blocked
+    local function currentMotors(body)
+        local result={}
+        for joint in pairs(physics.Objects)do
+            if joint:IsA("Motor6D")then
+                local a,b=joint.Part0,joint.Part1
+                if a and b and a.Parent==body and b.Parent==body and bodyNames[a.Name]and bodyNames[b.Name]then
+                    result[joint]={joint.Parent,a,b,joint.Enabled,joint.Active,joint.C0,joint.C1}
+                end
+            end
+        end
+        return result
     end
-    function api.Write(part,target,dt,phase,controller,now)
-        local physical=ctx.Player.Character
-        local assembly=part.AssemblyRootPart or part
-        local root=controller and controller:FindFirstChild("HumanoidRootPart")
-        if not Follow.ValidPose(target)or part:IsGrounded()or part.ReceiveAge~=0 or not physical or not part:IsDescendantOf(physical)
-            or assembly.Anchored or not assembly:IsDescendantOf(physical)
-            or root and (root.AssemblyRootPart or root)==assembly then
-            api.Forget(part)ctx.Physics.Forget(part)return false
+    local function unchanged(body,figure)
+        if not blocked or blocked.Body~=body or blocked.Controller~=figure
+            or blocked.Write~=ctx.Util.SetCharacterJointOffset or blocked.LocalWrite~=ctx.Util.SetCharacterJointLocalOffset then return false end
+        for joint,old in pairs(blocked.Motors)do
+            if not physics.Objects[joint]or joint.Parent~=old[1]or joint.Part0~=old[2]or joint.Part1~=old[3]
+                or joint.Enabled~=old[4]or joint.Active~=old[5]or joint.C0~=old[6]or joint.C1~=old[7]then return false end
         end
-        local state=api.States[part]
-        if state and (state.Assembly~=assembly or state.Controller~=controller)then api.Forget(part)state=nil end
-        if phase=="PreSimulation"then
-            if not state then return false end -- no support before an accepted pose
-            part.AssemblyLinearVelocity=Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)
-            part.AssemblyAngularVelocity=Vector3.zero
-            ctx.Physics.Record(part,target,dt)
-            return true
-        end
-        if phase=="RenderPose"and not state then return false end
-        local history,linear,angular,motion
-        if phase=="PostSimulation"and ctx.Physics.Follower=="Pose velocity (fallback)"then
-            -- Read COM in the driven part's frame BEFORE changing the assembly.
-            local okay,localCOM=pcall(function()
-                return part.CFrame:PointToObjectSpace(assembly.AssemblyCenterOfMass)
-            end)
-            history,linear,angular,motion=Motion.Sample(state and state.Motion,target,okay and localCOM or nil,
-                ctx.Clock and ctx.Clock()or now or os.clock(),Follow.MotionVelocity(root),ctx.Physics.PoseVelocity)
-        end
-        if not Follow.CommitPose(part,target)then api.Forget(part)return false end
-        Follow.MarkPose(assembly,assembly.CFrame)
-        if phase=="PostSimulation"then
-            -- The configured netless pulse remains in PreSimulation. Do not
-            -- advertise it as upward avatar movement after the pose commit.
-            part.AssemblyLinearVelocity=linear or (ctx.Physics.Follower=="Gelatek netless"
-                and Follow.RetentionVelocity(root,ctx.Reanimate.NetlessVelocity)or Follow.MotionVelocity(root))
-            part.AssemblyAngularVelocity=angular or Vector3.zero
-            api.States[part]=state or {Assembly=assembly,Controller=controller}
-            api.States[part].Motion=history
-            ctx.Physics.Record(part,target,dt,motion)
+        for joint in pairs(physics.Objects)do
+            if joint:IsA("Motor6D")and not blocked.Motors[joint]then
+                local a,b=joint.Part0,joint.Part1
+                if a and b and a.Parent==body and b.Parent==body and bodyNames[a.Name]and bodyNames[b.Name]then return false end
+            end
         end
         return true
     end
-    return api
-end
-]=====],
-    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_physics.lua"] = [=====[
--- Client-only, bounded observations made before the post-physics pose commit.
--- These are solver deltas, not measurements of another client's replication.
-local Physics={}
-function Physics.new()
-    local api={Samples={},Objects={},Connections={},Rows={},PostPhysics=true,RenderPose=true,Observe=false,Running=false}
-    api.PoseVelocity=require(script.Parent.ragdoll_pose_velocity).Settings()
-    local function resetConnections()
-        for _,connection in ipairs(api.Connections)do connection:Disconnect()end
-        table.clear(api.Connections)table.clear(api.Objects)table.clear(api.Samples)
-    end
-    local function include(object)
-        if object:IsA("Constraint")or object:IsA("BodyMover")or object:IsA("Motor6D")then
-            api.Objects[object]=true
-        end
-    end
-    function api.Bind(body)
-        if api.Body==body then return end
-        resetConnections()api.Body=body api.Rows={}api.Running=body~=nil
-        api.HasSample=false api.LastObservedAt=nil api.LastReadError=nil
-        if not body then return end
-        for _,object in ipairs(body:GetDescendants())do include(object)end
-        table.insert(api.Connections,body.DescendantAdded:Connect(include))
-        table.insert(api.Connections,body.DescendantRemoving:Connect(function(object)api.Objects[object]=nil api.Forget(object)end))
-    end
-    function api.Forget(part)api.Samples[part]=nil end
-    function api.AssemblyChanged(part)
-        local previous=api.Samples[part]
-        return previous~=nil and previous.Assembly~=(part.AssemblyRootPart or part)
-    end
-    function api.Record(part,target,dt,motion)
-        local sample=api.Samples[part]or {}api.Samples[part]=sample
-        sample.Target,sample.DeltaTime,sample.Assembly=target,dt,part.AssemblyRootPart or part
-        if motion then sample.Motion=table.clone(motion)end
-    end
-    function api.AfterPhysics(body)
-        if not api.Observe or body~=api.Body then return end
-        local rows={}
-        for part,sample in pairs(api.Samples)do
-            if #rows==32 then break end
-            if part.Parent and part:IsDescendantOf(body)then
-                local okay,row=pcall(function()
-                    local observed=part.CFrame
-                    local _,angle=sample.Target:ToObjectSpace(observed):ToAxisAngle()
-                    local delta=(observed.Position-sample.Target.Position).Magnitude
-                    assert(delta==delta and delta<math.huge and angle==angle,"invalid solver pose")
-                    local linear,angular=part.AssemblyLinearVelocity.Magnitude,part.AssemblyAngularVelocity.Magnitude
-                    assert(linear==linear and linear<math.huge and angular==angular and angular<math.huge,"invalid solver velocity")
-                    return {Name=part.Name,ReceiveAgeZero=part.ReceiveAge==0,
-                        SolverDeltaStuds=delta,SolverDeltaRadians=math.abs(angle),DeltaTime=sample.DeltaTime,
-                        LinearSpeed=linear,AngularSpeed=angular,
-                        AssemblyChanged=sample.Assembly~=(part.AssemblyRootPart or part)}
-                end)
-                if okay then table.insert(rows,row)else api.LastReadError=tostring(row):sub(1,240)end
+    function api.Prepare(body,figure)
+        if unchanged(body,figure)then return end
+        blocked=nil
+        prepare(body,figure)
+        local reason,rejected
+        if next(api.Rejected)then
+            rejected=0 for _ in pairs(api.Rejected)do rejected+=1 end
+            reason="R15 Motor6D writes failed; connected parts cannot be animated"
+        else
+            local roots={}
+            for _,component in ipairs(api.Components)do
+                local root=component.Carrier.AssemblyRootPart or component.Carrier
+                if roots[root]then reason="R15 has joined parts outside the animated Motor6D chain"break end
+                roots[root]=true
             end
         end
-        table.sort(rows,function(a,b)return a.Name<b.Name end)api.Rows=rows
-        api.HasSample=true api.LastObservedAt=os.clock()
+        if reason then
+            local motors=currentMotors(body)
+            clear()
+            blocked={Body=body,Controller=figure,Motors=motors,Rejected=rejected or 0,Reason=reason,
+                Write=ctx.Util.SetCharacterJointOffset,LocalWrite=ctx.Util.SetCharacterJointLocalOffset}
+            api.FallbackReason=reason
+        end
     end
+    function api.Clear()blocked=nil clear()end
     function api.Snapshot()
-        local result={ClientObservedOnly=true,PostPhysics=api.PostPhysics,Running=api.Running,
-            Follower=api.Follower,RenderPose=api.RenderPose,Actuators={},PoseVelocity={Enabled=api.Follower=="Pose velocity (fallback)",
-                Settings=table.clone(api.PoseVelocity),Parts={}},
-            Measuring=api.Observe,Sampled=api.HasSample==true,ObservedAt=api.LastObservedAt,
-            Phase="before post-simulation correction",Parts={},Constraints={},ConstraintCount=0,
-            MotorCount=0,MoverCount=0,AnimationConstraintCount=0,MaxSolverDeltaStuds=0}
-        result.LastReadError=api.LastReadError
-        if result.PoseVelocity.Enabled then
-            for part,sample in pairs(api.Samples)do
-                if #result.PoseVelocity.Parts==32 then break end
-                if part.Parent and sample.Motion then
-                    local row=table.clone(sample.Motion)row.Name=part.Name
-                    table.insert(result.PoseVelocity.Parts,row)
-                end
-            end
-            table.sort(result.PoseVelocity.Parts,function(a,b)return a.Name<b.Name end)
+        local result=snapshot()
+        if blocked then
+            result.RejectedMotors=blocked.Rejected result.FallbackReason=blocked.Reason
+            result.Unsupported=true
         end
-        result.TopologyScope="physical character descendants"
-        result.ExternalParentConstraintsScanned=false
-        for _,row in ipairs(api.Rows)do
-            table.insert(result.Parts,table.clone(row))
-            result.MaxSolverDeltaStuds=math.max(result.MaxSolverDeltaStuds,row.SolverDeltaStuds)
-        end
-        local inspected=0
-        for object in pairs(api.Objects)do
-            inspected+=1 if inspected>256 then result.TopologyTruncated=true break end
-            if not object.Parent then continue end
-            local enabled=true
-            pcall(function()enabled=object.Enabled~=false end)
-            if not enabled then continue end
-            local class=object.ClassName
-            if class~="NoCollisionConstraint"then
-                if #result.Actuators<32 then
-                    local row={Name=object.Name,ClassName=class}
-                    pcall(function()row.Active=object.Active end)
-                    pcall(function()
-                        local a,b
-                        if object:IsA("Motor6D")then a,b=object.Part0,object.Part1
-                        elseif object:IsA("BodyMover")then a=object.Parent
-                        else a=object.Attachment0 and object.Attachment0.Parent b=object.Attachment1 and object.Attachment1.Parent end
-                        row.Part0,row.Part1=a and a.Name,b and b.Name
-                        row.ExternalEndpoint=(a~=nil and not a:IsDescendantOf(api.Body))or(b~=nil and not b:IsDescendantOf(api.Body))or false
-                        if a and b and a:IsA("BasePart")and b:IsA("BasePart")then
-                            row.SameAssembly=(a.AssemblyRootPart or a)==(b.AssemblyRootPart or b)
-                        end
-                    end)
-                    table.insert(result.Actuators,row)
-                else result.ActuatorsTruncated=true end
-            end
-            if object:IsA("Motor6D")then result.MotorCount+=1
-            elseif object:IsA("BodyMover")then result.MoverCount+=1
-            elseif class~="NoCollisionConstraint"then
-                result.ConstraintCount+=1
-                if class=="AnimationConstraint"then result.AnimationConstraintCount+=1 end
-                if #result.Constraints<32 then
-                    local row={Name=object.Name,ClassName=class}
-                    pcall(function()row.Active=object.Active end)
-                    pcall(function()
-                        local a,b=object.Attachment0,object.Attachment1
-                        row.Part0=a and a.Parent and a.Parent.Name
-                        row.Part1=b and b.Parent and b.Parent.Name
-                    end)
-                    table.insert(result.Constraints,row)
-                end
-            end
-        end
-        local humanoid=api.Body and api.Body:FindFirstChildOfClass("Humanoid")
-        if humanoid then result.RigType=tostring(humanoid.RigType)end
-        result.R15MappingOnly=true
         return result
     end
-    function api.StatusText()
-        local snapshot=api.Snapshot()
-        local movement=snapshot.Sampled and string.format("%.3f studs",snapshot.MaxSolverDeltaStuds)or "not sampled"
-        return string.format("Follower: %s\nPhysics commit: %s; render correction: %s; pre-correction solver movement %s\n%d enabled constraints, %d animation joints, %d motors, %d movers under the character",
-            api.Follower or "Awes motion",
-            api.PostPhysics and "after simulation"or "original timing",api.RenderPose and "on"or "off",movement,
-            snapshot.ConstraintCount,snapshot.AnimationConstraintCount,snapshot.MotorCount,snapshot.MoverCount)
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_r6_joints.lua"] = [=====[
+-- Retained R6 motors use the same outgoing/local pose split as Limb.
+-- Disabling a motor locally does not detach that limb on another client.
+local Follow=require(script.Parent.body_follower)
+return function(ctx,map,physics)
+    local Util=ctx.Util
+    local api={Joints={},Parts={},Components={},Rejected={},Revision=0}
+    local r6=map.Names(nil)
+    local carrierPhysics={Follower="Gelatek motion",Samples={}}
+    function carrierPhysics.Record(part,target,dt,motion)physics.Record(part,target,dt,motion)end
+    function carrierPhysics.Forget(part)physics.Forget(part)end
+    function carrierPhysics.NoteVelocityClamp(...)if physics.NoteVelocityClamp then physics.NoteVelocityClamp(...)end end
+    function carrierPhysics.NoteCorrection(...)if physics.NoteCorrection then physics.NoteCorrection(...)end end
+    local follower=require(script.Parent.ragdoll_gelatek)({Player=ctx.Player,Reanimate=ctx.Reanimate,
+        Physics=carrierPhysics,Clock=ctx.Clock,Owned=function(_,root)
+            if physics.OwnBody then return physics.OwnBody(root)end
+            return root.ReceiveAge==0
+        end})
+    local function same(j,s)
+        return j.Parent==s.Parent and j.Part0==s.A and j.Part1==s.B and j.C0==s.C0 and j.C1==s.C1
     end
-    function api.Stop()
-        resetConnections()api.Body=nil api.Running=false
+    local function restore(j,s)
+        if not j.Parent or not same(j,s)then return end
+        for name,value in pairs(s.Last)do
+            pcall(function()if j[name]==value then j[name]=s.Before[name]end end)
+        end
+        if type(Util.HiddenPropertyGetter)=="function"and type(Util.TrySetHiddenProperty)=="function"then
+            for name,value in pairs(s.HiddenLast)do
+                local ok,current=pcall(Util.HiddenPropertyGetter,j,name)
+                if ok and current==value then pcall(Util.TrySetHiddenProperty,j,name,s.HiddenBefore[name])end
+            end
+        end
+    end
+    local function remove(j)
+        local s=api.Joints[j]if not s then return end
+        restore(j,s)api.Joints[j]=nil api.Revision+=1
+    end
+    function api.Clear()
+        for j,s in pairs(api.Joints)do restore(j,s)end
+        for part in pairs(api.Parts)do Follow.ClearPose(part)end
+        table.clear(api.Joints)table.clear(api.Parts)table.clear(api.Components)table.clear(api.Rejected)
+        follower.Clear()api.Body=nil api.LastStep=nil api.InvalidStep=nil api.Controller=nil api.Revision+=1
+        api.EligibleMotors,api.WaitingForOwnership,api.DisabledMotors,api.InactiveMotors=0,0,0,0
+        api.FallbackReason="waiting for R6 preparation"
+    end
+    local function capture(j)
+        local s={Parent=j.Parent,A=j.Part0,B=j.Part1,C0=j.C0,C1=j.C1,
+            Before={},Last={},HiddenBefore={},HiddenLast={}}
+        for _,name in ipairs({"Transform","MaxVelocity","DesiredAngle"})do
+            local ok,value=pcall(function()return j[name]end)
+            if ok and value~=nil then s.Before[name]=value end
+        end
+        if type(Util.HiddenPropertyGetter)=="function"then
+            for _,name in ipairs({"ReplicateCurrentOffset6D","ReplicateCurrentAngle6D"})do
+                local ok,value=pcall(Util.HiddenPropertyGetter,j,name)
+                if ok and typeof(value)=="Vector3"then s.HiddenBefore[name]=value end
+            end
+        end
+        return s
+    end
+    local function remember(j,s,localDisplay,transform)
+        for name in pairs(s.Before)do if name~="Transform"or localDisplay then s.Last[name]=j[name]end end
+        if type(Util.HiddenPropertyGetter)=="function"then
+            local axis,angle=transform:ToAxisAngle()
+            local expected={ReplicateCurrentOffset6D=transform.Position,ReplicateCurrentAngle6D=axis*angle}
+            for name in pairs(s.HiddenBefore)do
+                local ok,value=pcall(Util.HiddenPropertyGetter,j,name)
+                if ok and typeof(value)=="Vector3"and (value-expected[name]).Magnitude<.00001 then s.HiddenLast[name]=value end
+            end
+        end
+    end
+    local function target(p,figure)
+        local controller=figure and map.ControllerPart(figure,p.Name)
+        if not controller or not controller:IsA("BasePart")then return end
+        local pose=map.Target(p,controller,figure)
+        if Follow.ValidPose(pose)then return pose end
+    end
+    local function eligible(j,body)
+        if not j.Parent or not j:IsA("Motor6D")or j.Enabled==false or j.Active==false then return false end
+        if Util.CharacterJointTransportOnly and Util.CharacterJointTransportOnly[j]then return false end
+        local a,b=j.Part0,j.Part1
+        if not a or not b or a==b or a.Parent~=body or b.Parent~=body then return false end
+        return table.find(r6,a.Name)~=nil and table.find(r6,b.Name)~=nil
+            and body:FindFirstChild(a.Name)==a and body:FindFirstChild(b.Name)==b
+    end
+    local function writable(p,body)
+        local root=p.AssemblyRootPart or p
+        local owned
+        if physics.OwnBody then owned=physics.OwnBody(root)else owned=root.ReceiveAge==0 end
+        return not root.Anchored and not p:IsGrounded()and root:IsDescendantOf(body)and owned==true
+    end
+    local function publish(j,s,figure,localDisplay)
+        local offset
+        if s.A.Name=="HumanoidRootPart"and s.B.Name=="Torso"or s.B.Name=="HumanoidRootPart"and s.A.Name=="Torso"then
+            -- Torso carries the body's world pose, as in the older follower.
+            -- RootJoint holds its rig-defined rest link; adding the controller's
+            -- torso animation here would apply that motion a second time.
+            offset=s.C0*s.C1:Inverse()
+        else
+            local a,b=target(s.A,figure),target(s.B,figure)
+            if not a or not b then return false end
+            offset=a:ToObjectSpace(b)
+        end
+        local ok,accepted=pcall(Util.SetCharacterJointOffset,j,offset,nil,true)
+        if ok and accepted==true and localDisplay then
+            ok,accepted=pcall(Util.SetCharacterJointLocalOffset,j,offset)
+        end
+        remember(j,s,localDisplay and ok and accepted==true,s.C0:Inverse()*offset*s.C1)
+        return ok and accepted==true
+    end
+    -- Called before the release guard. Preserve only native motors for which
+    -- both production pose channels and the separate display writer work.
+    function api.Prepare(body,figure)
+        if api.Body~=body then api.Clear()api.Body=body end
+        if figure and api.Controller~=figure then api.Clear()api.Body=body api.Controller=figure end
+        if figure and api.LastStep==physics.StepSerial then return end
+        table.clear(api.Parts)table.clear(api.Components)
+        api.EligibleMotors,api.WaitingForOwnership,api.DisabledMotors,api.InactiveMotors=0,0,0,0
+        if not body or not figure or map.Names(body)~=r6 then api.FallbackReason="waiting for R6 body/controller"return end
+        if type(Util.SetCharacterJointOffset)~="function"or type(Util.SetCharacterJointLocalOffset)~="function"then
+            api.FallbackReason="joint APIs unavailable; using loose-part follower"return
+        end
+        api.LastStep=physics.StepSerial api.InvalidStep=nil
+        map.Begin(body,figure)
+        for j,s in pairs(api.Joints)do
+            if not same(j,s)or not eligible(j,body)then remove(j)end
+        end
+        for j in pairs(physics.Objects)do
+            if j:IsA("Motor6D")and j.Part0 and j.Part1 and j.Part0.Parent==body and j.Part1.Parent==body then
+                if j.Enabled==false then api.DisabledMotors+=1 elseif j.Active==false then api.InactiveMotors+=1 end
+            end
+            if eligible(j,body)then
+                api.EligibleMotors+=1
+                local rejected=api.Rejected[j]
+                if rejected and not same(j,rejected)then api.Rejected[j]=nil rejected=nil end
+                if not rejected then
+                    local s=api.Joints[j]
+                    if writable(j.Part0,body)then
+                        s=s or capture(j)
+                        if publish(j,s,figure,true)then
+                            if not api.Joints[j]then api.Revision+=1 end
+                            api.Joints[j]=s
+                        else restore(j,s)if api.Joints[j]then api.Revision+=1 end api.Joints[j]=nil api.Rejected[j]=s end
+                    else api.WaitingForOwnership+=1 end
+                end
+            end
+        end
+        local adjacent={}
+        for j,s in pairs(api.Joints)do
+            adjacent[s.A]=adjacent[s.A]or {}adjacent[s.B]=adjacent[s.B]or {}
+            table.insert(adjacent[s.A],s.B)table.insert(adjacent[s.B],s.A)
+        end
+        for start in pairs(adjacent)do if not api.Parts[start]then
+            local component={Parts={start},Carrier=start,Written=false}api.Parts[start]=component
+            local cursor=1
+            while cursor<=#component.Parts do
+                local p=component.Parts[cursor]cursor+=1
+                -- Match the older Torso-first physical writer. Limb poses stay
+                -- relative to this animated anchor through their native motors.
+                if table.find(r6,p.Name)<table.find(r6,component.Carrier.Name)then component.Carrier=p end
+                for _,q in ipairs(adjacent[p])do if not api.Parts[q]then
+                    api.Parts[q]=component table.insert(component.Parts,q)
+                end end
+            end
+            table.insert(api.Components,component)
+        end end
+        if #api.Components>0 then
+            api.FallbackReason=api.WaitingForOwnership>0 and "native joint groups waiting for ownership"or nil
+        elseif next(api.Rejected)then api.FallbackReason="joint channels rejected; using loose-part follower"
+        elseif api.WaitingForOwnership>0 then api.FallbackReason="native ownership unavailable; no independent writes to joined limbs"
+        else api.FallbackReason=("no active retained body motors (%d disabled, %d inactive); using loose-part follower"):format(api.DisabledMotors,api.InactiveMotors)end
+    end
+    function api.Keep(j)return api.Joints[j]~=nil end
+    function api.Handles(p)return api.Parts[p]~=nil end
+    function api.Step(body,figure,dt,phase,t)
+        local okay,writes=api.InvalidStep~=physics.StepSerial,0
+        carrierPhysics.Follower=physics.Follower carrierPhysics.PoseVelocity=physics.PoseVelocity
+        carrierPhysics.MotionTime=physics.MotionTime
+        if phase=="PostSimulation"then
+            for j,s in pairs(api.Joints)do
+                if not same(j,s)or not eligible(j,body)then
+                    remove(j)okay=false api.InvalidStep=physics.StepSerial
+                    api.FallbackReason="body joints changed; rebuilding the loose-part fallback"
+                elseif writable(s.A,body)then
+                    if not publish(j,s,figure,false)then
+                        api.Rejected[j]=s remove(j)okay=false api.InvalidStep=physics.StepSerial
+                        api.FallbackReason="joint channels rejected; switching to loose-part follower next physics step"
+                    end
+                end
+            end
+        end
+        for _,component in ipairs(api.Components)do
+            local p=component.Carrier
+            local pose=target(p,figure)
+            -- A rejected group waits for next step's guard/fallback rebuild;
+            -- it must not make an unrelated loose group look successful.
+            component.Written=okay and pose~=nil and follower.Write(p,pose,dt,phase,figure,t)==true
+            if component.Written then writes+=1 end
+            if not component.Written then follower.Forget(p)physics.Forget(p)end
+            -- Effects read the actual solved pose, never a predicted target.
+            if phase=="PostSimulation"then for _,part in ipairs(component.Parts)do Follow.MarkPose(part,part.CFrame)end end
+        end
+        for _,component in ipairs(api.Components)do if not component.Written then okay=false end end
+        return okay,writes
+    end
+    function api.PartState(part)
+        local c=api.Parts[part]
+        if not c then return end
+        local root=part.AssemblyRootPart or part
+        local owned
+        if physics.OwnBody then owned=physics.OwnBody(root)else owned=root.ReceiveAge==0 end
+        return {JointDriven=part~=c.Carrier,Carrier=c.Carrier.Name,Following=c.Written,
+            AssemblyOwned=owned==true,ObserverVerified=false}
+    end
+    function api.Snapshot()
+        local count,rejected=0,0
+        for _ in pairs(api.Joints)do count+=1 end
+        for _ in pairs(api.Rejected)do rejected+=1 end
+        return {ActiveMotors=count,ConnectedGroups=#api.Components,RejectedMotors=rejected,ObserverVerified=false,
+            EligibleMotors=api.EligibleMotors or 0,WaitingForOwnership=api.WaitingForOwnership or 0,
+            DisabledMotors=api.DisabledMotors or 0,InactiveMotors=api.InactiveMotors or 0,FallbackReason=api.FallbackReason}
     end
     return api
 end
-return Physics
 ]=====],
-    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_pose_velocity.lua"] = [=====[
--- Optional target-motion export for the existing CFrame-first ragdoll follower.
--- This is feed-forward at the assembly COM, not a second pose/error servo.
-local Motion={}
-local validPose=require(script.Parent.Parent.head_tracking).Finite
-local function finite(n)return type(n)=="number"and n==n and math.abs(n)<math.huge end
-local function vector(v)return typeof(v)=="Vector3"and finite(v.X)and finite(v.Y)and finite(v.Z)end
-local function option(n,default,low,high)
-    n=tonumber(n)return finite(n)and math.clamp(n,low,high)or default
-end
-function Motion.Settings(values)
-    values=values or {}
-    return {LinearLimit=option(values.LinearLimit,120,1,500),AngularLimit=option(values.AngularLimit,30,1,100),
-        MaximumGap=option(values.MaximumGap,.25,.02,1)}
-end
-local function cap(value,limit)
-    local speed=value.Magnitude
-    if not finite(speed)then return Vector3.zero,true end
-    return speed>limit and value*(limit/speed)or value,speed>limit
-end
-function Motion.Sample(previous,target,localCOM,now,rootVelocity,settings)
-    settings=Motion.Settings(settings)
-    local base,baseClamped=cap(vector(rootVelocity)and rootVelocity or Vector3.zero,settings.LinearLimit)
-    local info={Reason="first target sample",LinearClamped=baseClamped,AngularClamped=false,CenterOfMassUsed=false}
-    local function reset(reason,nextState)
-        info.Reason=reason info.LinearSpeed=base.Magnitude info.AngularSpeed=0
-        if nextState then nextState.Linear,nextState.Angular=base,Vector3.zero end
-        return nextState,base,Vector3.zero,info
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_rig_router.lua"] = [=====[
+-- R15 uses the exact body code from the user's working public download.
+-- R6 keeps its later Motor6D implementation. Select at Start, not UI load.
+return function(ctx)
+    local activeCore,preview,native
+    local Activity=require(script.Parent.ragdoll_activity)
+    local saved=ctx.SaveData.Reanimator
+    local function rigType()
+        local player=ctx.PhysicalPlayer or ctx.Player
+        local body=player and player.Character
+        if not body then return nil end
+        local torso=body:FindFirstChild("Torso")
+        local upper,lower=body:FindFirstChild("UpperTorso"),body:FindFirstChild("LowerTorso")
+        if upper and lower and not torso then return "R15"end
+        if torso and not(upper or lower)then return "R6"end
+        local humanoid=body:FindFirstChildOfClass("Humanoid")
+        if humanoid then return humanoid.RigType==Enum.HumanoidRigType.R15 and "R15"or "R6"end
     end
-    if not validPose(target)or not finite(now)then return reset("invalid target or clock")end
-    if not vector(localCOM)then return reset("assembly COM unavailable")end
-    local nextState={Pose=target,COM=localCOM,At=now}
-    info.CenterOfMassUsed=true
-    if not previous then return reset("first target sample",nextState)end
-    local elapsed=now-previous.At
-    if not finite(elapsed)or elapsed<0 then return reset("clock discontinuity",nextState)end
-    if elapsed==0 then
-        info.Reason="same target sample time"
-        local linear,clipped=cap(previous.Linear or base,settings.LinearLimit)
-        local angular,spinClipped=cap(previous.Angular or Vector3.zero,settings.AngularLimit)
-        info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
-        info.LinearClamped,info.AngularClamped=clipped,spinClipped
-        return previous,linear,angular,info
+    local function make(kind)
+        local factory=kind=="R15"and require(script.Parent.ragdoll_public_r15)or require(script.Parent.awes_original_ragdoll)
+        local context=setmetatable({Player=ctx.PhysicalPlayer or ctx.Player},{__index=ctx,__newindex=ctx})
+        local service=ctx.Game:GetService("RunService")
+        rawset(context,"Connect",function(signal,callback)
+            if signal~=service.PreSimulation then return ctx.Connect(signal,callback)end
+            return ctx.Connect(signal,function(dt,...)
+                local prepare=ctx.Reanimate.PrepareAnimationPhysics
+                if prepare then prepare(ctx.Reanimate.Character,dt)end
+                return callback(dt,...)
+            end)
+        end)
+        rawset(context,"CanDriveBody",function(body)
+            if body~=context.Player.Character then return false,"old character"end
+            return Activity.Read(body,ctx.Reanimate.RigSchema)
+        end)
+        rawset(context,"Notify",function()end)
+        rawset(context,"Ready",function()
+            local figure=ctx.Ready()
+            local service=ctx.Game:GetService("RunService")
+            local bridge,tools,map
+            if kind=="R15"then
+                bridge=require(script.Parent.ragdoll_controller_bridge)(context)
+                map=require(script.Parent.ragdoll_body_map)(context)
+                tools=require(script.Parent.ragdoll_tools)(context,map,ctx.Reanimate.Current.RagdollPhysics)
+                ctx.Reanimate.Current.RagdollPhysics.Tools=tools.Snapshot
+                ctx.Reanimate.Current.RagdollPhysics.ControllerBridge=bridge.Snapshot
+            end
+            local function bodies()return context.Player.Character,ctx.Reanimate.Character end
+            ctx.Connect(service.PreAnimation,function()
+                local body,controller=bodies()
+                if native then native.Step(body,controller,"PreAnimation")end
+            end)
+            ctx.Connect(service.PreSimulation,function(dt)
+                local body,controller=bodies()
+                if native then native.Step(body,controller,"PreSimulation")end
+                if bridge then bridge.Step(body,controller)end
+                if tools and body and controller then
+                    if body:FindFirstChildOfClass("Tool")or next(tools.Records)then
+                        tools.Prepare(body,controller,"PreSimulation")
+                        if tools.NeedsPose()then map.Begin(body,controller)end
+                        tools.Step(body,controller,dt,"PreSimulation",ctx.Clock and ctx.Clock()or os.clock())
+                    elseif tools.Body then tools.Clear()end
+                end
+            end)
+            if tools then ctx.Connect(service.PostSimulation,function(dt)
+                local body,controller=bodies()
+                if body and controller and next(tools.Records)then
+                    if tools.NeedsPose()then map.Begin(body,controller)end
+                    tools.Step(body,controller,dt,"PostSimulation",ctx.Clock and ctx.Clock()or os.clock())
+                end
+            end)end
+            if tools then ctx.Connect(service.PreRender,function(dt)
+                local body,controller=bodies()
+                if body and controller and tools.NeedsPose()then
+                    map.Begin(body,controller)tools.Step(body,controller,dt,"RenderPose",ctx.Clock and ctx.Clock()or os.clock())
+                end
+            end)end
+            ctx.OnStop(function()
+                if bridge then bridge.Clear()end
+                if tools then tools.Clear()end
+                if map then map.Clear()end
+            end)
+            return figure
+        end)
+        local name,start,options=factory(context)
+        return {Rig=kind,Name=name,Start=start,Options=options}
     end
-    if elapsed>settings.MaximumGap then return reset("sample gap",nextState)end
-    -- A changed mass/mount layout must not become a one-frame movement impulse.
-    if (previous.COM-localCOM).Magnitude>math.max(.001,localCOM.Magnitude*1e-4)then
-        return reset("assembly COM changed",nextState)
+    local function core()
+        if activeCore and not ctx.IsStopping()then return activeCore end
+        local kind=rigType()or "R6"
+        if not preview or preview.Rig~=kind then preview=make(kind)end
+        return preview
     end
-    local oldCenter=previous.Pose:PointToWorldSpace(localCOM)
-    local center=target:PointToWorldSpace(localCOM)
-    if (center-oldCenter).Magnitude>settings.LinearLimit*settings.MaximumGap then
-        return reset("target discontinuity",nextState)
+    local function start()
+        local kind=rigType()or "R6"
+        activeCore=preview and preview.Rig==kind and preview or make(kind)
+        preview=nil
+        native=require(script.Parent.ragdoll_roblox_animations)(ctx)
+        native.SetEnabled(saved.RagdollRobloxAnimations==true)
+        local current=ctx.Reanimate.Current
+        local previousPhase=current and current.AnimationUpdatePhase
+        if current then current.RagdollRig=kind current.AnimationUpdatePhase="PreAnimation"end
+        local previousStatus=current and current.GetStatus
+        local function status()return current.RagdollDriving==false and "waiting for ragdoll"or current.Status end
+        if current then current.GetStatus=status end
+        ctx.Connect(ctx.Game:GetService("RunService").PreSimulation,function()
+            if not current or ctx.IsStopping()then return end
+            local player=ctx.PhysicalPlayer or ctx.Player
+            local body=player and player.Character
+            local driving,reason=Activity.Read(body,ctx.Reanimate.RigSchema)
+            if driving and current.RagdollDriving==false then
+                local figure=ctx.Reanimate.Character
+                local source=body and body:FindFirstChild("HumanoidRootPart")
+                local target=figure and figure:FindFirstChild("HumanoidRootPart")
+                if source and target then
+                    if figure.PivotTo then figure:PivotTo(source.CFrame*target.CFrame:Inverse()*figure:GetPivot())
+                    else target.CFrame=source.CFrame end
+                    target.AssemblyLinearVelocity=Vector3.zero target.AssemblyAngularVelocity=Vector3.zero
+                end
+            end
+            current.RagdollDriving,current.RagdollActivity=driving,reason
+        end)
+        ctx.OnStop(function()
+            if current then
+                current.RagdollDriving=nil current.RagdollActivity=nil
+                current.AnimationUpdatePhase=previousPhase
+                if current.GetStatus==status then current.GetStatus=previousStatus end
+            end
+            if native then native.Clear()end native=nil activeCore=nil
+        end)
+        return activeCore.Start()
     end
-    local linear=(center-oldCenter)/elapsed
-    local axis,angle=previous.Pose:ToObjectSpace(target):ToAxisAngle()
-    if math.abs(angle)>=math.pi-1e-4 then return reset("ambiguous half-turn",nextState)end
-    local angular=previous.Pose:VectorToWorldSpace(axis*(angle/elapsed))
-    if not vector(linear)or not vector(angular)then return reset("invalid target derivative",nextState)end
-    linear,info.LinearClamped=cap(linear,settings.LinearLimit)
-    angular,info.AngularClamped=cap(angular,settings.AngularLimit)
-    nextState.Linear,nextState.Angular=linear,angular
-    info.Reason,info.Elapsed="target motion",elapsed
-    info.LinearSpeed,info.AngularSpeed=linear.Magnitude,angular.Magnitude
-    return nextState,linear,angular,info
+    return "Ragdoll Reanimator (module)",start,{
+        ExposeController=false,
+        Config=function(parent)
+            local UI=ctx.UI
+            local function apply()local chosen=core()if chosen.Options.ApplySettings then chosen.Options.ApplySettings()end end
+            UI.CreateText(parent,"ragdoll in-game first, then pick a dance :)",12,Enum.TextXAlignment.Left)
+            ctx.UI.CreateSwitch(parent,"Use Roblox animations",saved.RagdollRobloxAnimations==true).Changed:Connect(function(value)
+                saved.RagdollRobloxAnimations=value==true
+                if native then native.SetEnabled(value)end
+            end)
+            UI.CreateText(parent,"on: the game's animations take over your moveset.",11,Enum.TextXAlignment.Left)
+            if core().Options.SupportsHeadAccessories then
+                UI.CreateSwitch(parent,"Animate head accessories",saved.RagdollHeadAccessories==true).Changed:Connect(function(value)
+                    saved.RagdollHeadAccessories=value==true apply()
+                end)
+            end
+            local advanced=UI.CreateCollapsable(parent,"Advanced")
+            UI.CreateSwitch(advanced,"Limb velocity",saved.RagdollFollower=="Pose velocity (fallback)").Changed:Connect(function(value)
+                if value then
+                    saved.RagdollPreviousFollower=saved.RagdollFollower or "Gelatek motion"
+                    saved.RagdollFollower="Pose velocity (fallback)"
+                else
+                    local previous=saved.RagdollPreviousFollower
+                    saved.RagdollFollower=previous and previous~="Pose velocity (fallback)"and previous or "Gelatek motion"
+                end
+                apply()
+            end)
+            UI.CreateText(advanced,"try this if fast poses look choppy for your friend. it adds limb movement speed; it doesn't change the network's update rate.",11,Enum.TextXAlignment.Left)
+            UI.CreateSwitch(advanced,"Use game movement settings",saved.RagdollGameMovement==true).Changed:Connect(function(value)
+                saved.RagdollGameMovement=value==true
+            end)
+            UI.CreateText(advanced,"copies the real Humanoid's speed and jump settings, including game stuns. leave off to let your moveset handle them.",11,Enum.TextXAlignment.Left)
+            UI.CreateSwitch(advanced,"Local pose correction",saved.RagdollRenderPose~=false).Changed:Connect(function(value)
+                saved.RagdollRenderPose=value==true apply()
+            end)
+            UI.CreateSwitch(advanced,"Release local body joints",saved.RagdollRCDless==true).Changed:Connect(function(value)
+                saved.RagdollRCDless=value==true apply()
+            end)
+            UI.CreateText(advanced,"doesn't turn RCD off. R6 temporarily disables joints; the old R15 release deletes local joints. only runs while ragdolled.",11,Enum.TextXAlignment.Left)
+            local details=UI.CreateCollapsable(advanced,"Body info")
+            local text=UI.CreateText(details,"",11,Enum.TextXAlignment.Left)
+            text.RichText=false
+            UI.CreateButton(details,"Check body parts",16).Activated:Connect(function()
+                local backend=ctx.Reanimate.Current
+                if not backend or not backend.RagdollPhysics then text.Text="start reanimation first :)"return end
+                local selected=core()
+                text.Text=(backend.RagdollActivity or "").."\n"..(selected.Options.StatusText and selected.Options.StatusText()or "")
+            end)
+            return advanced
+        end,
+        ShowHitboxes=function()local chosen=core()if chosen.Options.ShowHitboxes then return chosen.Options.ShowHitboxes()end end,
+        RestartForRig=function()
+            local kind=rigType()
+            return activeCore~=nil and kind~=nil and kind~=activeCore.Rig
+        end,
+    }
 end
-return Motion
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_roblox_animations.lua"] = [=====[
+-- Optional normal Roblox animation mode. The game's tracks stay on its own
+-- Humanoid; owned copies animate our controller. No Character or method hooks.
+return function(ctx)
+    local state=ctx.Reanimate
+    local api={Enabled=false,Tracks={},Connections={}}
+    local create=ctx.Util and ctx.Util.Instance or Instance.new
+    local function disconnect(list)
+        for _,connection in ipairs(list)do connection:Disconnect()end table.clear(list)
+    end
+    local function remove(track)
+        local record=api.Tracks[track]if not record then return end
+        api.Tracks[track]=nil disconnect(record.Connections)
+        pcall(function()record.Copy:Stop(0)record.Copy:Destroy()end)
+    end
+    local function clear()
+        disconnect(api.Connections)
+        local tracks={}for track in pairs(api.Tracks)do tracks[#tracks+1]=track end
+        for _,track in ipairs(tracks)do remove(track)end
+        if api.R15Rig and state.R15Animation then
+            state.R15Animation.Finish(api.R15Rig,api)
+            local saved=state.R15Animation.States[api.Controller]
+            if api.CreatedR15 and saved and not next(saved.Users)then state.R15Animation.Release(api.Controller)end
+        end
+        if state.RagdollNativeAnimationOwner==api then
+            state.RagdollNativeAnimationOwner=nil state.RagdollNativeAnimationActive=false
+        end
+        api.Body,api.Controller,api.Source,api.Target,api.R15Rig,api.CreatedR15=nil,nil,nil,nil,nil,nil
+        api.LastError=nil
+    end
+    function api.Clear()clear()end
+    function api.SetEnabled(value)
+        value=value==true
+        if value~=api.Enabled then clear()api.Enabled=value end
+    end
+    local function add(track)
+        if not api.Enabled or not api.Target or api.Tracks[track]then return end
+        local ok,copy=pcall(function()
+            local animation=track.Animation
+            if not animation then error("track has no Animation")end
+            return api.Target:LoadAnimation(animation)
+        end)
+        if not ok or not copy then api.LastError=tostring(copy)return end
+        local record={Copy=copy,Connections={},Started=false}
+        api.Tracks[track]=record
+        if track.Ended then table.insert(record.Connections,track.Ended:Connect(function()remove(track)end))end
+        if track.Destroying then table.insert(record.Connections,track.Destroying:Connect(function()remove(track)end))end
+    end
+    local function bind(body,controller)
+        local humanoid=body and body:FindFirstChildOfClass("Humanoid")
+        local source=humanoid and humanoid:FindFirstChildOfClass("Animator")
+        if body==api.Body and controller==api.Controller and source==api.Source
+            and (not source or api.Target and api.Target.Parent and api.Target:IsDescendantOf(controller))then return end
+        clear()api.Body,api.Controller,api.Source=body,controller,source
+        if not source or not controller or not controller.Parent then return end
+        local targetOwner=controller:FindFirstChildOfClass("Humanoid")
+        if humanoid.RigType==Enum.HumanoidRigType.R15 then
+            local bridge=state.R15Animation
+            if not bridge then api.LastError="R15 animation source is unavailable"return end
+            api.CreatedR15=bridge.States[controller]==nil
+            local template=api.CreatedR15 and bridge.CreateTemplate(body)or nil
+            local saved=bridge.Ensure(controller,template)
+            if template then template:Destroy()end
+            api.R15Rig=saved.Rig
+            targetOwner=saved.Rig:FindFirstChildOfClass("AnimationController")
+        end
+        if not targetOwner then api.LastError="controller has no animation owner"return end
+        api.Target=targetOwner:FindFirstChildOfClass("Animator")or create("Animator",targetOwner)
+        table.insert(api.Connections,source.AnimationPlayed:Connect(add))
+        local ok,tracks=pcall(source.GetPlayingAnimationTracks,source)
+        if ok then for _,track in ipairs(tracks)do add(track)end end
+    end
+    function api.Step(body,controller,phase)
+        if not api.Enabled then return end
+        bind(body,controller)
+        local active=false
+        for track,record in pairs(api.Tracks)do
+            local ok,influencing=pcall(function()
+                local weight=track.WeightCurrent or 0
+                if not track.IsPlaying and weight<=.0001 then return false end
+                local copy=record.Copy
+                copy.Looped,copy.Priority=track.Looped,track.Priority
+                if not record.Started then
+                    copy:Play(0,weight,track.Speed)record.Started=true
+                    if copy.Length>0 then copy.TimePosition=track.TimePosition end
+                elseif not copy.IsPlaying then
+                    copy:Play(0,weight,track.Speed)
+                end
+                copy:AdjustSpeed(track.Speed)
+                copy:AdjustWeight(weight,0)
+                if copy.Length>0 and math.abs(copy.TimePosition-track.TimePosition)>.08 then copy.TimePosition=track.TimePosition end
+                return true
+            end)
+            if not ok then api.LastError=tostring(influencing)remove(track)
+            elseif influencing then active=true
+            else remove(track)end
+        end
+        state.RagdollNativeAnimationOwner=api state.RagdollNativeAnimationActive=active
+        if state.PrepareRagdollRobloxAnimation then state.PrepareRagdollRobloxAnimation(controller)end
+        if api.R15Rig and state.R15Animation then
+            if active then
+                state.R15Animation.Begin(api.R15Rig,api)
+                if phase=="PreSimulation"then state.R15Animation.Apply(api.R15Rig)end
+            else state.R15Animation.Finish(api.R15Rig,api)end
+        end
+    end
+    function api.Snapshot()
+        local count=0 for _ in pairs(api.Tracks)do count+=1 end
+        return {Enabled=api.Enabled,MirroredTracks=count,LastError=api.LastError,
+            Active=state.RagdollNativeAnimationOwner==api and state.RagdollNativeAnimationActive==true}
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_settings.lua"] = [=====[
+local Motion=require(script.Parent.ragdoll_pose_velocity)
+local known={["Gelatek motion"]=true,["Gelatek netless"]=true,["Awes motion"]=true,["Pose velocity (fallback)"]=true}
+return function(ctx)
+    return function()
+        local saved,physics=ctx.Saved,ctx.Physics
+        local follower=known[saved.RagdollFollower]and saved.RagdollFollower or "Gelatek motion"
+        local velocity=Motion.Settings(saved.RagdollPoseVelocity)
+        local previous=physics.PoseVelocity
+        local changed=follower~=physics.Follower or not previous
+            or velocity.LinearLimit~=previous.LinearLimit or velocity.AngularLimit~=previous.AngularLimit
+            or velocity.MaximumGap~=previous.MaximumGap
+        physics.Follower=follower physics.PoseVelocity=velocity
+        physics.PostPhysics=saved.RagdollPostPhysics~=false
+        physics.RenderPose=saved.RagdollRenderPose~=false
+        physics.Observe=saved.RagdollPhysicsDiagnostics==true
+        if type(saved.RagdollRCDless)=="boolean"then ctx.Ragdoll.RCDless=saved.RagdollRCDless end
+        if ctx.HeadAccessories and saved.RagdollHeadAccessories~=true then ctx.HeadAccessories.Clear()end
+        if changed then ctx.Reset()end
+    end
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/ragdoll_tools.lua"] = [=====[
+-- Normal equipped Tools keep their real hand grip. A hidden hand may need a
+-- separate owned Handle; only that case leases the grip off before physics.
+local Mirror=require(script.Parent.controller_tool_mirror)
+local Free=require(script.Parent.tool_grip_guard)
+local Follow=require(script.Parent.ragdoll_gelatek)
+local valid=require(script.Parent.Parent.head_tracking).Finite
+return function(ctx,map,physics)
+    local mirror=Mirror({Util=ctx.Util,RightGripC0=ctx.RightGripC0,Clock=ctx.Clock})
+    local api={Records={},Mirror=mirror,Rows={},Joints={},Connections={}}
+    local function endpoints(joint)
+        if joint:IsA("JointInstance")or joint:IsA("WeldConstraint")then return joint.Part0,joint.Part1 end
+        if joint.ClassName=="AnimationConstraint"and ctx.Util.GetCharacterJointParts then return ctx.Util.GetCharacterJointParts(joint)end
+        if joint.ClassName=="RigidConstraint"then
+            return joint.Attachment0 and joint.Attachment0.Parent,joint.Attachment1 and joint.Attachment1.Parent
+        end
+    end
+    local function frames(joint)
+        if joint:IsA("JointInstance")then return joint.C0,joint.C1 end
+        if joint.ClassName=="AnimationConstraint"and ctx.Util.GetCharacterJointFrames then return ctx.Util.GetCharacterJointFrames(joint)end
+        if joint.ClassName=="RigidConstraint"then
+            return joint.Attachment0 and joint.Attachment0.CFrame,joint.Attachment1 and joint.Attachment1.CFrame
+        end
+    end
+    local function sameLink(joint,saved)
+        local a,b=endpoints(joint)
+        return joint.Parent==saved.Parent and a==saved.Part0 and b==saved.Part1
+            and (joint.ClassName~="RigidConstraint"and joint.ClassName~="AnimationConstraint"
+                or joint.Attachment0==saved.Attachment0 and joint.Attachment1==saved.Attachment1)
+    end
+    local function restore(record)
+        -- Dropping/unequipping must not pull the Tool back to the old hand.
+        if record.Tool.Parent==record.Body and record.Tool:FindFirstChild("Handle")==record.Handle then
+            for joint,saved in pairs(record.Links or {})do
+                if joint.Parent and sameLink(joint,saved)and joint.Enabled==false then joint.Enabled=saved.Enabled end
+            end
+        end
+        table.clear(record.Links or {})
+    end
+    local function nativeOwned(record)
+        local handle=record.Handle local root=handle.AssemblyRootPart or handle
+        if handle.Anchored or root.Anchored or handle:IsGrounded()then
+            record.Owned=false record.Reason="handle anchored or grounded"return false
+        end
+        local ok,owned,source=pcall(function()
+            if not ctx.Util.GetAssemblyOwnership then return nil,"native ownership unavailable"end
+            return ctx.Util.GetAssemblyOwnership(handle,true)
+        end)
+        record.Owned=ok and owned==true
+        record.OwnershipSource=ok and tostring(source or "native ownership")or "native ownership failed"
+        if not record.Owned then record.Reason="waiting for native handle ownership"end
+        return record.Owned
+    end
+    local function safeToDetach(record)
+        local tool,body,handle=record.Tool,record.Body,record.Handle
+        local function foreignLink(joint)
+            if not joint.Parent or joint.Enabled==false then return false end
+            local a,b=endpoints(joint)
+            local other
+            if a and a:IsDescendantOf(tool)and b and not b:IsDescendantOf(tool)then other=b
+            elseif b and b:IsDescendantOf(tool)and a and not a:IsDescendantOf(tool)then other=a end
+            return other and(not other:IsA("BasePart")or not other:IsDescendantOf(body)
+                or other:FindFirstAncestorOfClass("Tool")or other:FindFirstAncestorOfClass("Accessory"))
+        end
+        for joint in pairs(api.Joints)do if foreignLink(joint)then return false,"Tool has a foreign connection"end end
+        local okay,joints=pcall(handle.GetJoints,handle)
+        if okay then for _,joint in ipairs(joints)do if foreignLink(joint)then return false,"Tool has a foreign connection"end end end
+        local read,connected=pcall(handle.GetConnectedParts,handle,true)
+        if not read or type(connected)~="table"then return false,"Tool connection query unavailable"end
+        for _,part in ipairs(connected)do
+            if part~=handle and not part:IsDescendantOf(body)then return false,"Tool is connected outside the character"end
+        end
+        return true
+    end
+    local function releaseGrip(record)
+        if not record.Hand or not nativeOwned(record)then restore(record)return end
+        local allowed,reason=safeToDetach(record)
+        if not allowed then restore(record)record.Reason=reason return end
+        Free.ReleaseTools({record.Tool},record.Body,function(joint,key,value)
+            local saved=record.Links[joint]
+            if not saved then
+                local a,b=endpoints(joint)
+                saved={Part0=a,Part1=b,Parent=joint.Parent,Enabled=joint.Enabled}
+                if joint.ClassName=="RigidConstraint"or joint.ClassName=="AnimationConstraint"then
+                    saved.Attachment0,saved.Attachment1=joint.Attachment0,joint.Attachment1
+                end
+                record.Links[joint]=saved
+            end
+            joint[key]=value
+        end,api.Joints)
+        for joint,saved in pairs(record.Links)do
+            if not joint.Parent or not sameLink(joint,saved)then record.Links[joint]=nil end
+        end
+    end
+    local function targetPose(record,figure)
+        local hand=record.Hand
+        if not hand or hand.Parent~=record.Body or not valid(record.HandFrame)or not valid(record.HandleFrame)
+            or not valid(record.GripAtBind)or not valid(record.Tool.Grip)then return nil,"waiting for a real grip mount"end
+        local target=figure and map.ControllerPart(figure,hand.Name)
+        if not target then return nil,"controller has no matching hand"end
+        local okay,pose=pcall(function()
+            local grip=record.HandleFrame*record.GripAtBind:Inverse()*record.Tool.Grip
+            return map.UnhiddenTarget(hand,target,figure)*record.HandFrame*grip:Inverse()
+        end)
+        if not okay or not valid(pose)then return nil,"invalid Tool target"end
+        return pose
+    end
+    local function needsSeparateHandle(record,figure)
+        local hand=record.Hand
+        if not hand then return false end
+        if type(ctx.Reanimate.ShouldBodyHidePart)=="function"then
+            local okay,hidden=pcall(ctx.Reanimate.ShouldBodyHidePart,hand.Name)
+            if okay then return hidden==true end
+        end
+        -- Compatibility for contexts that expose only the target mapper.
+        local target=figure and map.ControllerPart(figure,hand.Name)
+        if not target or not map.Target then return false end
+        local okay,hidden=pcall(function()
+            local visible=map.UnhiddenTarget(hand,target,figure)
+            local physical=map.Target(hand,target,figure)
+            return valid(visible)and valid(physical)and(visible.Position-physical.Position).Magnitude>.001
+        end)
+        return okay and hidden==true
+    end
+    local function handLink(joint,handle,body)
+        local a,b=endpoints(joint)
+        local hand=a==handle and b or b==handle and a
+        if hand and hand:IsA("BasePart")and hand.Parent==body then return hand,a~=handle end
+    end
+    local function bind(record,tool,handle,body)
+        if not valid(tool.Grip)then return end
+        local candidates={}
+        if handle.GetJoints then candidates=handle:GetJoints()end
+        if record.Joint and record.Joint.Parent then table.insert(candidates,record.Joint)end
+        local selected,hand,normal
+        local function consider(joint)
+            local part,direction=handLink(joint,handle,body)
+            if part and (not selected or joint.Enabled~=false and selected.Enabled==false)then selected,hand,normal=joint,part,direction end
+        end
+        for _,joint in ipairs(candidates)do consider(joint)end
+        if not selected then for joint in pairs(physics.Objects or {})do consider(joint)end end
+        if selected then
+            local c0,c1=frames(selected)
+            local armFrame,handleFrame=normal and c0 or c1,normal and c1 or c0
+            if valid(armFrame)and valid(handleFrame)then
+                if record.Joint~=selected or record.HandFrame~=armFrame or record.HandleFrame~=handleFrame or not valid(record.GripAtBind)then
+                    record.GripAtBind=tool.Grip record.HandFrame,record.HandleFrame=armFrame,handleFrame
+                end
+                record.Joint,record.Hand,record.MountSource=selected,hand,"real grip joint"
+                return
+            end
+        end
+        if record.Hand and record.Hand.Parent==body and record.HandleFrame then return end
+        hand=body:FindFirstChild("RightHand")or body:FindFirstChild("Right Arm")
+        local mount,source=mirror.GripMount(hand)
+        if mount and valid(tool.Grip)then
+            record.Hand,record.HandFrame,record.HandleFrame=hand,mount,tool.Grip
+            record.GripAtBind,record.MountSource=tool.Grip,source
+        end
+    end
+    local function owns(handle)
+        local record=api.Records[handle]
+        if not record then return false end
+        local separate,reason=Free.IsFree(handle,record.Tool)
+        record.Separate=separate
+        if not separate then record.Reason=reason or "waiting for a loose handle"record.Owned=false return false end
+        if not nativeOwned(record)then return false end
+        record.Reason="loose owned handle"return true
+    end
+    local proxy=setmetatable({Forget=function(part)api.Rows[part]=nil end,
+        Record=function(part,pose,dt,motion)api.Rows[part]={Motion=motion,Phase=api.Phase}end}, {__index=physics})
+    local follower=Follow({Player=ctx.Player,Reanimate=ctx.Reanimate,Physics=proxy,Clock=ctx.Clock,Owned=owns})
+    function api.Clear()
+        for _,connection in ipairs(api.Connections)do connection:Disconnect()end table.clear(api.Connections)table.clear(api.Joints)
+        follower.Clear()
+        for _,record in pairs(api.Records)do restore(record)end
+        mirror.Clear()table.clear(api.Records)table.clear(api.Rows)
+        api.Body,api.Controller=nil,nil
+    end
+    function api.Prepare(body,figure,phase)
+        if ctx.CanDriveBody and not ctx.CanDriveBody(body)then
+            if api.Body then api.Clear()end
+            return
+        end
+        if api.Body~=body or api.Controller~=figure then
+            api.Clear()api.Body,api.Controller=body,figure
+            if body then
+                local function include(object)
+                    if object:IsA("JointInstance")or object:IsA("WeldConstraint")or object.ClassName=="RigidConstraint"or object.ClassName=="AnimationConstraint"then
+                        api.Joints[object]=true
+                    end
+                end
+                for _,object in ipairs(body:GetDescendants())do include(object)end
+                table.insert(api.Connections,body.DescendantAdded:Connect(include))
+                table.insert(api.Connections,body.DescendantRemoving:Connect(function(object)api.Joints[object]=nil end))
+            end
+        end
+        mirror.Step(body,figure)
+        local seen={}
+        for tool in pairs(mirror.Records)do
+            local handle=tool:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart")then
+                seen[handle]=true
+                local record=api.Records[handle]
+                if not record then record={Tool=tool,Handle=handle,Body=body,Links={},Writes=0}api.Records[handle]=record end
+                bind(record,tool,handle,body)
+                if phase==nil or phase=="PreSimulation"then
+                    record.SeparateRequired=needsSeparateHandle(record,figure)
+                    if record.RestoreRequested then
+                        restore(record)record.RestoreRequested=nil
+                    elseif not record.SeparateRequired then
+                        restore(record)nativeOwned(record)
+                    else
+                        local pose,reason=targetPose(record,figure)
+                        if pose then releaseGrip(record)
+                        else restore(record)record.Reason=reason end
+                    end
+                end
+            end
+        end
+        local removed={}for handle in pairs(api.Records)do if not seen[handle]then removed[#removed+1]=handle end end
+        for _,handle in ipairs(removed)do
+            follower.Forget(handle)restore(api.Records[handle])api.Rows[handle]=nil api.Records[handle]=nil
+        end
+    end
+    function api.Step(body,figure,dt,phase,now)
+        if body~=api.Body or figure~=api.Controller then return end
+        if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return end
+        api.Phase=phase
+        for handle,record in pairs(api.Records)do
+            record.Following=false record.Attached=false
+            local hand=record.Hand
+            if hand and hand.Parent==body and not record.SeparateRequired
+                and record.Joint and record.Joint.Parent and record.Joint.Enabled~=false
+                and (handle.AssemblyRootPart or handle)==(hand.AssemblyRootPart or hand)then
+                record.Attached=true record.Reason="held by real grip"
+                follower.Forget(handle)api.Rows[handle]=nil continue
+            end
+            local pose,reason=targetPose(record,figure)
+            if not pose then
+                record.Reason=reason record.RestoreRequested=next(record.Links)~=nil
+                follower.Forget(handle)continue
+            end
+            hand=record.Hand
+            local armAssembly=hand.AssemblyRootPart or hand
+            local assembly=handle.AssemblyRootPart or handle
+            if assembly==armAssembly then
+                record.Attached=true
+                if record.Joint and record.Joint.Parent and record.Joint.Enabled~=false and not record.SeparateRequired then
+                    record.Reason="held by real grip"
+                else
+                    record.Reason=record.Owned and "waiting for grip assembly to separate"or "attached; native Handle ownership unavailable"
+                end
+                follower.Forget(handle)continue
+            end
+            -- Hiding a body part must not send its equipped Tool into the void.
+            record.Target=pose
+            record.Following=follower.Write(handle,pose,dt,phase,figure,now)
+            if not record.Following and phase~="RenderPose"then record.RestoreRequested=next(record.Links)~=nil end
+            if record.Following and phase=="PostSimulation"then record.Writes+=1 end
+        end
+    end
+    function api.NeedsPose()
+        for handle,record in pairs(api.Records)do
+            local hand=record.Hand
+            if record.SeparateRequired or not hand or not record.Joint or not record.Joint.Parent
+                or record.Joint.Enabled==false or (handle.AssemblyRootPart or handle)~=(hand.AssemblyRootPart or hand)then return true end
+        end
+        return false
+    end
+    function api.Snapshot()
+        local result=mirror.Snapshot()result.ControllerOnlyProxy=true result.ServerVisibilityVerified=false
+        result.HandleCount=0 result.Parts={}
+        for handle,record in pairs(api.Records)do
+            result.HandleCount+=1
+            if #result.Parts==32 then result.Truncated=true continue end
+            local released=0 for joint,saved in pairs(record.Links)do if joint.Parent and sameLink(joint,saved)and joint.Enabled==false then released+=1 end end
+            local position=handle.Position local target=record.Target and record.Target.Position
+            table.insert(result.Parts,{Name=record.Tool.Name,Following=record.Following==true,Attached=record.Attached==true,
+                Separate=record.Separate==true,Owned=record.Owned,Reason=record.Reason,
+                OwnershipSource=record.OwnershipSource,MountSource=record.MountSource,
+                ReleasedGrips=released,PoseWrites=record.Writes,OriginalHandle=true,
+                OriginalHandleMeaning="source Tool's Handle; server existence is not established",
+                ServerVisibilityVerified=false,SeparateRequired=record.SeparateRequired==true,
+                HeldByRealGrip=record.Attached==true and record.Joint~=nil and record.Joint.Parent~=nil
+                    and record.Joint.Enabled~=false and record.SeparateRequired~=true,
+                Position={X=position.X,Y=position.Y,Z=position.Z},TargetPosition=target and {X=target.X,Y=target.Y,Z=target.Z},
+                GripEnabled=record.Joint and record.Joint.Parent and record.Joint.Enabled~=false or false})
+        end
+        return result
+    end
+    return api
+end
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/reanimation/reanim_limb.lua"] = [=====[
 
@@ -75674,7 +79018,6 @@ return function(Context)
 local LimbPolicy = require(script.Parent.limb_policy)
 local FlingFallback = require(script.Parent.Parent.fling_fallback)
 local Camera = Context.Camera
-local Debris = Context.Debris
 local Player = Context.Player
 local Players = Context.Players
 local RIGHTGRIP_C0 = Context.RIGHTGRIP_C0
@@ -75787,7 +79130,12 @@ end
 function LimbReanimator.ShowHitboxes()
 	-- Bound rig centers are rendered by the shared persistent hitbox controller.
 end
+function LimbReanimator.CanTargetFling()
+    if not LimbReanimator.FlingEnabled then return false,"target fling is switched off"end
+    return true
+end
 function LimbReanimator.Fling(target, duration)
+	if Reanimate.IsSelf and Reanimate.IsSelf(target)then return false end
 	if not LimbReanimator.FlingEnabled then
 		return
 	end
@@ -75915,7 +79263,7 @@ function LimbReanimator.Config(parent)
 	end)
 	UI.CreateText(
 		parent,
-		"CurrentAngle follows the controller RootPart and writes ReplicateCurrentAngle6D + ReplicateCurrentOffset6D to every mapped limb.",
+		"CurrentAngle gives each mapped limb its own angle + offset. old Roblox tricks, new ways to confuse the Animator :P",
 		10,
 		Enum.TextXAlignment.Center
 	)
@@ -75989,7 +79337,7 @@ function LimbReanimator.Config(parent)
 			diagnosticBox.CursorPosition, diagnosticBox.SelectionStart = #report + 1, 1
 		end)
 		warn(report)
-		Util.UINotify("Joint diagnostics captured. Copy the selected text; observer replication is not verified.")
+		Util.UINotify("joint report ready. copy it! your friend's screen still gets the final vote.")
 	end)
 	UI.CreateText(
 		parent,
@@ -76005,12 +79353,12 @@ function LimbReanimator.Config(parent)
 		LimbReanimator.ShowMeHowILook = val
 		SaveData.Reanimator.LimbShowMeHowILook = val
 	end)
-	UI.CreateText(parent, "Preview the sampled Limb pose locally. The 20 FPS switch controls replication sampling separately.", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(parent, "20 FPS is the pose sampler, not a packet-speed button. Steve's 1.1.0 recipe is already here :)\nShow Me How I Look shows that sampled pose on YOUR screen.", 10, Enum.TextXAlignment.Center)
 	UI.CreateSwitch(parent, "Target Fling Enabled", LimbReanimator.FlingEnabled).Changed:Connect(function(val)
 		LimbReanimator.FlingEnabled = val
 		SaveData.Reanimator.LimbRoleplay = not val
 	end)
-	UI.CreateText(parent, "physics flings depend on the game. touching someone does not prove an ownership transfer.", 10, Enum.TextXAlignment.Center)
+	UI.CreateText(parent, "physics flings are very game-dependent. bonking someone doesn't make their character yours :P", 10, Enum.TextXAlignment.Center)
 	UI.CreateDropdown(parent, "Target Method", {
 		"Physics Fling",
 		"Tool Touch",
@@ -76300,37 +79648,13 @@ function LimbReanimator.Start()
 		return accepted
 	end
 
-	local FakeTools = {}
-	local function CreateFakeTool()
-		local reanimCharacter = Reanimate.Character
-		if not reanimCharacter then
-			return nil
-		end
-		local FakeTool = Instance.new("Tool")
-		FakeTool.Name = "faketool"
-		local FakeToolHandle = Instance.new("Part")
-		FakeToolHandle.Name = "Handle"
-		FakeToolHandle.Transparency = 1
-		FakeToolHandle.Color = Color3.new(0, 0, 1)
-		FakeToolHandle.CanCollide = false
-		FakeToolHandle.Massless = true
-		FakeToolHandle.Parent = FakeTool
-		FakeTool.Parent = reanimCharacter
-		local RightGrip = Instance.new("Weld")
-		RightGrip.Name = "RightGrip"
-		RightGrip.Parent = FakeToolHandle
-		RightGrip.Part0 = reanimCharacter:FindFirstChild("Right Arm")
-		RightGrip.Part1 = FakeToolHandle
-		RightGrip.C0 = RIGHTGRIP_C0
-		Util.LinkDestroyI2C(
-			FakeTool,
-			FakeTool:GetPropertyChangedSignal("Grip"):Connect(function()
-				RightGrip.C1 = FakeTool.Grip
-			end)
-		)
-		RightGrip.C1 = FakeTool.Grip
-		return FakeTool
-	end
+	local toolMirror=require(script.Parent.controller_tool_mirror)({Util=Util,RightGripC0=RIGHTGRIP_C0,ConsumeMessages=true,Debris=Context.Debris,
+        Touch=function(tool,part,state)
+            local handle=tool:FindFirstChild("Handle")
+            if handle and part and handle:IsDescendantOf(workspace)and part:IsDescendantOf(workspace)then
+                handle.CanTouch=true pcall(firetouchinterest,handle,part,state)
+            end
+        end})
 
 	local BaseParts = {}
 	local UnknownCharacterJoints = {}
@@ -76423,62 +79747,11 @@ function LimbReanimator.Start()
 				end
 			end)
 		elseif v:IsA("Tool") and v.Parent == character then
-			if not FakeTools[v] then
-				local fake = CreateFakeTool()
-				if not fake then
-					return
-				end
-				FakeTools[v] = true
-				fake.Grip = v.Grip
-				local h = v:FindFirstChild("Handle")
-				if h ~= nil then
-					fake.Handle.Size = h.Size
-				end
-				Util.LinkDestroyI2C(
-					fake,
-					RunService.PreSimulation:Connect(function()
-						if character == ActiveRealCharacter and v.Parent == character then
-							fake.Grip = v.Grip
-							local h = v:FindFirstChild("Handle")
-							if h ~= nil then
-								fake.Handle.Size = h.Size
-							end
-						else
-							fake:Destroy()
-							FakeTools[v] = nil
-						end
-					end)
-				)
-				Util.LinkDestroyI2C(
-					fake,
-					v.ChildAdded:Connect(function(v)
-						if v.ClassName == "StringValue" and v.Name == "toolanim" then
-							local w = Instance.new("StringValue")
-							w.Name = "toolanim"
-							w.Value = v.Value
-							w.Parent = fake
-							Debris:AddItem(v, 1)
-							Debris:AddItem(w, 1)
-						end
-					end)
-				)
-				fake.Handle.Touched:Connect(function(t)
-					local h = v:FindFirstChild("Handle")
-					if h and t and h:IsDescendantOf(workspace) and t:IsDescendantOf(workspace) then
-						h.CanTouch = true
-						pcall(firetouchinterest, h, t, 0)
-					end
-				end)
-				fake.Handle.TouchEnded:Connect(function(t)
-					local h = v:FindFirstChild("Handle")
-					if h and t and h:IsDescendantOf(workspace) and t:IsDescendantOf(workspace) then
-						h.CanTouch = true
-						pcall(firetouchinterest, h, t, 1)
-					end
-				end)
-			end
+            toolMirror.Bind(character,Reanimate.Character)
+            toolMirror.Add(v)
 		end
 	end
+
 	local lastspawn = 0
 	local function BindRealCharacter(character)
 		if not character or not character:IsA("Model") or character == Reanimate.Character then
@@ -76493,6 +79766,7 @@ function LimbReanimator.Start()
 		end)
 		lastspawn = os.clock()
 		ActiveRealCharacter = character
+        toolMirror.Bind(character,Reanimate.Character)
 		LimbReanimator.ActiveRealCharacter = character
 		LimbReanimator.RigGeneration += 1
 		if ActiveDescendantConnection then
@@ -76806,6 +80080,7 @@ function LimbReanimator.Start()
 		if Character and Character ~= ActiveRealCharacter then
 			BindRealCharacter(Character)
 		end
+        toolMirror.Step(Character,Reanimate.Character)
 		local IsDeadRealCharacter = false
 		local mappedJointCount = 0
 		local requiredJointCount = 6
@@ -77000,6 +80275,7 @@ function LimbReanimator.Start()
 	end
 	LimbReanimator.ActiveRealCharacter = nil
 	LimbReanimator.RigGeneration += 1
+    toolMirror.Clear()
 	LimbReanimator.RebindCurrentRig = function() end
 	LimbReanimator.Status = "Real rig: stopped"
 	if Player.Character then
@@ -77840,7 +81116,12 @@ end
 -- Shared Limb collision semantics; Gelatek opts into explicit all-state noclip.
 Reanimate.ApplyControllerCollision = function(character, humanoid, root, noclipOverridesPassive)
 	local state = humanoid:GetState().Name
+	if Reanimate.Current and Reanimate.Current.RagdollDriving==false then
+        for _,part in ipairs(character:GetChildren())do if part:IsA("BasePart")then part.CanCollide=false end end
+        return state
+    end
 	local clip = not table.find({ "Running", "Jumping", "Freefall", "Landed", "Climbing", "Swimming" }, state)
+    if not Reanimate.Noclip and require(script.Parent.controller_floor).Detached(character,root)then clip=true end
 	for _, part in character:GetChildren() do
 		if part:IsA("BasePart") then
 			part.CanCollide = clip or (not Reanimate.Noclip and part == root)
@@ -77935,6 +81216,7 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	RCRootPart.CFrame = cf
 	local SafeY = cf.Y
 	local IsFloat = false
+    local detachedFloor=require(script.Parent.controller_floor).new(RC,RCRootPart)
 	local SeatWeld = nil
 	RC:SetAttribute("_Uhhhhhh_SeatWeldActive", false)
 	local LastJumpOffSeat = 0
@@ -78094,7 +81376,8 @@ Reanimate.CreateCharacter = function(InitCFrame)
 			else
 				RCHumanoid:Move(MoveCF:VectorToWorldSpace(CMove))
 			end
-			RCHumanoid.Jump = not Reanimate.FlightActive and CJump
+			RCHumanoid.Jump = not Reanimate.FlightActive and (Reanimate.ResolveRagdollJump
+                and Reanimate.ResolveRagdollJump(RCHumanoid,CJump,"PreAnimation")or CJump)
 			if not CJump then
 				PreserveSeatSitState()
 			end
@@ -78116,7 +81399,8 @@ Reanimate.CreateCharacter = function(InitCFrame)
 	Util.LinkDestroyI2C(
 		RC,
 		RunService.PostSimulation:Connect(function(dt)
-			RCHumanoid.Jump = not Reanimate.FlightActive and CJump
+			RCHumanoid.Jump = not Reanimate.FlightActive and (Reanimate.ResolveRagdollJump
+                and Reanimate.ResolveRagdollJump(RCHumanoid,CJump,"PostSimulation")or CJump)
 			if not CJump then
 				PreserveSeatSitState()
 			end
@@ -78151,6 +81435,8 @@ Reanimate.CreateCharacter = function(InitCFrame)
 				RCRootPart.Velocity *= Vector3.new(1, 0, 1)
 			end
 			RCRootPart.CFrame = tcf + pos
+            detachedFloor.Step(workspace,RCP,LastSafest,FallenPartsDestroyHeight,Reanimate.CharacterScale,
+                RCHumanoid.HipHeight,Reanimate.PatchmaVoidFloat==true)
 			if Reanimate:ShouldRotationType() then
 				Reanimate:CameraLockCharacter()
 			end
@@ -78422,12 +81708,13 @@ local function shellPart(part,character)
     end
     return parent==character
 end
-function Guard.ReleaseTools(tools,character,save)
+function Guard.ReleaseTools(tools,character,save,joints)
     if not character then return 0 end
     local selected={}for _,tool in ipairs(tools)do if tool.Parent==character then selected[tool]=true end end
     if not next(selected)then return 0 end
     local released=0
-    for _,joint in ipairs(character:GetDescendants())do
+    local function release(joint)
+        if not joint.Parent or not joint:IsDescendantOf(character)then return end
         local a,b
         if joint:IsA("JointInstance")or joint:IsA("WeldConstraint")then a,b=joint.Part0,joint.Part1
         elseif joint.ClassName=="RigidConstraint"or joint.ClassName=="AnimationConstraint"then
@@ -78437,6 +81724,8 @@ function Guard.ReleaseTools(tools,character,save)
             if joint.Enabled~=false then save(joint,"Enabled",false)released+=1 end
         end
     end
+    if joints then for joint in pairs(joints)do release(joint)end
+    else for _,joint in ipairs(character:GetDescendants())do release(joint)end end
     return released
 end
 function Guard.IsFree(handle,tool)
@@ -79511,28 +82800,40 @@ return function(context)
         context.Theme.ApplyLabel(title)
     end
     title.RichText, title.TextTruncate = false, Enum.TextTruncate.AtEnd
-    local function setMusicName(name)
-        name = tostring(name or "")
-        if title.Text ~= name then title.Text = name end
+    local fallbackName=tostring(music.Name or "")
+    local function setMusicName(name,source)
+        if source~=nil then music=source end
+        fallbackName=tostring(name or "")
+        if not context.GetAudio and title.Text~=fallbackName then title.Text=fallbackName end
     end
-    local elapsed, history = 0, 0
+    local elapsed, pending, lastMusic = 0, 0, nil
     context.Render(function(_, dt)
         if Util.IsGuiVisible and not Util.IsGuiVisible(demo) then return end
-        if Util.UIPerformance and Util.UIPerformance.ReducedEffects()then return end
-        elapsed += dt
-        local loudness = math.clamp(music.PlaybackLoudness / 1000, 0, 1.5)
-        sunScale.Scale = math.max(1 + loudness / 2, sunScale.Scale - dt * 4)
-        haloScale.Scale = sunScale.Scale + (haloScale.Scale - sunScale.Scale) * math.exp(-8 * dt)
-        history += dt
-        if history >= 1 / 30 then
-            history %= 1 / 30
+        if type(dt)~="number"or dt~=dt or dt<=0 then return end
+        local reduced=Util.UIPerformance and Util.UIPerformance.ReducedEffects()
+        pending+=math.min(dt,.25)
+        if pending<(reduced and .1 or 1/30)then return end
+        local step=pending pending=0 elapsed+=step
+        local current,name=music,fallbackName
+        if context.GetAudio then current,name=context.GetAudio()end
+        name=tostring(name or "quiet for now :)")
+        if title.Text~=name then title.Text=name end
+        if current~=lastMusic then
+            lastMusic=current sunScale.Scale,haloScale.Scale=1,1
+            for _,bar in ipairs(bars)do bar.Size=UDim2.new(1/36,-1,0,2)end
+        end
+        local okay,value=pcall(function()return current and current.PlaybackLoudness or 0 end)
+        local raw=okay and tonumber(value)or 0
+        if not raw or raw~=raw or math.abs(raw)==math.huge then raw=0 end
+        local loudness=math.sqrt(math.clamp(raw/1000,0,1.5))
+        sunScale.Scale = math.max(1 + loudness / 2, sunScale.Scale - step * 4)
+        haloScale.Scale = sunScale.Scale + (haloScale.Scale - sunScale.Scale) * math.exp(-8 * step)
             for i = 1, #bars - 1 do bars[i].Size = bars[i + 1].Size end
             bars[#bars].Size = UDim2.new(1 / 36, -1, 0, 2 + loudness * 180)
             for i, line in ipairs(reflections) do
                 local wave = 0.55 + 0.45 * math.sin(elapsed * (1 + i / 60) + i * 1.618)
                 line.Size = UDim2.new((1 - i / 60) * 0.5 * wave, 0, 0, 1)
             end
-        end
     end, demo)
     return demo, setMusicName
 end
@@ -79696,6 +82997,12 @@ function State.Snapshot(ctx)
             local read,value=pcall(backend.RagdollPhysics.Snapshot)
             if read then result.RagdollPhysics=value else result.RagdollPhysicsError=text(value)end
         end
+        if type(reanimate.GetFlingSupport)=="function"then
+            local read,value=pcall(reanimate.GetFlingSupport)
+            if read and type(value)=="table"then
+                result.TargetFling={Supported=value.Supported==true,Backend=text(value.Backend),Reason=text(value.Reason)}
+            elseif not read then result.TargetFlingError=text(value)end
+        end
         for animator in pairs(ctx.Animators or {}) do
             if #result.Animators == 12 then result.AnimatorsTruncated = true break end
             local row = {}
@@ -79812,6 +83119,268 @@ function State.Snapshot(ctx)
 end
 return State
 
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/self_identity.lua"] = [=====[
+-- Object identity, not avatar names: the physical shell, controller, nested
+-- animation rigs and owned helper objects are all the same player for attacks.
+return function(ctx)
+    local api={Registered=setmetatable({}, {__mode="k"}),History=setmetatable({}, {__mode="k"})}
+    local function remember(character)if character then api.History[character]=true end end
+    local player=ctx.Player or {}
+    remember(player.Character)
+    if player.CharacterAdded then api.Connection=player.CharacterAdded:Connect(remember)end
+    function api.Register(object)
+        assert(typeof(object)=="Instance","self helper must be an Instance")
+        api.Registered[object]=true
+        return function()api.Registered[object]=nil end
+    end
+    function api.Roots()
+        local roots,seen={},{}
+        local function add(object)
+            if object and not seen[object]and(typeof(object)~="Instance"or object.Parent~=nil)then
+                seen[object]=true table.insert(roots,object)
+            end
+        end
+        local reanimate=ctx.Reanimate or {}local backend=reanimate.Current or {}
+        remember(player.Character)add(player.Character)add(reanimate.Character)
+        add(backend.Rig)add(backend.RealCharacter)add(backend.ActiveRealCharacter)add(backend.StaticRoot)
+        for _,key in ipairs({"GetActiveRealCharacter","GetPresentationCharacter"})do
+            if type(reanimate[key])=="function"then local okay,object=pcall(reanimate[key])if okay then add(object)end end
+        end
+        for object in pairs(api.History)do add(object)end
+        for object in pairs(api.Registered)do add(object)end
+        return roots
+    end
+    function api.Is(object,roots)
+        if object==nil then return false end
+        for _,root in ipairs(roots or api.Roots())do
+            if object==root or typeof(object)=="Instance"and typeof(root)=="Instance"and object:IsDescendantOf(root)then return true end
+        end
+        return false
+    end
+    function api.Character(object)
+        if typeof(object)~="Instance"then return object end
+        local node=object
+        if node:IsA("Player")then return node.Character end
+        while node do
+            if node:IsA("Model")and node:FindFirstChildOfClass("Humanoid")then return node end
+            node=node.Parent
+        end
+        return object
+    end
+    function api.Destroy()
+        if api.Connection then api.Connection:Disconnect()api.Connection=nil end
+        table.clear(api.Registered)table.clear(api.History)
+    end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/self_queries.lua"] = [=====[
+-- Module-local query calls retain the real Workspace/Instance objects. Apply
+-- self exclusions before engine hit limits; never hook the game's methods.
+return function(ctx)
+    local api={}local identity=ctx.Identity
+    local overlap={GetPartBoundsInRadius=3,GetPartBoundsInBox=3,GetPartsInPart=2}
+    local casts={Raycast=3,Spherecast=4,Blockcast=4,Shapecast=3}
+    local properties={"IgnoreWater","CollisionGroup","RespectCanCollide","BruteForceAllSlow","MaxParts","Tolerance","Margin","SizeGradient"}
+    local function roots()
+        local result={}
+        for _,root in ipairs(identity.Roots())do if typeof(root)=="Instance"then table.insert(result,root)end end
+        return result
+    end
+    local function exclude(list,self)
+        local result,seen={},{}
+        for _,items in ipairs({list or {},self})do for _,object in ipairs(items)do
+            if object and not seen[object]then seen[object]=true table.insert(result,object)end
+        end end
+        return result
+    end
+    local function include(list,self)
+        local result,seen={},{}
+        local function visit(object)
+            if seen[object]or identity.Is(object,self)then return end seen[object]=true
+            for _,root in ipairs(self)do if root:IsDescendantOf(object)then
+                for _,child in ipairs(object:GetChildren())do visit(child)end return
+            end end
+            table.insert(result,object)
+        end
+        for _,object in ipairs(list or {})do visit(object)end
+        return result
+    end
+    function api.Params(original,isOverlap,self)
+        local create=isOverlap and(ctx.NewOverlapParams or function()return OverlapParams.new()end)
+            or(ctx.NewRaycastParams or function()return RaycastParams.new()end)
+        local copy=create()
+        if original then for _,key in ipairs(properties)do
+            local okay,value=pcall(function()return original[key]end)
+            if okay and value~=nil then pcall(function()copy[key]=value end)end
+        end end
+        local kind=original and original.FilterType or copy.FilterType
+        local name=type(kind)=="string"and kind or kind and kind.Name
+        local list=original and original.FilterDescendantsInstances or {}
+        local isInclude=kind==Enum.RaycastFilterType.Include or name=="Include"or name=="Whitelist"
+        local modern,allow,deny=pcall(function()
+            -- Reading nil is meaningful: nil includes everything; {} includes
+            -- nothing. Older clients reject these properties altogether.
+            local _=copy.IncludeInstances local __=copy.ExcludeInstances
+            return original and original.IncludeInstances,original and original.ExcludeInstances
+        end)
+        if modern then
+            if allow==nil and deny==nil then
+                if isInclude then allow=list elseif #list>0 then deny=list end
+            end
+            local okay=pcall(function()
+                copy.IncludeInstances=allow and table.clone(allow)or nil
+                copy.ExcludeInstances=exclude(deny,self)
+            end)
+            if okay then return copy end
+        end
+        copy.FilterType=kind
+        copy.FilterDescendantsInstances=isInclude and include(list,self)or exclude(list,self)
+        return copy
+    end
+    local function filtered(parts,self)
+        local result={}
+        for _,part in ipairs(parts)do if not identity.Is(part,self)then table.insert(result,part)end end
+        return result
+    end
+    function api.Bind(receiver,method)
+        -- Capture lookup now, before the original argument expressions run.
+        local native=receiver[method]
+        if method=="Connect"or method=="Once"then
+            local connect=method=="Once"and receiver.Connect or native
+            return function(callback)
+                local connection
+                connection=connect(receiver,function(hit,...)
+                    if identity.Is(hit)then return end
+                    if method=="Once"then connection:Disconnect()end
+                    return callback(hit,...)
+                end)
+                return connection
+            end
+        end
+        return function(...)
+            local touch=method=="GetTouchingParts"and typeof(receiver)=="Instance"and receiver:IsA("BasePart")
+            if receiver~=ctx.World and not touch then return native(receiver,...)end
+            local self=roots()local args=table.pack(...)
+            local at=overlap[method]or casts[method]
+            if at then
+                args[at]=api.Params(args[at],overlap[method]~=nil,self)args.n=math.max(args.n,at)
+                local result=native(receiver,table.unpack(args,1,args.n))
+                if overlap[method]then return filtered(result,self)end
+                return result
+            elseif touch then return filtered(native(receiver,...),self)
+            elseif method=="FindPartOnRay"then
+                return receiver:FindPartOnRayWithIgnoreList(args[1],exclude(args[2]and {args[2]}or {},self),args[3],args[4])
+            elseif method=="FindPartsInRegion3"then
+                return receiver:FindPartsInRegion3WithIgnoreList(args[1],exclude(args[2]and {args[2]}or {},self),args[3])
+            elseif method=="FindPartOnRayWithIgnoreList"or method=="FindPartsInRegion3WithIgnoreList"then
+                args[2]=exclude(args[2],self)
+            elseif method=="FindPartOnRayWithWhitelist"or method=="FindPartsInRegion3WithWhiteList"then
+                args[2]=include(args[2],self)
+            else return native(receiver,...)end
+            return native(receiver,table.unpack(args,1,args.n))
+        end
+    end
+    function api.Call(receiver,method,...)return api.Bind(receiver,method)(...)end
+    return api
+end
+]=====],
+    ["UhhhhhhReanim/System/runtime/steve110/main/self_query_source.lua"] = [=====[
+-- Adapt direct identifier/field-chain spatial calls inside a module's own
+-- compiled source. Strings/comments stay bytes; Workspace stays an Instance.
+local methods={GetPartBoundsInRadius=true,GetPartBoundsInBox=true,GetPartsInPart=true,
+    Raycast=true,Spherecast=true,Blockcast=true,Shapecast=true,GetTouchingParts=true,
+    FindPartOnRay=true,FindPartOnRayWithIgnoreList=true,FindPartOnRayWithWhitelist=true,
+    FindPartsInRegion3=true,FindPartsInRegion3WithIgnoreList=true,FindPartsInRegion3WithWhiteList=true}
+return function(source,yielding)
+    local wanted=source:find("Touched",1,true)~=nil
+    if not wanted then for method in pairs(methods)do if source:find(method,1,true)then wanted=true break end end end
+    if not wanted then return source,0 end
+    local function char(at)return source:sub(at,at)end
+    local function long(at)
+        if char(at)~="["then return nil end local next=at+1
+        while char(next)=="="do next+=1 end
+        if char(next)~="["then return nil end
+        local _,finish=source:find("]"..string.rep("=",next-at-1).."]",next+1,true)
+        return finish or false
+    end
+    local literal
+    literal=function(at)
+        local quote=char(at)local cursor=at+1 local depth=0
+        while cursor<=#source do
+            local c=char(cursor)
+            if c=="\\"then cursor+=2
+            elseif quote=="`"and depth>0 then
+                if c=="'"or c=='"'or c=="`"then cursor=literal(cursor)if not cursor then return nil end
+                elseif source:sub(cursor,cursor+1)=="--"then
+                    local finish=long(cursor+2)if finish==false then return nil end
+                    cursor=finish and finish+1 or source:find("[\r\n]",cursor)or #source+1
+                elseif c=="["then
+                    local finish=long(cursor)if finish==false then return nil end cursor=finish and finish+1 or cursor+1
+                else if c=="{"then depth+=1 elseif c=="}"then depth-=1 end cursor+=1 end
+            elseif c==quote then return cursor+1
+            elseif quote=="`"and c=="{"then depth=1 cursor+=1
+            else cursor+=1 end
+        end
+    end
+    local tokens,at,nextYield={},1,16384
+    while at<=#source do
+        if yielding and at>=nextYield then yielding()nextYield=at+16384 end
+        local c=char(at)local start=at
+        if c:match("%s")then at+=1
+        elseif source:sub(at,at+1)=="--"then
+            local finish=long(at+2)if finish==false then return source,0 end
+            at=finish and finish+1 or source:find("[\r\n]",at)or #source+1
+        elseif c=="'"or c=='"'or c=="`"then
+            at=literal(at)if not at then return source,0 end
+            table.insert(tokens,{First=start,Last=at-1,Value="literal"})
+        elseif c=="["and long(at)~=nil then
+            local finish=long(at)if not finish then return source,0 end at=finish+1
+            table.insert(tokens,{First=start,Last=finish,Value="literal"})
+        elseif c:match("[%a_]")then
+            repeat at+=1 until not char(at):match("[%w_]")
+            table.insert(tokens,{First=start,Last=at-1,Value=source:sub(start,at-1),Identifier=true})
+        elseif source:sub(at,at+1)==".."then
+            at+=source:sub(at,at+2)=="..."and 3 or 2
+            table.insert(tokens,{First=start,Last=at-1,Value=source:sub(start,at-1)})
+        else at+=1 table.insert(tokens,{First=start,Last=start,Value=c})end
+    end
+    local changes,i={},1
+    while i<=#tokens do
+        local first=tokens[i]local previous=tokens[i-1]and tokens[i-1].Value
+        if first.Identifier and previous~="."and previous~=":"and previous~="function"then
+            local last,j=i,i+1 local field=first.Value
+            while tokens[j]do
+                if tokens[j].Value=="."and tokens[j+1]and tokens[j+1].Identifier then
+                    last=j+1 field=tokens[last].Value j+=2
+                elseif tokens[j].Value=="["then
+                    local cursor,depth=j+1,1
+                    while tokens[cursor]and depth>0 do
+                        if tokens[cursor].Value=="["then depth+=1 elseif tokens[cursor].Value=="]"then depth-=1 end
+                        cursor+=1
+                    end
+                    if depth~=0 then break end last=cursor-1 j=cursor field=nil
+                else break end
+            end
+            local method=tokens[j+1]
+            local supported=method and(methods[method.Value]or field=="Touched"and(method.Value=="Connect"or method.Value=="Once"))
+            if tokens[j]and tokens[j].Value==":"and supported and tokens[j+2]and tokens[j+2].Value=="("then
+                local beforeMethod=source:sub(first.First,tokens[j].First-1)
+                local afterColon=source:sub(tokens[j].Last+1,method.First-1)
+                local afterMethod=source:sub(method.Last+1,tokens[j+2].First-1)
+                table.insert(changes,{First=first.First,Last=tokens[j+2].Last,
+                    Text="__UhhhhhhSelfQuery("..beforeMethod..","..afterColon.."\""..method.Value.."\""..afterMethod..")("})
+                i=j+3
+            else i+=1 end
+        else i+=1 end
+    end
+    local output,cursor={},1
+    for _,change in ipairs(changes)do
+        table.insert(output,source:sub(cursor,change.First-1))table.insert(output,change.Text)cursor=change.Last+1
+    end
+    table.insert(output,source:sub(cursor))return table.concat(output),#changes
+end
 ]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/session_tools.lua"] = [=====[
 -- Bounded, cancelable public-server lookup; teleport runs only from a user action.
@@ -80240,6 +83809,7 @@ return setmetatable({}, Signal)]=====],
     ["UhhhhhhReanim/System/runtime/steve110/main/source_credits.lua"] = [=====[
 -- Added source credits. Steve's original credits and every vendored notice stay in place.
 return {
+    {"mxsynry — Head, hair and menu integration", "Solved idle/passive Head target routing, physical-R15-only source mapping, optional owned head-accessory weld bridge, body transport diagnostics and search-return/sunset routing fixes. Existing Steve/Awes/Gelatek contracts and credits remain. see HEAD_HAIR_UI_FIXES.md."},
     {"mxsynry — optional ragdoll pose velocity", "Independent assembly-COM/world-angular target derivatives, continuity guards, render-phase comparison and read-only actuator endpoints. Roblox physics docs informed the contract; Awes/Gelatek source credits remain. see RAGDOLL_VELOCITY.md."},
     {"Gelatek — legacy LoadLibrary API reference", "Pinned Addons/LoadLibrary.lua at e776bcda, blob 40305100, reviewed for the RbxUtility contract. the scoped compatibility utility and local-library loader here are independent mxsynry code. removed legacy terrain calls are explicit limits. see REANIMATOR_SUPPORT.md."},
     {"STEVETHEREALONE — original logo and artwork", "Original helper/images, gold, three particle processors, nine-segment triangle path, CFrame/perspective drawing and two-layer intro from 08cbd802. source/reanim.lua:531–566 and 1550–1807. The recreated prism renderer is removed. Source and asset credits stay with Steve."},
@@ -82729,7 +86299,8 @@ return Layout
 return function(ctx)
     local files,anim=ctx.Files,ctx.AnimLib
     local vfx=ctx.Require("main/studio_vfx")
-    local api={States={"idle","walk","run","jump","fall","climb","swim","sit"}}
+    local states=ctx.Require("main/controller_states")
+    local api={States=table.clone(states.Names)}
     function api.New(kind)
         assert(kind=="moveset"or kind=="dance","invalid maker")
         return {Format="Uhhhhhh.Maker",Version=1,Kind=kind,Name=kind=="dance"and "My dance"or "My moveset",
@@ -82743,7 +86314,7 @@ return function(ctx)
         out.Fade=tonumber(project.Fade)or .15 assert(out.Fade>=0 and out.Fade<=2,"blend time must be 0 to 2 seconds")
         assert(type(project.Slots)=="table","invalid maker slots")
         for key,entry in pairs(project.Slots)do
-            assert(key=="dance"or table.find(api.States,key),"invalid movement slot")
+            assert(key=="dance"or states.Name(key)==key,"invalid movement slot")
             assert(project.Kind=="dance"and key=="dance"or project.Kind=="moveset"and key~="dance","clip slot does not belong to this maker")
             assert(type(entry)=="table","invalid clip assignment")
             local speed=tonumber(entry.Speed)or 1 assert(speed>0 and speed<=4,"clip speed must be over 0 to 4")
@@ -82752,7 +86323,7 @@ return function(ctx)
         return out
     end
     function api.Assign(project,slot,track,speed,looped)
-        assert(slot=="dance"or table.find(api.States,slot),"choose a movement state")
+        assert(slot=="dance"or states.Name(slot)==slot,"choose a movement state")
         local nextProject=api.Validate(project)
         nextProject.Slots[slot]={Track=files.Canonical(track),Speed=speed or 1,Looped=looped~=false}
         return api.Validate(nextProject)
@@ -82814,15 +86385,8 @@ return function(ctx)
         for i=0,count do table.insert(track.Markers,{Time=i*60/bpm,Name="Beat",Value=tostring(i+1),Source="Beat grid"})end
         return files.Canonical(track)
     end
-    function api.State(humanoid)
-        local state=humanoid:GetState().Name
-        if state=="Jumping"then return "jump"end
-        if state=="Freefall"or state=="FallingDown"then return "fall"end
-        if state=="Climbing"then return "climb"end
-        if state=="Swimming"then return "swim"end
-        if humanoid.Sit or state=="Seated"then return "sit"end
-        if humanoid.MoveDirection.Magnitude<.05 then return "idle"end
-        return humanoid.WalkSpeed>18 and "run"or "walk"
+    function api.State(humanoid,available)
+        return states.Resolve(humanoid,available)
     end
     function api.Module(project,options)
         project=api.Validate(project)options=options or {}
@@ -82881,7 +86445,7 @@ return function(ctx)
             if not rig or not current then return end
             if project.Kind=="moveset"then
                 local hum=rig:FindFirstChildOfClass("Humanoid")
-                local nextSlot=options.State or (hum and api.State(hum))or "idle"
+                local nextSlot=options.State or (hum and api.State(hum,project.Slots))or "idle"
                 if nextSlot~=slot then choose(nextSlot)end
             end
             clock+=dt fadeAge+=dt
@@ -87448,8 +91012,7 @@ return function(context)
             geometry.Content = UDim2.fromOffset(width - sidebar, height - headerHeight - corner)
             Workspace.Bar.Position = UDim2.fromOffset(5.5, 4 * alpha)
             Workspace.Bar.Size = UDim2.new(1, -13, 0, 32 * alpha)
-            Workspace.Slot.Position = UDim2.fromOffset(0, tabHeight)
-            Workspace.Slot.Size = UDim2.new(1, 0, 1, -tabHeight)
+            Workspace.SetHeaderInset(tabHeight)
         end
         -- The unchanged native renderer also sizes this; reuse the cached value.
         if Window.Content.Size ~= geometry.Content then Window.Content.Size = geometry.Content end
@@ -87601,11 +91164,33 @@ function Tabs.new(context)
     returnButton.BackgroundTransparency=.12 returnButton.ZIndex=9
     if Theme then Theme.ApplyFrame(returnButton)Theme.ApplyLabel(returnButton)end
     Workspace.ReturnButton=returnButton
+    local suppressed=setmetatable({}, {__mode="k"})
+    local function suppressBack(node)
+        if Workspace.ReturnAction and node:IsA("GuiObject")and node:GetAttribute("_UhhhhhhNavigationBack")==true then
+            if suppressed[node]==nil then suppressed[node]=node.Visible end
+            node.Visible=false
+        end
+    end
+    local function syncBackRows(page)
+        if not Workspace.ReturnAction or not page then return end
+        for _,node in ipairs(page:GetDescendants())do suppressBack(node)end
+    end
+    function Workspace.SetHeaderInset(height)
+        Workspace.HeaderInset=math.max(0,tonumber(height)or 40)
+        local top=Workspace.HeaderInset
+        returnButton.Position=UDim2.fromOffset(5,top)
+        local inset=top+(Workspace.ReturnAction and 32 or 0)
+        slot.Position=UDim2.fromOffset(0,inset)
+        slot.Size=UDim2.new(1,0,1,-inset)
+    end
     function Workspace.SetReturnAction(label,callback)
         Workspace.ReturnAction=callback
         returnButton.Text=label or ""returnButton.Visible=Workspace.Enabled and callback~=nil
-        slot.Position=UDim2.fromOffset(0,callback and 72 or 40)
-        slot.Size=UDim2.new(1,0,1,callback and -72 or -40)
+        if not callback then
+            for node,visible in pairs(suppressed)do if node.Parent then node.Visible=visible end end
+            table.clear(suppressed)
+        else syncBackRows(Workspace.CurrentPage)end
+        Workspace.SetHeaderInset(Workspace.HeaderInset or 40)
     end
     returnButton.Activated:Connect(function()
         local callback=Workspace.ReturnAction
@@ -87648,6 +91233,11 @@ function Tabs.new(context)
         page.Position = UDim2.new(0.5, 0, 0.5, 0)
         page.Size = UDim2.new(1, 0, 1, 0)
         page.ZIndex = 1
+        page.DescendantAdded:Connect(function(node)
+            if Workspace.ReturnAction then task.defer(function()
+                if node.Parent then suppressBack(node)end
+            end)end
+        end)
         page.Destroying:Once(function()
             local state, owner = Workspace.Pages[page], Workspace.Owners[page]
             local fallback = state and state.Parent or (owner and owner.Page)
@@ -87706,6 +91296,7 @@ function Tabs.new(context)
         cancelTransition(page)
         Workspace.Current, Workspace.CurrentPage = root, page
         root.Current = page
+        syncBackRows(page)
         page.AnchorPoint = Vector2.new(0.5, 0.5)
         page.Position = UDim2.new(0.5, 0, 0.5, 0)
         for candidate in pairs(Workspace.Pages) do
@@ -87881,6 +91472,7 @@ function Tabs.new(context)
         bar.Interactable = Workspace.Enabled
         bar.Visible = Workspace.Enabled
         returnButton.Visible=Workspace.Enabled and Workspace.ReturnAction~=nil
+        if Workspace.Enabled then syncBackRows(Workspace.CurrentPage)end
         if Workspace.Enabled then restore(Workspace.CurrentPage) end
         for page in pairs(Workspace.Pages) do
             page.Visible = page == Workspace.CurrentPage and Workspace.Enabled
@@ -87955,7 +91547,7 @@ function M.report()
         {"isnetworkowner", isnetworkowner, "Gelatek legacy diagnostic/ownership path"},
         {"identifyexecutor", M.identifyexecutor, "diagnostics"},
     }
-    print("===== Uhhhhhh Reanimate Modded v24 RootRef capability report =====")
+    print("===== Uhhhhhh Reanimate Modded diagnostics report =====")
     for _, row in ipairs(rows) do
         print((isFunction(row[2]) and "[OK] " or "[--] ") .. row[1] .. " - " .. row[3])
     end
@@ -90166,38 +93758,13 @@ warn("Reanimated in " .. string.sub(tostring(tick()-Speed),1,string.find(tostrin
 
 ]=====],
     ["UhhhhhhReanim/System/vendor/Uhhhhhh.lua"] = [=====[
-
-
---[[
- ...    :::::        ::        ::        ::        ::        ::        
- ;;     ;;;;;;       ;;;       ;;;       ;;;       ;;;       ;;;       
-[['     [[[[[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. [[[[cc,,. 
-$$      $$$$$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ $$$"""$$$ 
-88    .d888888   "88o888   "88o888   "88o888   "88o888   "88o888   "88o
- "YmmMMMM""MMM    YMMMMM    YMMMMM    YMMMMM    YMMMMM    YMMMMM    YMM
-       "DREAMS WILL NEVER COME TRUE UNTIL YOU ACTUALLY MAKE IT."       
-
-       Code:    STEVETHEREALONE
-                BoredGal (mostly patches..)
-       GFX:     STEVETHEREALONE
-                AALib
-                some random generators
-       Music:   Dubmood
-                4mat
-                MASTER BOOT RECORD
-
-Thou shalth not steal. Point at this source if you used a snippet here.
-]]
-
--- Uhhhhhh Reanimate Modded
--- Packaged runtime: ragdoll-velocity-20261110
-
 if _G.UhhhhhhLoaded then
 	return
 end
 _G.UhhhhhhLoaded = true
 
 local UhhhhhhVersion = "1.1.0 DEV (Modded)"
+local PackagedBuild = "ragdoll-shared-frame-20261115"
 local STEVE110_ROOT = "UhhhhhhReanim/System/runtime/steve110"
 local loaderChunk, loaderError = loadstring(readfile(STEVE110_ROOT .. "/loader.lua"), "@Steve110/loader")
 assert(type(loaderChunk) == "function", tostring(loaderError))
@@ -92015,6 +95582,10 @@ Steve110.Require("main/intro_input")({Frame=CracktroFrame,Input=UserInputService
     Activate=function()return UI.IntroScene.Exit()end})
 local SunsetDemo, SetSunsetMusicName = Steve110.Require("main/roserika_sunset")({
     Util = Util, Parent = MainPage, Music = UISound.Music, Render = AddToRenderStep,
+    GetAudio=function()
+        if MusicPlayer.AudioActivity then return MusicPlayer.AudioActivity.Pick()end
+        return UISound.Music,UISound.Music.Name
+    end,
     Theme = DevTheme, Font = Steve110.Require("main/data").TextFont,
 })
 local ArtworkSeparator = UI.CreateSeparator(MainPage)
@@ -92400,7 +95971,7 @@ UI.CreateSwitch(MainPage, "Mute Sounds", SaveData.MuteUISound).Changed:Connect(f
 	UISound.Click.Volume = value and 0 or 1
 end)
 UI.CreateSeparator(MainPage)
-UI.CreateText(MainPage, `Reanimate V{UhhhhhhVersion}, By STEVE :D`, 15, Enum.TextXAlignment.Right)
+UI.CreateText(MainPage, `Reanimate V{UhhhhhhVersion}, By Meridius <3`, 15, Enum.TextXAlignment.Right)
 UI.CreateSeparator(MainPage)
 UI.CreateButton(MainPage, " &lt; Back to cool scene", 20).Activated:Connect(function()
 	UI.IntroScene.Enter()
@@ -92566,9 +96137,17 @@ local function SetOverrideDanceMusicSpeed(speed)
 	ApplyOverrideDanceMusicPlaybackSpeed()
 end
 
+MusicPlayer.AudioActivity=Steve110.Require("main/audio_activity")({Sounds=UISound,
+    Roots=function()
+        if MusicPlayer.AudioRoots then return MusicPlayer.AudioRoots()end
+        return {{Root=SCREENGUI,Priority=15},{Root=game:GetService("SoundService"),Priority=5}}
+    end,
+})
+SCREENGUI.Destroying:Once(MusicPlayer.AudioActivity.Destroy)
 local _MainMusicIsMuted = SaveData.MuteUIMusic
 AddToRenderStep(function()
 	local musicname = UISound.Music.Name
+	local activeMusic = UISound.Music
 	local mustmute = SaveData.MuteUIMusic
 	if SaveData.MuteReanimMusic then
 		UISound.MovesetMusic.Volume = 0
@@ -92579,16 +96158,18 @@ AddToRenderStep(function()
 			UISound.DanceMusic.Volume = UISound.DanceMusic:GetAttribute("Volume")
 			UISound.MovesetMusic.Volume = 0
 			musicname = UISound.DanceMusic.Name
+			activeMusic = UISound.DanceMusic
 		elseif UISound.MovesetMusic.IsPlaying then
 			mustmute = true
 			UISound.MovesetMusic.Volume = UISound.MovesetMusic:GetAttribute("Volume")
 			musicname = UISound.MovesetMusic.Name
+			activeMusic = UISound.MovesetMusic
 		end
 	end
     _MainMusicIsMuted=mustmute
     local volume=mustmute and 0 or MusicPlayer.Transport.Settings.Volume
     if UISound.Music.Volume~=volume then UISound.Music.Volume=volume end
-	SetSunsetMusicName(musicname)
+	SetSunsetMusicName(musicname,activeMusic)
 end)
 task.wait()
 
@@ -93460,7 +97041,13 @@ function HatReanimator.ShowHitboxes()
 end
 HatReanimator.FlingTargets = {}
 HatReanimator._TempNotFling = {}
+function HatReanimator.CanTargetFling()
+    if HatReanimator.NoDeathActive then return false,"no-death hats are keeping their day job"end
+    if HatReanimator.FlingMethod==-1 then return false,"hat target fling is switched off"end
+    return true
+end
 function HatReanimator.Fling(target, duration)
+    if Reanimate.IsSelf and Reanimate.IsSelf(target)then return false end
     if HatReanimator.NoDeathActive then return false end
 	if HatReanimator.FlingMethod == -1 then
 		return
@@ -96259,23 +99846,34 @@ RunService.Heartbeat:Connect(function()
 		Reanimate._HitboxRigGeneration = -1
 	end
 end)
-local function ReanimateFling(target, duration)
-	local Reanimator = Reanimate.Current
-	if Reanimator and Reanimator.Fling then
-		return Reanimator.Fling(target, duration)
-	end
-	return false
+local SelfIdentity=Steve110.Require("main/self_identity")({Reanimate=Reanimate,Player=Player})
+local SelfQueries=Steve110.Require("main/self_queries")({World=workspace,Identity=SelfIdentity})
+local SelfQuerySource=Steve110.Require("main/self_query_source")
+Reanimate.IsSelf=SelfIdentity.Is
+Reanimate.GetSelfExclusions=SelfIdentity.Roots
+Reanimate.RegisterSelf=SelfIdentity.Register
+Reanimate.BindSelfQuery=SelfQueries.Bind
+SCREENGUI.Destroying:Once(SelfIdentity.Destroy)
+MusicPlayer.AudioRoots=function()
+    local roots={{Root=SCREENGUI,Priority=15},{Root=game:GetService("SoundService"),Priority=5}}
+    if Reanimate.Character then table.insert(roots,{Root=Reanimate.Character,Priority=40})end
+    local physical=Reanimate.GetActiveRealCharacter and Reanimate.GetActiveRealCharacter()or Player.Character
+    if physical then table.insert(roots,{Root=physical,Priority=40})end
+    return roots
 end
+local SharedFling=Steve110.Require("main/fling_dispatch")({Reanimate=Reanimate,Player=Player,Identity=SelfIdentity})
+Reanimate.GetFlingSupport=SharedFling.Status
+_G_Uhhhhhh.GetFlingSupport=SharedFling.Status
+SCREENGUI.Destroying:Once(function()
+    if _G_Uhhhhhh.GetFlingSupport==SharedFling.Status then _G_Uhhhhhh.GetFlingSupport=nil end
+end)
+local function ReanimateFling(target, duration)return SharedFling.Call(target,duration)end
 -- SetCharacter thing, very empyrean-like system
 _G_Uhhhhhh.Fling = function(part)
 	if Reanimate.Current and Reanimate.Current.IgnoreSharedFling then return false end
+	if SelfIdentity.Is(part)then return false end
 	if part and part.Parent then
-		if part:IsA("BasePart") then
-			part = part.Parent
-			if part:IsA("Accessory") or part:IsA("Tool") then
-				part = part.Parent
-			end
-		end
+		part = SelfIdentity.Character(part)
 		local hum = part:FindFirstChildOfClass("Humanoid")
 		if hum and hum.RootPart and not hum.RootPart:IsGrounded() then
 			return ReanimateFling(part)
@@ -96311,6 +99909,7 @@ Reanimate.ModuleLibraries=Steve110.Require("main/module_libraries")({
     Read=readfile,Exists=isfile,Compile=loadstring,SetEnvironment=setfenv,Environment=b_getfenv(),
 })
 Reanimate.AfterAnimator=Steve110.Require("main/animator_policy").AfterAnimator
+Reanimate.CanWriteAnimationPose=function(rig)return Steve110.Require("main/animator_policy").CanWritePose(rig,Reanimate)end
 Reanimate.UsesAnimatorPhase=function(rig)return Reanimate.AfterAnimator(rig or Reanimate.Character,Reanimate.Current)end
 local __TheoContext = {
     UI = UI,
@@ -96343,6 +99942,7 @@ local LooseBodyReanimators=Steve110.Require("main/reanimation/loose_body")({
 local NPCReanimator=Steve110.Require("main/reanimation/npc")({
     World=workspace,Player=Player,Players=Players,Reanimate=Reanimate,RunService=RunService,
     Saved=SaveData,UI=UI,Owned=Util.IsNetworkOwner,Write=Util.SetCharacterJointOffset,
+    PoseProvider=GelatekReanimator.AccessoryLifetime,
     Notify=Util.UINotify,Save=SaveSettingsNow,ShowHitbox=Util.ShowPartHitbox,AddToRenderStep=AddToRenderStep,
     Alive=function()return SCREENGUI.Parent~=nil end,
     Complete=function(backend)if __TheoLifecycle.Complete then __TheoLifecycle.Complete(backend)end end,
@@ -96540,11 +100140,12 @@ do
         return reloadCustom(...)
     end
 	local originalRagdoll=custom.Builtin("Awes955 original ragdoll",
-        Steve110.Require("main/reanimation/awes_original_ragdoll"))
+        Steve110.Require("main/reanimation/ragdoll_rig_router"))
     originalRagdoll.Name="Ragdoll (Awes)"
     originalRagdoll.BackendKind="ragdoll"
     originalRagdoll.NoclipAllStates=true
     Reanimate.Extensions.Wrap(originalRagdoll,"Ragdoll")
+    UI.CreateText(UI.Navigation.Pages.maintenance,"Build: "..PackagedBuild,11,Enum.TextXAlignment.Left)
     if SaveData.SelectedReanimatorName=="Ragdoll (beta)"or SaveData.SelectedReanimatorName=="Ragdoll (Awes original, R6)"then SaveData.SelectedReanimatorName=originalRagdoll.Name end
 	custom.Reload()
 	local builtins={LimbReanimator,HatReanimator,GelatekReanimator,originalRagdoll,LooseBodyReanimators.Tools,NPCReanimator}
@@ -97240,6 +100841,12 @@ SavedDanceEffectsOptions.AnchorMode = table.find(DanceEffectAnchorModes, SavedDa
 	or "Center of Mass"
 
 Reanimate.RigSchema=Steve110.Require("main/rig_schema")({JointParts=Util.GetCharacterJointParts,JointFrames=Util.GetCharacterJointFrames})
+local ControllerStates=Steve110.Require("main/controller_states")
+Reanimate.SetAnimationState=function(name)return ControllerStates.Set(Reanimate.Character,name)end
+Reanimate.GetAnimationState=function()
+    local humanoid=Reanimate.Character and Reanimate.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and ControllerStates.Resolve(humanoid)or nil
+end
 SCREENGUI.Destroying:Once(Reanimate.RigSchema.Destroy)
 SaveData.RigHatBindings=type(SaveData.RigHatBindings)=="table"and SaveData.RigHatBindings or {}
 Reanimate.HatBindings=Steve110.Require("main/hat_bindings")({Schema=Reanimate.RigSchema,Hat=HatReanimator,New=Instance.new,
@@ -97251,6 +100858,15 @@ SCREENGUI.Destroying:Once(function()
     RunService:UnbindFromRenderStep("Uhhhhhh_Camera")
     RunService:UnbindFromRenderStep("Uhhhhhh_TheoCameraFocus")
 end)
+local AnimationFrames=Steve110.Require("main/animation_frames")({RunService=RunService,New=Instance.new})
+SCREENGUI.Destroying:Once(AnimationFrames.Destroy)
+local function AnimationUpdatePhase()
+    local backend=Reanimate.Current
+    return backend and backend.AnimationUpdatePhase=="PreAnimation"and "PreAnimation"or "Heartbeat"
+end
+local function AnimationPhysicsOwner(rig)
+    if rig==Reanimate.Character and AnimationUpdatePhase()=="PreAnimation"then return Reanimate.Current end
+end
 local AnimLib = Steve110.Require("main/animlib")({
     RigSchema=Reanimate.RigSchema,
     CharacterMotion = Reanimate.CharacterMotion,
@@ -97266,6 +100882,9 @@ local AnimLib = Steve110.Require("main/animlib")({
 	Util = Util,
 	__TheoIsExternal = __TheoIsExternal,
     AfterAnimator=Reanimate.UsesAnimatorPhase,
+    ShouldWritePose=Reanimate.CanWriteAnimationPose,
+    PhysicsPoseOwner=AnimationPhysicsOwner,
+    AnimationFrames=AnimationFrames,
 	ismissing = ismissing,
 	pcall = pcall,
 })
@@ -98169,7 +101788,7 @@ ReleasePhysicsHead = function()
 	PhysicsHeadDriver.SmoothedRelative = CFrame.identity
 end
 
-local function ApplyPhysicsHeadOverlay(dt)
+local function ApplyPhysicsHeadOverlay(dt, figure, bodyPoses)
 	if PhysicsHeadDriver.Suspended then
 		RestorePhysicsHeadOverlay()
 		PhysicsHeadDriver.Status = "Head overlay: suspended / " .. tostring(PhysicsHeadDriver.SuspendReason or "transition")
@@ -98186,7 +101805,8 @@ local function ApplyPhysicsHeadOverlay(dt)
 		return
 	end
 
-	local figure = Reanimate.Character
+	figure = figure or Reanimate.Character
+	if figure~=Reanimate.Character then return end
 	local head, root, torso, neck = FindPhysicsHeadParts(figure)
 	if not head or not root or not torso or not neck or not neck:IsA("Motor6D") then
 		RestorePhysicsHeadOverlay()
@@ -98194,6 +101814,16 @@ local function ApplyPhysicsHeadOverlay(dt)
 		return
 	end
 
+	if neck.Enabled==false then
+        RestorePhysicsHeadOverlay()
+        PhysicsHeadDriver.Status="Head overlay: controller Neck disabled / world pose owns Head"
+        return
+    end
+    if (tonumber(AnimLib.Settings.PhysicsHeadStrength)or 1)<=0 then
+        RestorePhysicsHeadOverlay()
+        PhysicsHeadDriver.Status="Head overlay: zero influence"
+        return
+    end
 	if PhysicsHeadDriver.Neck ~= neck or PhysicsHeadDriver.Character ~= figure then
 		RestorePhysicsHeadOverlay()
 		PhysicsHeadDriver.Character = figure
@@ -98218,17 +101848,25 @@ local function ApplyPhysicsHeadOverlay(dt)
 	PhysicsHeadDriver.UnderlyingTransform = animationTransform
 
 	local camera, headset = GetHeadTrackingSource(torso)
-	local applied, source = HeadTracking.Solve(torso.CFrame, neck.C0, neck.C1, animationTransform,
+    local torsoPose=bodyPoses and bodyPoses[torso]or torso.CFrame
+	local applied, source = HeadTracking.Solve(torsoPose, neck.C0, neck.C1, animationTransform,
 		camera, headset, scale, AnimLib.Settings.PhysicsHeadStrength, AnimLib.Settings.PhysicsHeadBlendAnimation)
 	if not HeadTracking.Finite(applied) then
+		RestorePhysicsHeadOverlay()
 		PhysicsHeadDriver.Status = "Head overlay: rejected invalid local transform"
 		return
 	end
 
+    local world=torsoPose*neck.C0*applied*neck.C1:Inverse()
+    if not HeadTracking.Finite(world)then
+        RestorePhysicsHeadOverlay()
+        PhysicsHeadDriver.Status="Head overlay: rejected invalid world target"
+        return
+    end
 	neck.Transform = applied
 	PhysicsHeadDriver.LastAppliedTransform = applied
 	PhysicsHeadDriver.Source = source
-	PhysicsHeadDriver.TargetCFrame = head.CFrame
+	PhysicsHeadDriver.TargetCFrame = world
 	local blend = AnimLib.Settings.PhysicsHeadBlendAnimation
 	if PhysicsHeadDriver.StatusSource ~= source or PhysicsHeadDriver.StatusBlend ~= blend
 		or PhysicsHeadDriver.Status:sub(1, 20) ~= "Head overlay: active" then
@@ -98236,6 +101874,28 @@ local function ApplyPhysicsHeadOverlay(dt)
 		PhysicsHeadDriver.Status = "Head overlay: active / " .. source
 			.. (blend and " / animation + tracking" or " / tracking override")
 	end
+    return head,world
+end
+
+-- A passive/world-pose reader can intentionally skip Motor6D.Transform. Return
+-- tracking's solved pose explicitly so the physical follower cannot discard it.
+Reanimate.ResolveTrackedHeadPose=function(figure,bodyPoses)
+    if figure~=Reanimate.Character then return end
+    return ApplyPhysicsHeadOverlay(nil,figure,bodyPoses)
+end
+Reanimate.WithoutHeadTracking=function(joint,transform)
+    if joint==PhysicsHeadDriver.Neck and PhysicsHeadDriver.LastAppliedTransform
+        and CFrameClose(transform,PhysicsHeadDriver.LastAppliedTransform)then
+        return PhysicsHeadDriver.UnderlyingTransform or CFrame.identity
+    end
+    return transform
+end
+Reanimate.GetHeadTrackingState=function()
+    local influence=tonumber(AnimLib.Settings.PhysicsHeadStrength)or 1
+    if influence~=influence then influence=1 end
+    return {Enabled=AnimLib.Settings.PhysicsHeadTracking==true,Suspended=PhysicsHeadDriver.Suspended==true,
+        ControllerTargetReady=PhysicsHeadDriver.TargetCFrame~=nil,Status=PhysicsHeadDriver.Status,
+        Source=PhysicsHeadDriver.Source,Influence=math.clamp(influence,0,1)}
 end
 
 -- Native tracks have no manual pose callback. Custom writers also apply this
@@ -98629,6 +102289,7 @@ BodyHideTargetController.Name = "_Uhhhhhh_BodyHideTargetController"
 BodyHideTargetController.Archivable = false
 BodyHideTargetController.Parent = workspace
 local BodyHideTargetParts = {}
+SelfIdentity.Register(BodyHideTargetController)
 
 local function IsFiniteBodyHideNumber(value)
 	return type(value) == "number"
@@ -101792,6 +105453,7 @@ local function CompileAnimationModule(source, name)
         source=source:gsub('animJump%.weight%s*=%s*([01])','if animJump then animJump.weight = %1 end')
         source=source:gsub('actionStart%[animJump%]%s*=%s*os%.clock%(%)','if animJump then actionStart[animJump] = os.clock() end')
     end
+    source=SelfQuerySource(source,task.wait)
     local chunk,reason=loadstring(source,name)
     return chunk,reason,source
 end
@@ -101824,7 +105486,9 @@ local function GiveFunctionsToFunction(func, marketContext)
     -- inherit this addon's asset context and quiet diagnostic sink too.
     -- The application/executor's global warn/loadstring are never changed.
     env.loadstring = function(source, name)
-        local chunk, reason = loadstring(source, name)
+        local chunk, reason
+        if type(CompileAnimationModule)=="function"then chunk,reason=CompileAnimationModule(source,name)
+        else chunk,reason=loadstring(source,name)end
         if chunk then setfenv(chunk, env) end
         return chunk, reason
     end
@@ -101843,6 +105507,10 @@ local function GiveFunctionsToFunction(func, marketContext)
 	env.Util_CreateScrollCanvas = UI.CreateScrollCanvas
 	env.Util_CreateSeparator = UI.CreateSeparator
 	env.ReanimCamera = Reanimate.Camera
+    env.RegisterAudioSource=MusicPlayer.AudioActivity.Track
+	env.__UhhhhhhSelfQuery = Reanimate.BindSelfQuery
+	env.IsSelf = Reanimate.IsSelf
+	env.GetSelfExclusions = Reanimate.GetSelfExclusions
 	env.LimbReanimator = LimbReanimator
 	env.HatReanimator = HatReanimator
     env.Hats={Find=function(selector)return Reanimate.HatBindings.Find(selector)end,
@@ -101855,6 +105523,8 @@ local function GiveFunctionsToFunction(func, marketContext)
     env.AttachHat=env.Hats.Mount
     env.GetHatHandle=function(selector)local hat=env.Hats.Find(selector)return hat and hat:FindFirstChild("Handle")end
 	env.ReanimateShowHitboxes = ReanimateShowHitboxes
+	env.SetAnimationState = Reanimate.SetAnimationState
+	env.GetAnimationState = Reanimate.GetAnimationState
 	env.ReanimateFling = ReanimateFling
 	env.SetOverrideMovesetMusic = SetOverrideMovesetMusic
 	env.GetOverrideMovesetMusicTime = GetOverrideMovesetMusicTime
@@ -102642,15 +106312,15 @@ local function __TheoCaptureGelatekControllerPose(character, dt)
         local poseIndex = GelatekReanimator.AccessoryLifetime.ControllerIndex(character)
         for _, descendant in ipairs(poseIndex and poseIndex.Motors or {}) do
             if descendant:IsA("Motor6D") and descendant.Part0 and descendant.Part1 then
-                __TheoGelatekPoseCache[descendant] = Reanimate.CharacterMotion.BaseTransform(descendant)
+                local transform=Reanimate.CharacterMotion.BaseTransform(descendant)
+                __TheoGelatekPoseCache[descendant] = Reanimate.WithoutHeadTracking(descendant,transform)
             end
         end
         __TheoGelatekPoseSerial += 1
     else
         __TheoClearGelatekPoseCache()
     end
-    -- This cache preserves legacy Heartbeat-authored transforms for the next
-    -- animation batch. Physical following commits once after simulation.
+    -- Preserve the last completed module pose through native Animator reset.
 end
 
 local function __TheoHasPlayingRobloxTrack(character)
@@ -102780,6 +106450,7 @@ __TheoLifecycle.RetireController = function(character)
 end
 
 local function StopModuleAnimations(m)
+    AnimationFrames.Forget(m)
     m._UhhhhhhRuntimeReady,m._UhhhhhhLoadingAssets=false,false
     Reanimate.HatBindings.Release(m)
     local owned={}
@@ -102919,7 +106590,9 @@ local function RunAnimationModule(m, callback, character, dt)
             end
             m._UhhhhhhPoseBaseline=baseline
         end
-        if callback == "Update" then m.Update(dt, target) else m.Init(target) end
+        if callback == "Update" then
+            m.Update(AnimationFrames.Take(m,character,AnimationUpdatePhase(),dt),target)
+        else m.Init(target)end
         if callback=="Init"then
             local specs=SaveData.RigHatBindings[ModuleIdentity.PreferenceKey(m) or m.InternalName or m.Name]or m.Hats
             if specs then Reanimate.HatBindings.Apply(m,target,specs)end
@@ -102929,11 +106602,34 @@ local function RunAnimationModule(m, callback, character, dt)
     AnimLib.ModuleOwner=oldOwner
     if started then profiler.Finish("Animation modules",started) end
     if not ok then FailAnimationModule(m, character, callback .. ": " .. tostring(reason))
-    elseif callback=="Init"then m._UhhhhhhRuntimeReady=true m._UhhhhhhLoadingAssets=false end
+    elseif callback=="Init"then
+        AnimationFrames.Reset(m,character,AnimationUpdatePhase())
+        m._UhhhhhhRuntimeReady=true m._UhhhhhhLoadingAssets=false
+    end
     return ok
 end
 
+local nativeAnimationCharacter
+Reanimate.PrepareRagdollRobloxAnimation=function(character)
+    if not Reanimate.RagdollNativeAnimationActive then nativeAnimationCharacter=nil return false end
+    if nativeAnimationCharacter==character then return true end
+    nativeAnimationCharacter=character
+    local seen={}
+    for _,module in pairs({CurrentMovementStyle,_CurrentDance})do
+        if module and not seen[module]then
+            seen[module]=true
+            pcall(module.Destroy,Reanimate.ControllerRigAdapter.ModuleRig(character,module,false))
+            StopModuleAnimations(module)module._UhhhhhhPoseBaseline=nil
+        end
+    end
+    _CurrentDance=nil
+    __TheoClearGelatekPoseCache()
+    SetOverrideMovesetMusic(nil)SetOverrideDanceMusic(nil)
+    for _,name in ipairs({"MovementInit","MovesetInternalName","IsDancing","DanceInternalName"})do character:SetAttribute(name,nil)end
+    return true
+end
 local function StepAnimationRuntime(character,dt)
+    if Reanimate.PrepareRagdollRobloxAnimation(character)then return end
     if CurrentMovementStyle then
         if character:GetAttribute("MovementInit") then
             RunAnimationModule(CurrentMovementStyle,"Update",character,dt)
@@ -102973,22 +106669,29 @@ local function StepAnimationRuntime(character,dt)
     end
 end
 
--- This connection is created before moveset-specific AnimLib bindings. On
--- PreSimulation it restores legacy Heartbeat-written Transform first; a modern
--- AnimLib animator bound to PreSimulation then writes its fresh pose afterward.
-RunService.PreSimulation:Connect(function()
-	if not Reanimate.UsesAnimatorPhase(Reanimate.Character)then
+local preparedAnimationFrames=setmetatable({}, {__mode="k"})
+Reanimate.PrepareAnimationPhysics=function(character,dt)
+    local managed=AnimationPhysicsOwner(character)
+	if not managed and not Reanimate.UsesAnimatorPhase(character)then
+		Reanimate.ControllerNativeTrackActive=false
 		return
 	end
 
-	local character = Reanimate.Character
 	if not character or not character.Parent then return end
+    if managed then
+        local serial=AnimationFrames.Serial("PreSimulation")
+        local previous=preparedAnimationFrames[character]
+        if previous and previous.Owner==managed and previous.Serial==serial then return end
+        preparedAnimationFrames[character]={Owner=managed,Serial=serial}
+    end
+	local nativeTrack=Reanimate.RagdollNativeAnimationActive==true or __TheoHasPlayingRobloxTrack(character)
+	Reanimate.ControllerNativeTrackActive=nativeTrack
 
 	-- If a community moveset intentionally uses Roblox AnimationTracks, let the
 	-- Roblox Animator own Transform normally. Do not replay the manual cache.
 	local replay = character == __TheoGelatekPoseCharacter
         and (character:GetAttribute("MovementInit") == true or character:GetAttribute("IsDancing") == true)
-        and not __TheoHasPlayingRobloxTrack(character)
+        and not nativeTrack
 	if replay then for joint, transform in pairs(__TheoGelatekPoseCache) do
 		if joint
 			and joint.Parent
@@ -103000,8 +106703,15 @@ RunService.PreSimulation:Connect(function()
 			end)
 		end
 	end end
-    Reanimate.CharacterMotion.ApplyIK(character)
-    Reanimate.CharacterMotion.AfterPose(character)
+    if managed then AnimLib.UpdatePhysicsPose(character,dt,AnimationFrames.Serial("PreSimulation"))end
+    if not Reanimate.RagdollNativeAnimationActive then
+        Reanimate.CharacterMotion.ApplyIK(character)
+        Reanimate.CharacterMotion.AfterPose(character)
+    end
+end
+RunService.PreSimulation:Connect(function(dt)
+    AnimationFrames.Advance("PreSimulation",dt)
+    Reanimate.PrepareAnimationPhysics(Reanimate.Character,dt)
 end)
 
 task.spawn(function()
@@ -103010,7 +106720,8 @@ task.spawn(function()
 	local errorsandwarnings = {}
 	local currenterrorid = 1
 	while SCREENGUI.Parent do
-		local dt = RunService.Heartbeat:Wait()
+		local dt = AnimationFrames.Wait(AnimationUpdatePhase())
+        if dt==nil then break end
 		xpcall(function(dt)
             if StreamRuntime then StreamRuntime.Tick() end
 			local ReanimCharacter = Reanimate.Character
@@ -103047,8 +106758,10 @@ task.spawn(function()
 				end
                 StepAnimationRuntime(ReanimCharacter,dt)
 				EnforceWalkSpeedOverride(ReanimCharacter)
-                Reanimate.CharacterMotion.ApplyIK(ReanimCharacter)
-				__TheoCaptureGelatekControllerPose(ReanimCharacter, dt)
+                if not Reanimate.RagdollNativeAnimationActive then
+                    Reanimate.CharacterMotion.ApplyIK(ReanimCharacter)
+                    __TheoCaptureGelatekControllerPose(ReanimCharacter, dt)
+                end
 			else
 				-- Keep a queued dance selected while retiring only its old controller writers.
 				__TheoClearGelatekPoseCache()
@@ -103449,7 +107162,7 @@ InitLogsPage.ZIndex = 1
 InitLogsPage.Position = UDim2.new(0.5, 360, 0.5, 0)
 InitLogsPage.Interactable = false
 InitLogsPage.Visible = false
-UI.CreateButton(UI.Navigation.Pages.diagnostics, "Init Logs", 15).Activated:Connect(function()
+UI.CreateButton(UI.Navigation.Pages.diagnostics, "Logs", 15).Activated:Connect(function()
 	UI.Workspace.Open(InitLogsPage, UI.Navigation.Pages.diagnostics)
 end)
 UI.CreateButton(InitLogsPage, "&lt; Hurry back", 20).Activated:Connect(function()
@@ -103532,7 +107245,7 @@ local function ForceModuleReload(force)
     TeardownAnimationRuntime(Reanimate.Character,false)
     Util.ModuleBudget.Reset()
 	IsUhhhhhhFullyLoaded = false
-	InitLogsText.Reset("Init Logs -- This is where you check what happened.")
+	InitLogsText.Reset("Load log -- This is where you check what happened.")
 	ClearModules()
 	table.clear(UserModulesListor)
 	Util.UINotify("Checking hashes...", 0.05)
@@ -103769,8 +107482,7 @@ local function ForceModuleReload(force)
 	FavoriteSystem.Refresh()
 	InitLogsText.Text ..= "\n[LOG] Loaded " .. (#MovementStyles + #DanceableDances) .. " modules - " .. #MovementStyles .. " Movesets, " .. #DanceableDances .. " Dances."
     InitLogsText.Text ..= "\n[LOG] Merged "..ModuleIdentity.Merged.." verified identical entries; distinct variants and source credits retained."
-	InitLogsText.Text ..= "\n[LOG] Init complete!"
-	Util.UINotify("Init complete" .. (InitLogsText.HasErrors() and " with errors" or ""))
+	InitLogsText.Text ..= "\n[LOG] Ready."
 	IsUhhhhhhFullyLoaded = true
 	if not MovementStyles[MovementStyleIndex] then MovementStyleIndex = math.min(2, math.max(1, #MovementStyles)) end
 	CurrentDance = nil
@@ -104359,7 +108071,7 @@ local runtimeSnapshot=Steve110.Require("main/runtime_state").Snapshot({
     OwnershipDetail=Util.OwnershipProbe.Snapshot,Animators=AnimLib.ActiveAnimators,
     Build=function()
         local env=(getgenv and getgenv())or _G
-        return env.UhhhhhhLaunchInfo and env.UhhhhhhLaunchInfo.Build or "ragdoll-velocity-20261110"
+        return env.UhhhhhhLaunchInfo and env.UhhhhhhLaunchInfo.Build or PackagedBuild
     end,
     Ready=function()return IsUhhhhhhFullyLoaded end,
     Playback=function()
