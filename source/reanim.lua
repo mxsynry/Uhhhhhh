@@ -1515,12 +1515,12 @@ end
 		TextService = TextService, Theme = DevTheme, Enabled = SaveData.AnimatedAsciiBackground ~= false,
 		FPS = 15, MaximumCells = 2048,
 	})
-	local AddToRenderStep = function(callback, instance, alwaysRun, onHidden)
+	local AddToRenderStep = function(callback, instance, alwaysRun, onHidden, perFrame)
 		local registered = false
 		return NativeRender(function(t, dt)
 			if not registered then registered = true;return end
 			callback(t, dt)
-		end, instance, alwaysRun == true, onHidden)
+		end, instance, alwaysRun == true, onHidden, perFrame)
 	end
 	local _totalrendertime = 0
 	AddToRenderStep(function(t) _totalrendertime = t end)
@@ -1569,12 +1569,11 @@ end
 		Glowy.ImageTransparency = 0.7
 		Glowy.ZIndex = -2
 
-		local Triforce = Util.MakeTriforce(3, Color3.new(1, 0.7, 0), 0)
+		local Triforce, DrawEmblem, dimensional = Util.LogoBranding.LoadingMark("Mark", 0)
 		Triforce.AnchorPoint = Vector2.new(0.5, 0.5)
 		Triforce.Position = UDim2.new(0.5, 0, 0.5, 0)
 		Triforce.Size = UDim2.new(0, 160, 0, 160)
 		Triforce.Parent = TriforceClip
-		Util.LogoBranding.Bind(Triforce,"Mark")
 
 		local particles = {}
 		local ps = 128
@@ -1714,7 +1713,12 @@ end
 				local trivelt = pbl * 2 * dt
 				if pbl <= 0 then trivelt = 45 * dt end -- silent-audio safeguard
 				trivel = trivelt + (trivel - trivelt) * math.exp(-8 * dt)
-				Triforce.Rotation = (Triforce.Rotation + trivel) % 360
+				if dimensional then
+					Triforce.Rotation = 0
+					DrawEmblem(t, dt)
+				else
+					Triforce.Rotation = (Triforce.Rotation + trivel) % 360
+				end
 				-- Lower point density under pressure; keep the original depth effect.
 				local stride = Util.UIPerformance.ReducedEffects() and 2 or 1
 				local ring = CFrame.Angles(
@@ -1763,7 +1767,7 @@ end
 			-- Original hidden-state selection, without hidden particle simulation.
 			currentprocessor = math.random(1, #PositionProcessor)
 			CracktroFrame:SetAttribute("OriginalIntroProcessor", currentprocessor)
-		end)
+		end, true)
 
 	end
 	task.wait()
@@ -2209,6 +2213,10 @@ end
 		SaveData.MuteUISound = value
 		UISound.Click.Volume = value and 0 or 1
 	end)
+	UI.CreateDropdown(MainPage,"Sunset audio",{"Uhhhhhh audio","Game audio"},SaveData.SunsetAudioSource=="Game audio"and 2 or 1).Changed:Connect(function(index)
+		SaveData.SunsetAudioSource=index==2 and "Game audio"or "Uhhhhhh audio"
+		SaveSettingsNow()
+	end)
 	UI.CreateSeparator(MainPage)
 	UI.CreateText(MainPage, `Reanimate V{UhhhhhhVersion}, By Meridius <3`, 15, Enum.TextXAlignment.Right)
 	UI.CreateSeparator(MainPage)
@@ -2379,6 +2387,8 @@ end
 
 	MusicPlayer.AudioActivity=Steve110.Require("main/audio_activity")({Sounds=UISound,
 		Task=task,New=Instance.new,MeterParent=SCREENGUI,
+		Mode=function()return SaveData.SunsetAudioSource end,
+		Exclude=function(source)return source:IsDescendantOf(SCREENGUI)end,
 		Listener=function()local camera=workspace.CurrentCamera return camera and camera.CFrame.Position end,
 		Roots=function()
 			if MusicPlayer.AudioRoots then return MusicPlayer.AudioRoots()end
@@ -10048,6 +10058,8 @@ end
 		PlayRandomDance = function() end,
 		DetailPages = setmetatable({}, {__mode="k"}),
 	}
+	FavoriteSystem.Order=Steve110.Require("main/module_library_order")({Saved=SaveData,
+		IsFavorite=function(module)return FavoriteSystem.IsFavorite and FavoriteSystem.IsFavorite(module)or false end})
 	local MovesetsPage = UI.CreateItemListPage()
 	UI.Workspace.RegisterRoot("movesets", "Movesets", MovesetsPage, Color3.new(0.4, 0.9, 0))
 	MovesetsPage.ZIndex = 1
@@ -11180,13 +11192,14 @@ return {
 	local function KeybindDanceEligible(dance)
 		return dance ~= nil and not (FavoriteSystem.IsHidden and FavoriteSystem.IsHidden(dance))
 			and not(FavoriteSystem.IsInvalid and FavoriteSystem.IsInvalid(dance))
+			and (FavoriteSystem.Order.Filters.FavoritesOnly~=true or FavoriteSystem.IsFavorite and FavoriteSystem.IsFavorite(dance))
 	end
 	local function KeybindDances()
 		local visible = {}
 		for _, dance in ipairs(DanceableDances) do
 			if KeybindDanceEligible(dance) then table.insert(visible, dance) end
 		end
-		return visible
+		return FavoriteSystem.Order.Sort(visible)
 	end
 	local function HandleKeybind(key)
 		if AnimLib.StudioWorkspace and AnimLib.StudioWorkspace.Visible then return false end
@@ -11212,7 +11225,8 @@ return {
 		end
 		return false
 	end
-	RefreshKeybinds = function()
+	RefreshKeybinds = function(reset)
+		if reset==true then KeybindPaging=0 end
 		local visible = KeybindDances()
 		local pages = math.max(1, 1 + ((#visible - 1) // #KeybindsPerPage))
 		KeybindPaging = KeybindPaging % pages
@@ -11588,7 +11602,6 @@ return {
 		env.Util_CreateScrollCanvas = UI.CreateScrollCanvas
 		env.Util_CreateSeparator = UI.CreateSeparator
 		env.ReanimCamera = Reanimate.Camera
-		env.RegisterAudioSource=MusicPlayer.AudioActivity.Track
 		env.__UhhhhhhSelfQuery = Reanimate.BindSelfQuery
 		env.__UhhhhhhSelfMethod=Reanimate.BindSelfMethod
 		env.IsSelf = Reanimate.IsSelf
@@ -11646,8 +11659,23 @@ return {
 		env.HiddenGui = SCREENGUI
 		env.FallenPartsDestroyHeight = FallenPartsDestroyHeight
 		env.RegisterServerReanimAdapter = _G_Uhhhhhh.RegisterServerReanimAdapter
-		local releaseLibraries
-		env.LoadLibrary,releaseLibraries=Reanimate.ModuleLibraries.Bind(env,{Reanimate=Reanimate,Player=Player,AnimLib=env.AnimLib})
+		local releaseLibraries,trackResource
+		env.LoadLibrary,releaseLibraries,trackResource=Reanimate.ModuleLibraries.Bind(env,{Reanimate=Reanimate,Player=Player,AnimLib=env.AnimLib},function(object)
+			if typeof(object)=="Instance"and(object:IsA("Sound")or object:IsA("AudioPlayer"))then
+				return MusicPlayer.AudioActivity.Track(object,nil,{MusicOnly=true})
+			end
+		end)
+		env.RegisterAudioSource=function(source,label,options)
+			return trackResource(MusicPlayer.AudioActivity.Track(source,label,options))
+		end
+		local nativeInstance=Instance
+		env.Instance=setmetatable({new=function(class,...)
+			local object=nativeInstance.new(class,...)
+			if class=="Sound"or class=="AudioPlayer"then
+				trackResource(object)
+			end
+			return object
+		end},{__index=nativeInstance})
 		return function(owner)
 			moduleOwner=owner
 			owner._UhhhhhhLibraryRelease=releaseLibraries
@@ -11823,8 +11851,10 @@ return {
 	end
 
 	FavoriteSystem.RegisterMainItem = function(m, container)
+		FavoriteSystem.Order.Track(m)
 		moduleListRows[m] = container
 		RefreshMainModuleRow(m, container)
+		if IsUhhhhhhFullyLoaded and FavoriteSystem.QueueRefresh then FavoriteSystem.QueueRefresh()end
 	end
 
 	FavoriteSystem.SetMainRunning = function(m, running)
@@ -11898,9 +11928,7 @@ return {
 				table.insert(favorites, m)
 			end
 		end
-		table.sort(favorites, function(a, b)
-			return tostring(a.Name):lower() < tostring(b.Name):lower()
-		end)
+		favorites=FavoriteSystem.Order.Sort(favorites)
 
 		if #favorites == 0 then
 			local empty = UI.CreateText(
@@ -11935,9 +11963,18 @@ return {
 		return #favorites
 	end
 
-	FavoriteSystem.Refresh = function()
+	FavoriteSystem.ApplyOrder = function()
+		for _,modules in ipairs({MovementStyles,DanceableDances})do
+			for index,module in ipairs(FavoriteSystem.Order.Sort(modules))do
+				local row=moduleListRows[module]
+				if row and row.Parent then row.LayoutOrder=index end
+			end
+		end
+	end
+	FavoriteSystem.Refresh = function(resetKeybinds)
 		UI.Workspace.SnapshotAll()
-		if RefreshKeybinds then RefreshKeybinds() end
+		FavoriteSystem.ApplyOrder()
+		if RefreshKeybinds then RefreshKeybinds(resetKeybinds) end
 		for m, container in pairs(moduleListRows) do
 			if container.Parent then
 				RefreshMainModuleRow(m, container)
@@ -11965,20 +12002,27 @@ return {
 		if FavoriteSystem.Filters then FavoriteSystem.Filters.Refresh()end
 	end
 	FavoriteSystem.Filters=Steve110.Require("main/module_library_filters")({UI=UI,Util=Util,Theme=DevTheme,
-		Availability=ModuleAvailability,Save=SaveSettingsNow,Refresh=function()FavoriteSystem.Refresh()end,
+		Availability=ModuleAvailability,Order=FavoriteSystem.Order,Save=SaveSettingsNow,Refresh=function(reset)FavoriteSystem.Refresh(reset)end,
 		Modules=function()return {MovementStyles,DanceableDances}end})
 	FavoriteSystem.Filters.Attach(MovesetsPage)FavoriteSystem.Filters.Attach(DancesPage)
+	FavoriteSystem.Filters.Attach(KeybindsPage)
 	for _,page in pairs(FavoriteSystem.Pages or {})do
 		if page~=FavoriteSystem.Pages.Hub then FavoriteSystem.Filters.Attach(page)end
 	end
 	do
 		local pending=false
+		FavoriteSystem.QueueRefresh=function()
+			if pending then return end
+			pending=true task.defer(function()
+				pending=false
+				if SCREENGUI.Parent then FavoriteSystem.Refresh()end
+			end)
+		end
 		ModuleAvailability.Changed=function(module,persist)
 			local container=moduleListRows[module]
 			if container and container.Parent then RefreshMainModuleRow(module,container)end
 			if persist then SaveSettingsNow()end
-			if pending then return end
-			pending=true task.defer(function()pending=false FavoriteSystem.Refresh()end)
+			FavoriteSystem.QueueRefresh()
 		end
 	end
 
@@ -55073,9 +55117,9 @@ end
 factories["main/audio_activity"] = function(...)
 	-- Event-driven discovery; map scans are incremental and happen only on admission.
 	return function(ctx)
-		local api={}
+		local api={Mode="Uhhhhhh audio"}
 		local entries,active,roots={},{},{}
-		local destroyed=false
+		local destroyed,serial=false,0
 		local clock=ctx.Clock or os.clock
 		local heard=setmetatable({}, {__mode="k"})
 		local meter=ctx.Meter or Modules.Require("main/audio_meter")({New=ctx.New,Parent=ctx.MeterParent})
@@ -55090,7 +55134,13 @@ factories["main/audio_activity"] = function(...)
 			return ok and value
 		end
 		local function rank(state)
-			local value=state.Manual and 70 or 0
+			local value,last=0,-1
+			state.Manual,state.Explicit,state.Label=false,false,nil
+			for ticket,row in pairs(state.Owners)do
+				state.Manual=true value=70
+				state.Explicit=state.Explicit or not row.MusicOnly
+				if ticket>last then last=ticket state.Label=row.Label end
+			end
 			for _,priority in pairs(state.Roots)do value=math.max(value,priority)end
 			state.Priority=value
 		end
@@ -55099,11 +55149,11 @@ factories["main/audio_activity"] = function(...)
 			for _,connection in ipairs(state.Connections)do connection:Disconnect()end
 			entries[object],active[object]=nil,nil meter.Forget(object)
 		end
-		local function track(object,priority,label,manual,root)
+		local function track(object,priority,root)
 			local class=kind(object)if not class then return end
 			local state=entries[object]
 			if not state then
-				state={Kind=class,Roots={},Connections={}}entries[object]=state
+				state={Kind=class,Roots={},Owners={},Connections={}}entries[object]=state
 				local function update()
 					if entries[object]~=state then return end
 					if playing(object)then
@@ -55118,7 +55168,6 @@ factories["main/audio_activity"] = function(...)
 				update()
 			end
 			if root then state.Roots[root]=priority end
-			if manual then state.Manual=true state.Label=label end
 			rank(state)return state
 		end
 		local function remove(root,data)
@@ -55137,7 +55186,7 @@ factories["main/audio_activity"] = function(...)
 			local function capture(object)
 				if destroyed or roots[root]~=data then return end
 				if object~=root and not object:IsDescendantOf(root)then return false end
-				if track(object,priority,nil,false,root)then data.Members[object]=true end
+				if track(object,priority,root)then data.Members[object]=true end
 				return true
 			end
 			data.Connections[#data.Connections+1]=root.DescendantAdded:Connect(capture)
@@ -55166,9 +55215,9 @@ factories["main/audio_activity"] = function(...)
 			end
 			if ctx.Task then ctx.Task.defer(scan)else scan()end
 		end
-		local function refresh()
+		local function refresh(gameAudio)
 			local wanted={}
-			for _,entry in ipairs(ctx.Roots and ctx.Roots()or {})do
+			for _,entry in ipairs(gameAudio and ctx.Roots and ctx.Roots()or {})do
 				local root,priority
 				if typeof(entry)=="Instance"then root,priority=entry,15 else root,priority=entry.Root,entry.Priority or 15 end
 				if root then wanted[root]=math.max(wanted[root]or 0,priority)end
@@ -55199,38 +55248,59 @@ factories["main/audio_activity"] = function(...)
 			end)
 			return ok and value
 		end
-		function api.Track(object,label)
+		function api.Track(object,label,options)
 			assert(not destroyed,"this audio tracker has stopped")
 			assert(kind(object),"register a Sound or AudioPlayer for the sunset")
-			track(object,70,label,true)
+			local state=track(object)
+			serial+=1 local ticket=serial
+			state.Owners[ticket]={Label=label,MusicOnly=type(options)=="table"and options.MusicOnly==true}
+			rank(state)
 			return function()
-				local state=entries[object]if not state then return end
-				state.Manual,state.Label=nil,nil
-				if next(state.Roots)==nil then forget(object)else rank(state)end
+				if entries[object]~=state or not state.Owners[ticket]then return end
+				state.Owners[ticket]=nil rank(state)
+				if not state.Manual and next(state.Roots)==nil then forget(object)end
 			end
+		end
+		function api.SetMode(mode)
+			assert(mode=="Uhhhhhh audio"or mode=="Game audio","unknown Sunset audio source")
+			api.Mode=mode
 		end
 		function api.Pick()
 			if destroyed then return nil,"quiet for now :)",0,"stopped"end
-			refresh()
-			local best,name,ranked,started,level,status=nil,nil,-math.huge,-math.huge,0,"no playing music"
-			local dominant=false local now=clock()
+			local mode=type(ctx.Mode)=="function"and ctx.Mode()or api.Mode
+			local gameAudio=mode=="Game audio"
+			refresh(gameAudio)
+			local best,name,ranked,started,level,status,units=nil,nil,-math.huge,-math.huge,0,"no playing music","loudness"
+			local dominant=false local now=clock()local bestStrength=-math.huge
 			local function consider(object,label,priority,at,explicit)
 				if not object or not audible(object,explicit)then return end
-				local raw,state=meter.Read(object)
+				local raw,state,unit=meter.Read(object)
+				if type(raw)~="number"or raw~=raw or raw<0 or raw==math.huge then raw=0 end
+				local strength=math.clamp(raw/(unit=="rms"and 1 or 1000),0,1)
 				if raw>0 then heard[object]=now end
 				local positive=raw>0 or object==api.Source and heard[object]and now-heard[object]<(ctx.SilenceGrace or .5)
 				positive=positive==true
-				if positive and not dominant or positive==dominant and(priority>ranked
-					or priority==ranked and(raw>level or raw==level and at>started))then
+				if not gameAudio and(priority>ranked or priority==ranked and at>started)
+					or gameAudio and(positive and not dominant or positive==dominant and(priority>ranked
+					or priority==ranked and(strength>bestStrength or strength==bestStrength and at>started)))then
 					best,name,ranked,started,level,status=object,label or object.Name,priority,at,raw,state
+					units=unit=="rms"and "rms"or "loudness"
+					bestStrength=strength
 					dominant=positive
 				end
 			end
 			local known=ctx.Sounds or {}
-			consider(known.DanceMusic,nil,60,0,true)consider(known.MovesetMusic,nil,50,0,true)consider(known.Music,nil,20,0,true)
-			for object,state in pairs(active)do consider(object,state.Label,state.Priority,state.Started or 0,state.Manual)end
-			api.Source,api.Level,api.Status=best,level,status
-			return best,name or "quiet for now :)",level,status
+			if not gameAudio then
+				consider(known.DanceMusic,nil,60,0,true)consider(known.MovesetMusic,nil,50,0,true)consider(known.Music,nil,20,0,true)
+			end
+			for object,state in pairs(active)do
+				local own=state.Manual or object==known.Music or object==known.DanceMusic or object==known.MovesetMusic
+				if not gameAudio and state.Manual or gameAudio and not own and not(ctx.Exclude and ctx.Exclude(object))then
+					consider(object,state.Label,state.Priority,state.Started or 0,state.Explicit)
+				end
+			end
+			api.Source,api.Level,api.Status,api.LevelUnits=best,level,status,units
+			return best,name or "quiet for now :)",level,status,units
 		end
 		function api.Destroy()
 			if destroyed then return end destroyed=true
@@ -55254,8 +55324,8 @@ factories["main/audio_meter"] = function(...)
 		function api.Read(source)
 			if source:IsA("Sound")then
 				local ok,value=pcall(function()return source.PlaybackLoudness end)
-				if ok and finite(value)then return value,value>0 and "live"or "waiting for audio level"end
-				return 0,"audio level unavailable"
+				if ok and finite(value)then return value,value>0 and "live"or "waiting for audio level","loudness"end
+				return 0,"audio level unavailable","loudness"
 			end
 			if not source:IsA("AudioPlayer")then return 0,"no audio meter"end
 			local row=owned[source]
@@ -55274,10 +55344,10 @@ factories["main/audio_meter"] = function(...)
 					row.Wire,row.Analyzer=nil,nil row.Error=tostring(why)
 				end
 			end
-			if not row.Analyzer then return 0,"audio meter unavailable here"end
+			if not row.Analyzer then return 0,"audio meter unavailable here","rms"end
 			local ok,value=pcall(function()return row.Analyzer.RmsLevel end)
-			if not ok or not finite(value)then return 0,"audio level unavailable"end
-			return value*1000,value>0 and "live RMS"or "waiting for audio level"
+			if not ok or not finite(value)then return 0,"audio level unavailable","rms"end
+			return value,value>0 and "live RMS"or "waiting for audio level","rms"
 		end
 		function api.Forget(source)
 			local row=owned[source]owned[source]=nil
@@ -58637,6 +58707,7 @@ factories["main/logo_branding"] = function(...)
 		local kernel = "Kernel (original triangles)"
 		if saved.LoadingShape == "Original triangles" then saved.LoadingShape = kernel end
 		local api={Settings=saved,LoadingShapes={"4D tesseract", kernel},DefaultGlitch=.45,
+			MotionModes={"Animated","Follow system","Still"},
 			Modes={"Steve (original)","BlaaBlaa blue","Theme colors","Custom colors"},Status=""}
 		local marks=setmetatable({}, {__mode="k"})
 		local groups=setmetatable({}, {__mode="k"})
@@ -58694,9 +58765,13 @@ factories["main/logo_branding"] = function(...)
 			mark:SetAttribute("Color",api.Color(row.Role))visual(mark,row)
 		end
 		function api.CustomImage(mark)local row=marks[mark]return row and row.Image end
+		function api.ReducedMotion()
+			if saved.Motion=="Still"then return true end
+			return saved.Motion=="Follow system"and ctx.ReducedMotion and ctx.ReducedMotion()==true or false
+		end
 		function api.LoadingMark(role,duration)
 			role=role or "Mark"
-			if saved.LoadingShape==kernel or image~=""then
+			if saved.LoadingShape==kernel then
 				local mark=ctx.Util.MakeTriforce(3,api.Color(role),duration)
 				api.Bind(mark,role)
 				return mark,function()end
@@ -58707,14 +58782,14 @@ factories["main/logo_branding"] = function(...)
 			local emblem=Modules.Require("main/four_d_emblem").new({Util=ctx.Util,Parent=holder,
 				Color=function()return api.Color(role)end,
 				Glitch=function()return tonumber(saved.Glitch)or api.DefaultGlitch end,
-				ReducedMotion=ctx.ReducedMotion,
+				ReducedMotion=api.ReducedMotion,
 				LowEnd=function()return ctx.Util.UIPerformance and ctx.Util.UIPerformance.ReducedEffects()or false end})
 			holder.Destroying:Once(emblem.Destroy)
-			local last=-math.huge
-			return holder,function(time)
-				local reduced=ctx.Util.UIPerformance and ctx.Util.UIPerformance.ReducedEffects()
-				if time-last<1/(reduced and 30 or 60)then return end last=time
-				return emblem.Step(time)
+			local elapsed=0
+			return holder,function(time,dt)
+				if type(dt)=="number"and dt==dt and dt>0 and dt<math.huge then elapsed+=dt
+				elseif type(time)=="number"and time==time and math.abs(time)<math.huge then elapsed=math.max(elapsed,time)end
+				return emblem.Step(elapsed)
 			end,true
 		end
 		function api.Particles(group)groups[group]=true api.Apply()end
@@ -58788,7 +58863,9 @@ factories["main/logo_preferences"] = function(...)
 		glitch.Changed:Connect(function(value)
 			saved.Glitch=value ctx.Save()
 		end)
-		UI.CreateText(page,"applies next time you load. Reduce Motion stops the 4D spin and glitches. a custom image takes priority.",11,Enum.TextXAlignment.Left)
+		local motion=UI.CreateDropdown(page,"Motion",brand.MotionModes,table.find(brand.MotionModes,saved.Motion)or 1)
+		motion.Changed:Connect(function(index)saved.Motion=brand.MotionModes[index]ctx.Save()end)
+		UI.CreateText(page,"motion changes right away. Follow system uses Roblox's Reduce Motion setting. custom images use Kernel.",11,Enum.TextXAlignment.Left)
 		local mode=UI.CreateDropdown(page,"Palette",brand.Modes,table.find(brand.Modes,saved.Mode)or 1)
 		local status=UI.CreateText(page,brand.Status,11,Enum.TextXAlignment.Left)status.RichText=false
 		for _,row in ipairs({{"Mark","Logo color","FFB300"},{"Shadow","Shadow color","CC6600"},{"Particles","Particle color","FFE600"}})do
@@ -58802,7 +58879,7 @@ factories["main/logo_preferences"] = function(...)
 			end)
 		end
 		UI.CreateText(page,"Custom image · Roblox image id or local PNG/JPG",12,Enum.TextXAlignment.Left)
-		local image=UI.CreateTextbox(page,saved.Image or "","leave blank for the triangles",16)
+		local image=UI.CreateTextbox(page,saved.Image or "","leave blank for original Kernel",16)
 		local tint=UI.CreateSwitch(page,"Tint custom image",saved.TintImage==true)
 		tint.Changed:Connect(function(value)saved.TintImage=value==true brand.Apply()ctx.Save()end)
 		UI.CreateButton(page,"Apply image",18).Activated:Connect(function()
@@ -58814,6 +58891,7 @@ factories["main/logo_preferences"] = function(...)
 			image.Text = ""
 			shape.Value = 1
 			glitch.Value = brand.DefaultGlitch
+			motion.Value = 1
 			mode.Value = 1
 			tint.Value = false
 			ctx.Save()
@@ -60347,7 +60425,7 @@ factories["main/module_libraries"] = function(...)
 			assert(value~=""and not value:find("[/\\:%c]")and not value:find("..",1,true)and value:sub(1,1)~=".","invalid library name")
 			return value
 		end
-		function api.Bind(environment,context)
+		function api.Bind(environment,context,onTrack)
 			environment=environment or ctx.Environment or {}
 			local cache,loading,resources,tracked={},{},{},{}
 			local closed=false
@@ -60361,7 +60439,13 @@ factories["main/module_libraries"] = function(...)
 			local depth,generation=0,api.Generation
 			local function track(object)
 				if closed then dispose(object)error("this library scope has stopped",2)end
-				if not tracked[object]then tracked[object]=true table.insert(resources,object)end
+				if not tracked[object]then
+					tracked[object]=true table.insert(resources,object)
+					if onTrack then
+						local cleanup=onTrack(object)
+						if cleanup then track(cleanup)end
+					end
+				end
 				return object
 			end
 			local scope=table.clone(context or {})scope.Track=track
@@ -60409,7 +60493,7 @@ factories["main/module_libraries"] = function(...)
 				table.clear(resources)table.clear(tracked)table.clear(cache)
 			end
 			releases[release]=true
-			return loadLibrary,release
+			return loadLibrary,release,track
 		end
 		function api.ReleaseAll()
 			local pending={}for release in pairs(releases)do table.insert(pending,release)end
@@ -60426,15 +60510,24 @@ factories["main/module_library_filters"] = function(...)
 		local UI,util,theme=ctx.UI,ctx.Util,ctx.Theme
 		local page=UI.CreatePage()
 		page.Visible,page.Interactable=false,false
-		UI.CreateText(page,"Library filters",20,Enum.TextXAlignment.Left)
+		UI.CreateText(page,"Library filters & sorting",20,Enum.TextXAlignment.Left)
 		local status=UI.CreateText(page,"",12,Enum.TextXAlignment.Left)status.RichText=false
 		local filters=ctx.Availability.Filters
 		local function change(key,value)
-			filters[key]=value==true ctx.Save()ctx.Refresh()
+			value=value==true
+			if (filters[key]==true)==value then return end
+			filters[key]=value ctx.Save()ctx.Refresh()
 		end
-		UI.CreateSwitch(page,"Show invalid",filters.ShowInvalid==true).Changed:Connect(function(value)change("ShowInvalid",value)end)
+		local sort=UI.CreateDropdown(page,"Sort by",ctx.Order.Names,ctx.Order.Index())
+		sort.Changed:Connect(function(index)
+			if ctx.Order.Set(index)then ctx.Save()ctx.Refresh(true)end
+		end)
+		UI.CreateText(page,"same order in the library and dance keybinds.",11,Enum.TextXAlignment.Left)
+		local invalid=UI.CreateSwitch(page,"Show invalid",filters.ShowInvalid==true)
+		invalid.Changed:Connect(function(value)change("ShowInvalid",value)end)
 		UI.CreateText(page,"missing or broken entries stay out of random play. show them here to check their details or retry.",11,Enum.TextXAlignment.Left)
-		UI.CreateSwitch(page,"Favorites only",filters.FavoritesOnly==true).Changed:Connect(function(value)change("FavoritesOnly",value)end)
+		local favorites=UI.CreateSwitch(page,"Favorites only",filters.FavoritesOnly==true)
+		favorites.Changed:Connect(function(value)change("FavoritesOnly",value)end)
 		local back=UI.CreateButton(page,"< Hurry back",18)
 		local parent
 		back.Activated:Connect(function()UI.Workspace.Back(page,parent)end)
@@ -60442,24 +60535,119 @@ factories["main/module_library_filters"] = function(...)
 		function api.Attach(listPage)
 			local search=listPage:FindFirstChild("Search")
 			if not search then return end
-			search.Position,search.Size=UDim2.new(1,-65,0,0),UDim2.new(1,-100,0,25)
+			local existing=listPage:FindFirstChild("LibraryFilters")
+			if existing then return existing end
 			local button=util.Instance("TextButton",listPage)
-			button.Name,button.Text="LibraryFilters","Filters"
+			button.Name,button.Text="LibraryFilters","Filters ..."
 			button.AnchorPoint,button.Position=Vector2.new(1,0),UDim2.new(1,0,0,0)
 			button.Size,button.BorderSizePixel=UDim2.fromOffset(60,25),0
 			button.BackgroundColor3,button.BackgroundTransparency=Color3.new(1,1,1),0
 			button.Font,button.TextSize=Enum.Font.Code,13
 			theme.ApplyFrame(button)theme.ApplyLabel(button)
+			local function fit()
+				local full=util.GetTextSize("Filters ...",button.TextSize,button.Font,Vector2.new(100000,100000)).X+16
+				local narrow=listPage.AbsoluteSize.X>0 and listPage.AbsoluteSize.X<full+80
+				button.Text=narrow and "..."or "Filters ..."
+				local width=narrow and math.max(30,util.GetTextSize("...",button.TextSize,button.Font,Vector2.new(100000,100000)).X+12)or full
+				button.Size=UDim2.fromOffset(width,25)
+				search.Position,search.Size=UDim2.new(1,-width-5,0,0),UDim2.new(1,-width-40,0,25)
+			end
+			fit()
+			util.LinkDestroyI2C(button,listPage:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit))
 			util.LinkDestroyI2C(button,button.Activated:Connect(function()
 				parent=listPage api.Refresh()UI.Workspace.Open(page,listPage)
 			end))
+			return button
 		end
 		function api.Refresh()
+			sort.Value=ctx.Order.Index()
+			invalid.Value=filters.ShowInvalid==true
+			favorites.Value=filters.FavoritesOnly==true
 			local total,invalid=0,0
 			for _,list in ipairs(ctx.Modules())do
 				for _,module in ipairs(list)do total+=1 if ctx.Availability.IsInvalid(module)then invalid+=1 end end
 			end
 			status.Text=string.format("%d entries · %d unavailable%s",total,invalid,filters.ShowInvalid==true and ""or " (hidden)")
+		end
+		return api
+	end
+end
+
+-- module_library_order
+factories["main/module_library_order"] = function(...)
+	return function(ctx)
+		local saved=ctx.Saved
+		saved.ModuleFilters=type(saved.ModuleFilters)=="table"and saved.ModuleFilters or {}
+		local api={Filters=saved.ModuleFilters,Names={"Original order","Name A-Z","Name Z-A",
+			"Favorites first","Creator A-Z","Source A-Z","Newest first"}}
+		local sequence,serial=setmetatable({}, {__mode="k"}),0
+		local function text(value)
+			if type(value)~="string"and type(value)~="number"then return ""end
+			return tostring(value):gsub("<[^>]+>",""):lower()
+		end
+		local function compare(a,b)
+			local i,j=1,1
+			while i<=#a and j<=#b do
+				local x,y=a:match("^(%d+)",i),b:match("^(%d+)",j)
+				if x and y then
+					local left,right=x:gsub("^0+",""),y:gsub("^0+","")
+					if #left~=#right then return #left<#right and -1 or 1 end
+					if left~=right then return left<right and -1 or 1 end
+					i+=#x j+=#y
+				else
+					local left,right=a:byte(i),b:byte(j)
+					if left~=right then return left<right and -1 or 1 end
+					i+=1 j+=1
+				end
+			end
+			if i>#a and j>#b then return 0 end
+			return i>#a and -1 or 1
+		end
+		function api.Track(module)
+			if not sequence[module]then serial+=1 sequence[module]=serial end
+			return sequence[module]
+		end
+		function api.Index()
+			return table.find(api.Names,api.Filters.Sort)or 1
+		end
+		function api.Set(value)
+			local index=type(value)=="string"and table.find(api.Names,value)or value
+			assert(type(index)=="number"and index%1==0 and api.Names[index],"choose a library sort order")
+			local name=api.Names[index]
+			if api.Filters.Sort==name then return false end
+			api.Filters.Sort=name return true
+		end
+		function api.Sort(modules)
+			local rows,ordered={},{}local mode=api.Index()
+			for index,module in ipairs(modules)do
+				local context=module._UhhhhhhModuleContext or {}
+				local stream=module._UhhhhhhStream
+				local descriptor=stream and stream.Descriptor or {}
+				rows[#rows+1]={Module=module,Index=index,Order=api.Track(module),Name=text(module.Name),
+					Favorite=ctx.IsFavorite and ctx.IsFavorite(module)==true or false,
+					Creator=text(module.Author or module.User or module.Creator or context.Author or context.User or descriptor.User),
+					Source=text(context.SourceLabel or module._UhhhhhhSource or descriptor.Provider or descriptor.File)}
+			end
+			table.sort(rows,function(a,b)
+				if mode==1 or mode==7 then
+					if a.Order~=b.Order then return mode==1 and a.Order<b.Order or mode==7 and a.Order>b.Order end
+				else
+					if mode==4 and a.Favorite~=b.Favorite then return a.Favorite end
+					if mode==5 or mode==6 then
+						local key=mode==5 and "Creator"or "Source"
+						local left,right=a[key],b[key]
+						if (left=="")~=(right=="")then return right==""end
+						local result=compare(left,right)
+						if result~=0 then return result<0 end
+					end
+					local result=compare(a.Name,b.Name)
+					if result~=0 then return mode==3 and result>0 or mode~=3 and result<0 end
+					if a.Order~=b.Order then return a.Order<b.Order end
+				end
+				return a.Index<b.Index
+			end)
+			for index,row in ipairs(rows)do ordered[index]=row.Module end
+			return ordered
 		end
 		return api
 	end
@@ -64687,9 +64875,15 @@ factories["main/reanimation/awes_original_ragdoll"] = function(...)
 		return false
 	end
 	local initialGeneration
+	local checkBody=CheckBody
+	CheckBody=function(body,...)
+		if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return end
+		return checkBody(body,...)
+	end
 	-- Preparation no longer leaves a task waiting on a discarded avatar. Each
 	-- step checks the model, Humanoid, rig type and actual body-part identities.
 	Prepare=function(body)
+		if ctx.CanDriveBody and not ctx.CanDriveBody(body)then return end
 		if not syncBody(body)then return end
 		local current=generation
 		if not current.Humanoid then return end
@@ -66840,6 +67034,12 @@ factories["main/reanimation/loose_joint_guard"] = function(...)
 	-- Reversible RCDLESS joint release. Awes' source destroys these joints; retain
 	-- their endpoints/enabled state here so stop, respawn and failed starts restore.
 	local Guard={}
+	local leases=setmetatable({}, {__mode="k"})
+	function Guard.Enabled(joint)
+		local read=leases[joint]
+		if read then return read()end
+		return joint.Enabled
+	end
 	function Guard.new(options)
 		options=options or {}
 		local api={Joints={},Connections={},Dirty=false,PhysicalCount=0}
@@ -66873,6 +67073,7 @@ factories["main/reanimation/loose_joint_guard"] = function(...)
 		local function release(joint)
 			local state=api.Joints[joint]if not state then return end
 			api.Joints[joint]=nil
+			leases[joint]=nil
 			if state.Physical then api.PhysicalCount-=1 end
 			for _,connection in ipairs(state.Connections)do connection:Disconnect()end
 			-- A game may reuse this joint for a different body. Restore only the
@@ -66888,6 +67089,10 @@ factories["main/reanimation/loose_joint_guard"] = function(...)
 			local state={Enabled=enabled,Connections={},Physical=isPhysical(joint)}
 			if state.Physical then api.PhysicalCount+=1 end
 			api.Joints[joint]=state
+			leases[joint]=function()
+				if state.Changed and joint.Enabled==false and sameEndpoints(joint,state)then return state.Enabled end
+				return joint.Enabled
+			end
 			local properties={"Part0","Part1","Enabled"}
 			if joint.ClassName=="AnimationConstraint"or joint.ClassName=="RigidConstraint"or state.Physical then
 				properties={"Attachment0","Attachment1","Enabled"}
@@ -67612,49 +67817,148 @@ factories["main/reanimation/ragdoll_activity"] = function(...)
 	for _,entry in ipairs(R15.Segments)do names[entry.Name]=true end
 	local states={Physics=true,Ragdoll=true,PlatformStanding=true,FallingDown=true,Dead=true}
 	local flags={"Ragdolled","IsRagdolled","Ragdoll","RagdollActive"}
-	function Activity.Read(body,schema)
-		if not body or not body.Parent then return false,"waiting for character"end
-		local humanoid=body:FindFirstChildOfClass("Humanoid")
-		if not humanoid then return false,"waiting for Humanoid"end
-		local current=humanoid:GetState()
-		local name=type(current)=="string"and current or current and current.Name
-		if humanoid.PlatformStand or states[name]then return true,"ragdolled"end
-		for _,key in ipairs(flags)do
-			if body:GetAttribute(key)==true or humanoid:GetAttribute(key)==true then return true,"ragdolled"end
+	local sockets={BallSocketConstraint=true,HingeConstraint=true,UniversalConstraint=true,
+		RodConstraint=true,RopeConstraint=true,SpringConstraint=true,CylindricalConstraint=true,PrismaticConstraint=true}
+	local function relevant(j)
+		return j:IsA("JointInstance")or j:IsA("WeldConstraint")or j.ClassName=="RigidConstraint"
+			or j.ClassName=="AnimationConstraint"or sockets[j.ClassName]==true
+	end
+	local function endpoints(j)
+		if j:IsA("JointInstance")or j:IsA("WeldConstraint")then return j.Part0,j.Part1 end
+		local function part(attachment)
+			local p=attachment and attachment.Parent
+			while p and not p:IsA("BasePart")do p=p.Parent end
+			return p
 		end
-		local first,separate,parts=nil,false,{}
-		for _,part in ipairs(body:GetChildren())do
-			if part:IsA("BasePart")and names[part.Name]then
-				local root=part.AssemblyRootPart
-				if root and not root.Anchored and root:IsDescendantOf(body)then
-					parts[part]=part
-					if first and root~=first then separate=true end
-					first=root
+		return part(j.Attachment0),part(j.Attachment1)
+	end
+	local function inspect(body,schema,objects,enabled)
+		local info={Body=body,Flags={},Parts=0,Assemblies=0,Motors=0,DisabledMotors=0,Constraints=0,Groups=0}
+		if not body or not body.Parent then info.Reason="waiting for character"return info end
+		local humanoid=body:FindFirstChildOfClass("Humanoid")
+		if not humanoid then info.Reason="waiting for Humanoid"return info end
+		info.Humanoid=humanoid
+		local state=humanoid:GetState()
+		info.State=type(state)=="string"and state or state and state.Name
+		info.StateHint=states[info.State]==true
+		for _,key in ipairs(flags)do
+			for _,owner in ipairs({body,humanoid})do
+				local value=owner:GetAttribute(key)
+				if type(value)=="boolean"then info.Flags[owner==body and "body/"..key or "humanoid/"..key]=value end
+				local marker=owner:FindFirstChild(key)
+				if marker and marker:IsA("BoolValue")then info.Flags[marker]=marker.Value==true end
+			end
+		end
+		local flagged=false
+		for _,value in pairs(info.Flags)do if value then flagged=true break end end
+		local parts,assemblies={},{}
+		for _,p in ipairs(body:GetChildren())do
+			if p:IsA("BasePart")and names[p.Name]then
+				parts[p]=p info.Parts+=1
+				local root=p.AssemblyRootPart
+				if root and not root.Anchored and root:IsDescendantOf(body)and not assemblies[root]then
+					assemblies[root]=true info.Assemblies+=1
 				end
 			end
 		end
-		if separate then
-			if schema then
-				local function root(part)while parts[part]~=part do part=parts[part]end return part end
-				for _,node in ipairs(schema.Get(body).Nodes)do
-					local joint,a,b=node.Joint,node.ParentPart,node.Part
-					if joint.Parent and joint.Enabled~=false and parts[a]and parts[b]
-						and (joint:IsA("Motor6D")and joint.Active~=false
-							or joint.ClassName=="AnimationConstraint"and joint.IsKinematic~=false)then
-						parts[root(b)]=root(a)
+		local function root(p)
+			local at=p
+			while parts[at]~=at do at=parts[at]end
+			while parts[p]~=p do local nextPart=parts[p]parts[p]=at p=nextPart end
+			return at
+		end
+		local all={}
+		if objects then for j in pairs(objects)do all[j]=true end
+		else for _,j in ipairs(body:GetDescendants())do if relevant(j)then all[j]=true end end end
+		if schema then
+			local index=schema.Get(body)
+			for _,node in ipairs(index and index.Nodes or {})do
+				if relevant(node.Joint)then all[node.Joint]={node.ParentPart,node.Part}end
+			end
+		end
+		for j,pair in pairs(all)do
+			if j.Parent then
+				local a,b
+				if type(pair)=="table"then a,b=pair[1],pair[2]else a,b=endpoints(j)end
+				if a and b and a~=b and parts[a]and parts[b]then
+					local on
+					if enabled then on=enabled(j)else on=j.Enabled end
+					local motor=j:IsA("Motor6D")
+					if motor then
+						if on==false then info.DisabledMotors+=1
+						else info.Motors+=1 end
+					end
+					local rigid=j:IsA("JointInstance")or j:IsA("WeldConstraint")or j.ClassName=="RigidConstraint"
+						or j.ClassName=="AnimationConstraint"and j.IsKinematic~=false
+					if on~=false then
+						if rigid then parts[root(b)]=root(a)
+						elseif not rigid then info.Constraints+=1 end
 					end
 				end
-				local connected,anchor=true,nil
-				for part in pairs(parts)do
-					local group=root(part)
-					if anchor and group~=anchor then connected=false break end
-					anchor=group
-				end
-				if connected then return false,"waiting for ragdoll"end
 			end
-			return true,"loose body parts"
 		end
-		return false,"waiting for ragdoll"
+		local groups={}
+		for p in pairs(parts)do local r=root(p)if not groups[r]then groups[r]=true info.Groups+=1 end end
+		info.Joined=info.Parts>1 and(info.Groups==1 or info.Assemblies==1 and info.DisabledMotors==0)
+		info.Loose=info.Parts>1 and not info.Joined and(info.Assemblies>1 or info.DisabledMotors>0)
+		info.R6=body:FindFirstChild("Torso")~=nil and not body:FindFirstChild("UpperTorso")
+		info.Retained=info.R6 and info.Joined and info.Motors>0 and info.StateHint and(next(info.Flags)==nil or flagged)
+		if info.Loose then info.Reason="loose body parts"
+		elseif info.Retained then info.Reason="R6 joint transport (ragdoll not confirmed)"
+		elseif info.Joined then info.Reason="body joints are connected"
+		else info.Reason="waiting for ragdoll"end
+		return info
+	end
+	function Activity.Read(body,schema)
+		local info=inspect(body,schema)
+		return info.Loose or info.Retained or false,info.Reason,info
+	end
+	function Activity.new(ctx)
+		local api={Objects={},Connections={}}
+		local previous,paused
+		function api.Clear()
+			for _,connection in ipairs(api.Connections)do connection:Disconnect()end
+			table.clear(api.Connections)table.clear(api.Objects)
+			api.Body,api.Info,previous,paused=nil,nil,nil,false
+		end
+		local function bind(body)
+			if api.Body==body then return end
+			api.Clear()api.Body=body
+			if not body then return end
+			local function add(j)if relevant(j)then api.Objects[j]=true end end
+			for _,j in ipairs(body:GetDescendants())do add(j)end
+			api.Connections[#api.Connections+1]=body.DescendantAdded:Connect(add)
+			api.Connections[#api.Connections+1]=body.DescendantRemoving:Connect(function(j)api.Objects[j]=nil end)
+			api.Connections[#api.Connections+1]=body.Destroying:Connect(api.Clear)
+		end
+		function api.Read(body)
+			bind(body)
+			local info=inspect(body,ctx.Schema,api.Objects,ctx.Enabled)
+			if previous and previous.Humanoid~=info.Humanoid then previous=nil paused=false end
+			local recovered,fresh=false,false
+			if previous and previous.Humanoid==info.Humanoid then
+				for key,value in pairs(previous.Flags)do
+					if value==true and info.Flags[key]~=true then recovered=true end
+				end
+				for key,value in pairs(info.Flags)do
+					if value==true and previous.Flags[key]~=true then fresh=true end
+				end
+				recovered=recovered or info.Joined and(previous.Loose or previous.DisabledMotors>info.DisabledMotors
+					or previous.Constraints>0 and info.Constraints==0
+					or previous.StateHint and not info.StateHint)
+				fresh=fresh or info.Loose and not previous.Loose or info.DisabledMotors>previous.DisabledMotors
+					or info.Constraints>previous.Constraints or info.StateHint and not previous.StateHint
+			end
+			if recovered then paused=true
+			elseif fresh then paused=false end
+			local driving=(info.Loose or info.Retained)and not paused
+			if paused then info.Reason="game recovered; waiting for a new ragdoll"end
+			info.Driving,info.Paused=driving==true,paused==true
+			api.Info,previous=info,info
+			return info.Driving,info.Reason,info
+		end
+		api.Destroy=api.Clear
+		return api
 	end
 	return Activity
 end
@@ -69686,7 +69990,7 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 	-- R15 uses the exact body code from the user's working public download.
 	-- R6 keeps its later Motor6D implementation. Select at Start, not UI load.
 	return function(ctx)
-		local activeCore,preview,native
+		local activeCore,preview,native,activity
 		local Activity=Modules.Require("main/reanimation/ragdoll_activity")
 		local saved=ctx.SaveData.Reanimator
 		local function rigType()
@@ -69714,6 +70018,7 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 			end)
 			rawset(context,"CanDriveBody",function(body)
 				if body~=context.Player.Character then return false,"old character"end
+				if activity then return activity.Read(body)end
 				return Activity.Read(body,ctx.Reanimate.RigSchema)
 			end)
 			rawset(context,"Notify",function()end)
@@ -69736,6 +70041,12 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 				ctx.Connect(service.PreSimulation,function(dt)
 					local body,controller=bodies()
 					if native then native.Step(body,controller,"PreSimulation")end
+					if not context.CanDriveBody(body)then
+						if tools then tools.Clear()end
+						if bridge then bridge.Clear()end
+						if map then map.Clear()end
+						return
+					end
 					if bridge then bridge.Step(body,controller)end
 					if tools and body and controller then
 						if body:FindFirstChildOfClass("Tool")or next(tools.Records)then
@@ -69747,14 +70058,14 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 				end)
 				if tools then ctx.Connect(service.PostSimulation,function(dt)
 					local body,controller=bodies()
-					if body and controller and next(tools.Records)then
+					if body and controller and context.CanDriveBody(body)and next(tools.Records)then
 						if tools.NeedsPose()then map.Begin(body,controller)end
 						tools.Step(body,controller,dt,"PostSimulation",ctx.Clock and ctx.Clock()or os.clock())
 					end
 				end)end
 				if tools then ctx.Connect(service.PreRender,function(dt)
 					local body,controller=bodies()
-					if body and controller and tools.NeedsPose()then
+					if body and controller and context.CanDriveBody(body)and tools.NeedsPose()then
 						map.Begin(body,controller)tools.Step(body,controller,dt,"RenderPose",ctx.Clock and ctx.Clock()or os.clock())
 					end
 				end)end
@@ -69775,6 +70086,7 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 			return preview
 		end
 		local function start()
+			activity=Activity.new({Schema=ctx.Reanimate.RigSchema,Enabled=Modules.Require("main/reanimation/loose_joint_guard").Enabled})
 			local kind=rigType()or "R6"
 			activeCore=preview and preview.Rig==kind and preview or make(kind)
 			preview=nil
@@ -69784,13 +70096,19 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 			local previousPhase=current and current.AnimationUpdatePhase
 			if current then current.RagdollRig=kind current.AnimationUpdatePhase="PreAnimation"end
 			local previousStatus=current and current.GetStatus
-			local function status()return current.RagdollDriving==false and "waiting for ragdoll"or current.Status end
+			local function status()
+				if current.RagdollDriving==false then return "waiting for ragdoll"end
+				if current.RagdollDetection and current.RagdollDetection.Retained then
+					return "R6 motors active (ragdoll not confirmed)"
+				end
+				return current.Status
+			end
 			if current then current.GetStatus=status end
 			ctx.Connect(ctx.Game:GetService("RunService").PreSimulation,function()
 				if not current or ctx.IsStopping()then return end
 				local player=ctx.PhysicalPlayer or ctx.Player
 				local body=player and player.Character
-				local driving,reason=Activity.Read(body,ctx.Reanimate.RigSchema)
+				local driving,reason,info=activity.Read(body)
 				if driving and current.RagdollDriving==false then
 					local figure=ctx.Reanimate.Character
 					local source=body and body:FindFirstChild("HumanoidRootPart")
@@ -69801,15 +70119,16 @@ factories["main/reanimation/ragdoll_rig_router"] = function(...)
 						target.AssemblyLinearVelocity=Vector3.zero target.AssemblyAngularVelocity=Vector3.zero
 					end
 				end
-				current.RagdollDriving,current.RagdollActivity=driving,reason
+				current.RagdollDriving,current.RagdollActivity,current.RagdollDetection=driving,reason,info
 			end)
 			ctx.OnStop(function()
 				if current then
-					current.RagdollDriving=nil current.RagdollActivity=nil
+					current.RagdollDriving=nil current.RagdollActivity=nil current.RagdollDetection=nil
 					current.AnimationUpdatePhase=previousPhase
 					if current.GetStatus==status then current.GetStatus=previousStatus end
 				end
 				if native then native.Clear()end native=nil activeCore=nil
+				if activity then activity.Destroy()end activity=nil
 			end)
 			return activeCore.Start()
 		end
@@ -74033,7 +74352,7 @@ factories["main/roserika_sunset"] = function(...)
 		seaGradient.Rotation, seaGradient.Transparency = 90, NumberSequence.new(0, 1)
 		local sun = Util.Instance("Frame", sky)
 		sun.AnchorPoint = Vector2.new(0.5, 0.5)
-		sun.Position = UDim2.new(0.5, 0, 0, 90)
+		sun.Position = UDim2.new(0.5, 0, 1, 0)
 		sun.Size = UDim2.fromOffset(90, 90)
 		sun.BackgroundColor3, sun.BorderSizePixel = Color3.new(1, 0.2, 0), 0
 		sun.ZIndex = 3
@@ -74043,11 +74362,12 @@ factories["main/roserika_sunset"] = function(...)
 		halo.BackgroundColor3, halo.BackgroundTransparency, halo.ZIndex = Color3.new(1, 0.5, 0), 0.3, 2
 		halo.Parent = sky
 		local sunScale, haloScale = Util.Instance("UIScale", sun), Util.Instance("UIScale", halo)
-		local bars, reflections = {}, {}
+		local bars, reflections, history = {}, {}, {}
 		for i = 1, 36 do
 			local bar = Util.Instance("Frame", sky)
 			bar.AnchorPoint = Vector2.new(0, 1)
-			bar.Position, bar.Size = UDim2.new((i - 1) / 36, 0, 0, 90), UDim2.new(1 / 36, -1, 0, 8)
+			bar.Position, bar.Size = UDim2.new((i - 1) / 36, 0, 1, 0), UDim2.new(1 / 36, -1, 0, 2)
+			history[i]=0
 			bar.BackgroundTransparency, bar.BorderSizePixel = 0.7, 0
 			bar.BackgroundColor3 = Color3.new(1, 0.1, 0.1)
 			table.insert(bars, bar)
@@ -74081,37 +74401,41 @@ factories["main/roserika_sunset"] = function(...)
 			fallbackName=tostring(name or "")
 			if not context.GetAudio and title.Text~=fallbackName then title.Text=fallbackName end
 		end
-		local elapsed, pending, lastMusic = 0, 0, nil
+		local elapsed, lastMusic, envelope = 0, nil, 0
 		context.Render(function(_, dt)
 			if Util.IsGuiVisible and not Util.IsGuiVisible(demo) then return end
 			if type(dt)~="number"or dt~=dt or dt<=0 then return end
-			local reduced=Util.UIPerformance and Util.UIPerformance.ReducedEffects()
-			pending+=math.min(dt,.25)
-			if pending<(reduced and .1 or 1/30)then return end
-			local step=pending pending=0 elapsed+=step
-			local current,name,measured,status=music,fallbackName,nil,nil
-			if context.GetAudio then current,name,measured,status=context.GetAudio()end
+			local step=math.min(dt,.25)elapsed+=step
+			local current,name,measured,status,units=music,fallbackName,nil,nil,"loudness"
+			if context.GetAudio then current,name,measured,status,units=context.GetAudio()end
 			name=tostring(name or "quiet for now :)")
 			local explanation=status and status~="live"and status~="live RMS"and status or ""
 			if meterStatus.Text~=explanation then meterStatus.Text=explanation end
 			if title.Text~=name then title.Text=name end
 			if current~=lastMusic then
-				lastMusic=current sunScale.Scale,haloScale.Scale=1,1
-				for _,bar in ipairs(bars)do bar.Size=UDim2.new(1/36,-1,0,2)end
+				lastMusic=current envelope=0 sunScale.Scale,haloScale.Scale=1,1
+				for i=1,#history do history[i]=0 end
 			end
 			local okay,value=pcall(function()return measured~=nil and measured or current and current.PlaybackLoudness or 0 end)
 			local raw=okay and tonumber(value)or 0
 			if not raw or raw~=raw or math.abs(raw)==math.huge then raw=0 end
-			local loudness=math.sqrt(math.clamp(raw/1000,0,1.5))
-			sunScale.Scale = math.max(1 + loudness / 2, sunScale.Scale - step * 4)
+			local loudness=math.clamp(raw/(units=="rms"and 1 or 1000),0,1)
+			local response=loudness>envelope and .04 or .18
+			envelope+=(loudness-envelope)*(1-math.exp(-step/response))
+			if envelope<.001 then envelope=0 end
+			sunScale.Scale = 1 + envelope * .25
 			haloScale.Scale = sunScale.Scale + (haloScale.Scale - sunScale.Scale) * math.exp(-8 * step)
-				for i = 1, #bars - 1 do bars[i].Size = bars[i + 1].Size end
-				bars[#bars].Size = UDim2.new(1 / 36, -1, 0, 2 + loudness * 180)
+				for i = 1, #history - 1 do history[i] = history[i + 1] end
+				history[#history]=envelope
+				local height=math.max(0,sky.AbsoluteSize.Y)
+				local floor=math.min(2,height)
+				local range=math.max(0,height*.84-floor)
+				for i,bar in ipairs(bars)do bar.Size=UDim2.new(1/36,-1,0,floor+history[i]*range)end
 				for i, line in ipairs(reflections) do
 					local wave = 0.55 + 0.45 * math.sin(elapsed * (1 + i / 60) + i * 1.618)
 					line.Size = UDim2.new((1 - i / 60) * 0.5 * wave, 0, 0, 1)
 				end
-		end, demo)
+		end, demo, false, nil, true)
 		return demo, setMusicName
 	end
 end
@@ -83226,9 +83550,9 @@ factories["main/ui_render_queue"] = function(...)
 			if api.Stepping then api.Compact=true return end
 			local at=table.find(api.Callbacks,entry)if at then table.remove(api.Callbacks,at)end
 		end
-		function api.Add(callback,owner,always,onHidden)
+		function api.Add(callback,owner,always,onHidden,perFrame)
 			if api.Destroyed then return callback end
-			local entry={Callback=callback,Owner=owner,Always=always==true,Age=0,Active=true,OnHidden=onHidden}
+			local entry={Callback=callback,Owner=owner,Always=always==true,PerFrame=perFrame==true,Age=0,Active=true,OnHidden=onHidden}
 			table.insert(api.Callbacks,entry)
 			if owner then entry.Connection=owner.Destroying:Once(function()api.Remove(entry)end)end
 			-- Keep legacy three-argument registration timing, including always-run
@@ -83248,7 +83572,7 @@ factories["main/ui_render_queue"] = function(...)
 						entry.Age=0 observeHidden(entry,true)
 					else
 						observeHidden(entry,false)
-						if entry.Always or entry.Age+1e-9>=1/(rate or math.huge)then
+						if entry.Always or entry.PerFrame or entry.Age+1e-9>=1/(rate or math.huge)then
 							local age=entry.Age entry.Age=0 call(entry,age)
 						end
 					end
@@ -83612,6 +83936,9 @@ factories["main/upstream_util"] = function(...)
 	local TextService = Util.Service("TextService")
 	local GuiService: GuiService = Util.Service("GuiService")
 	function Util.GetTextSize(text, size, font, bounds, richtext)
+	-- TextService:GetTextSize requires the fourth (frameSize) argument.
+	-- Treat omitted bounds as a large, effectively unwrapped measuring area.
+	bounds = bounds or Vector2.new(100000, 100000)
 	local contentText = text
 	if richtext then
 	contentText = contentText:gsub("<.->", "")
@@ -83625,6 +83952,7 @@ factories["main/upstream_util"] = function(...)
 	elseif textsizemul == "Largest" then
 	outputsize = size - 14
 	end
+	outputsize = math.max(1, outputsize)
 	local textbounds = TextService:GetTextSize(contentText, size, font, bounds)
 	return textbounds * (size / outputsize)
 	end
@@ -83643,7 +83971,9 @@ factories["main/upstream_util"] = function(...)
 	local textBoundsTestDoneEvent = Util.Instance("BindableEvent", textBoundsTestGui)
 	textBoundsTestDoneEvent.Name = "."
 	Util.ForceTextSize(textBoundsTest)
-	function Util.GetTextSize(text, font, size, bounds, richtext)
+	function Util.GetTextSize(text, size, font, bounds, richtext)
+	-- Keep this alternate path's argument order consistent with the main path.
+	bounds = bounds or Vector2.new(100000, 100000)
 	if textBoundsTestDoneEvent.Name == "WAIT" then
 	textBoundsTestDoneEvent.Event:Wait()
 	end
