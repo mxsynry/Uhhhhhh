@@ -1823,7 +1823,7 @@ end
 	Steve110.Require("main/intro_input")({Frame=CracktroFrame,Input=UserInputService,Visible=Util.IsGuiVisible,
 		Ready=function()return _totalrendertime>=1 and IsUhhhhhhFullyLoaded and UI.IntroScene~=nil end,
 		Activate=function()return UI.IntroScene.Exit()end})
-	local SunsetDemo, SetSunsetMusicName = Steve110.Require("main/roserika_sunset")({
+		local SunsetDemo, SetSunsetMusicName, InspectSunset = Steve110.Require("main/roserika_sunset")({
 		Util = Util, Parent = MainPage, Music = UISound.Music, Render = AddToRenderStep,
 		GetAudio=function()
 			if MusicPlayer.AudioActivity then return MusicPlayer.AudioActivity.Pick()end
@@ -2622,6 +2622,15 @@ end
 		_G.Uhhhhhh = _G_Uhhhhhh
 	end)
 	_G_Uhhhhhh.BindableEvent = Util.Instance("BindableEvent") -- not used 3:
+	local function sunsetDebug()
+		local info=MusicPlayer.AudioActivity and MusicPlayer.AudioActivity.Inspect()or {Status="not ready"}
+		info.Visual=InspectSunset()
+		return info
+	end
+	_G_Uhhhhhh.GetSunsetAudio=sunsetDebug
+	SCREENGUI.Destroying:Once(function()
+		if _G_Uhhhhhh.GetSunsetAudio==sunsetDebug then _G_Uhhhhhh.GetSunsetAudio=nil end
+	end)
 
 	local Reanimate = Steve110.Require("main/reanimation/reanimate")({
 		AddToRenderStep = AddToRenderStep,
@@ -6066,25 +6075,6 @@ end
 		if _G_Uhhhhhh.GetFlingSupport==SharedFling.Status then _G_Uhhhhhh.GetFlingSupport=nil end
 	end)
 	local function ReanimateFling(target, duration)return SharedFling.Call(target,duration)end
-	-- SetCharacter thing, very empyrean-like system
-	do
-		local function report()
-			local rows={"Local hitbox/query check", "this shows client queries, not the game's damage logs.",
-				"Last returned target: "..SelfQueries.Stats.LastTarget,"Last blocked self: "..SelfQueries.Stats.LastBlocked,
-				"Fling target: "..(SharedFling.LastTarget or "none"),"Self exclusions:"}
-			for _,root in ipairs(SelfIdentity.Roots())do table.insert(rows,SelfIdentity.Describe(root))end
-			return table.concat(rows,"\n")
-		end
-		_G_Uhhhhhh.GetSelfCheck=report
-		local page=UI.CreatePage()page.Visible,page.Interactable=false,false
-		local label=UI.CreateText(page,"",11,Enum.TextXAlignment.Left)label.RichText=false
-		UI.CreateButton(page,"Refresh",16).Activated:Connect(function()label.Text=report()end)
-		UI.CreateButton(page,"< Hurry back",18).Activated:Connect(function()UI.Workspace.Back(page,UI.Navigation.Pages.diagnostics)end)
-		UI.CreateButton(UI.Navigation.Pages.diagnostics,"Self / hit check >",16).Activated:Connect(function()
-			label.Text=report()UI.Workspace.Open(page,UI.Navigation.Pages.diagnostics)
-		end)
-		SCREENGUI.Destroying:Once(function()if _G_Uhhhhhh.GetSelfCheck==report then _G_Uhhhhhh.GetSelfCheck=nil end end)
-	end
 	_G_Uhhhhhh.Fling = function(part)
 		if Reanimate.Current and Reanimate.Current.IgnoreSharedFling then return false end
 		if SelfIdentity.Is(part)then return false end
@@ -55122,6 +55112,7 @@ factories["main/audio_activity"] = function(...)
 		local destroyed,serial=false,0
 		local clock=ctx.Clock or os.clock
 		local heard=setmetatable({}, {__mode="k"})
+		local sampled=setmetatable({}, {__mode="k"})
 		local meter=ctx.Meter or Modules.Require("main/audio_meter")({New=ctx.New,Parent=ctx.MeterParent})
 		local function kind(object)
 			local ok,value=pcall(function()
@@ -55147,7 +55138,7 @@ factories["main/audio_activity"] = function(...)
 		local function forget(object)
 			local state=entries[object]if not state then return end
 			for _,connection in ipairs(state.Connections)do connection:Disconnect()end
-			entries[object],active[object]=nil,nil meter.Forget(object)
+			entries[object],active[object],sampled[object]=nil,nil,nil meter.Forget(object)
 		end
 		local function track(object,priority,root)
 			local class=kind(object)if not class then return end
@@ -55272,15 +55263,24 @@ factories["main/audio_activity"] = function(...)
 			refresh(gameAudio)
 			local best,name,ranked,started,level,status,units=nil,nil,-math.huge,-math.huge,0,"no playing music","loudness"
 			local dominant=false local now=clock()local bestStrength=-math.huge
+			local function read(object)
+				local row=sampled[object]
+				if not row then row={}sampled[object]=row end
+				if object==api.Source or now>=(row.Expires or -math.huge)then
+					row.Raw,row.Status,row.Units=meter.Read(object)
+					row.Expires=now+(ctx.ProbeInterval or .15)
+				end
+				return row.Raw,row.Status,row.Units
+			end
 			local function consider(object,label,priority,at,explicit)
 				if not object or not audible(object,explicit)then return end
-				local raw,state,unit=meter.Read(object)
+				local raw,state,unit=read(object)
 				if type(raw)~="number"or raw~=raw or raw<0 or raw==math.huge then raw=0 end
 				local strength=math.clamp(raw/(unit=="rms"and 1 or 1000),0,1)
 				if raw>0 then heard[object]=now end
 				local positive=raw>0 or object==api.Source and heard[object]and now-heard[object]<(ctx.SilenceGrace or .5)
 				positive=positive==true
-				if not gameAudio and(priority>ranked or priority==ranked and at>started)
+				if not gameAudio and(positive and not dominant or positive==dominant and(priority>ranked or priority==ranked and at>started))
 					or gameAudio and(positive and not dominant or positive==dominant and(priority>ranked
 					or priority==ranked and(strength>bestStrength or strength==bestStrength and at>started)))then
 					best,name,ranked,started,level,status=object,label or object.Name,priority,at,raw,state
@@ -55293,14 +55293,42 @@ factories["main/audio_activity"] = function(...)
 			if not gameAudio then
 				consider(known.DanceMusic,nil,60,0,true)consider(known.MovesetMusic,nil,50,0,true)consider(known.Music,nil,20,0,true)
 			end
+			local modern
 			for object,state in pairs(active)do
 				local own=state.Manual or object==known.Music or object==known.DanceMusic or object==known.MovesetMusic
 				if not gameAudio and state.Manual or gameAudio and not own and not(ctx.Exclude and ctx.Exclude(object))then
-					consider(object,state.Label,state.Priority,state.Started or 0,state.Explicit)
+					if state.Kind=="AudioPlayer"then
+						if audible(object,state.Explicit)and(not modern or state.Priority>modern.Priority
+							or state.Priority==modern.Priority and(state.Started or 0)>modern.Started)then
+							modern={Object=object,Label=state.Label,Priority=state.Priority,Started=state.Started or 0,Explicit=state.Explicit}
+						end
+					else
+						consider(object,state.Label,state.Priority,state.Started or 0,state.Explicit)
+					end
 				end
 			end
+			if modern then consider(modern.Object,modern.Label,modern.Priority,modern.Started,modern.Explicit)end
+			local previous=api.Source
+			if previous and previous~=best and kind(previous)=="AudioPlayer"then meter.Forget(previous)end
+			if modern and modern.Object~=best and modern.Object~=previous then meter.Forget(modern.Object)end
 			api.Source,api.Level,api.Status,api.LevelUnits=best,level,status,units
 			return best,name or "quiet for now :)",level,status,units
+		end
+		function api.Inspect()
+			local source=api.Source
+			local mode=type(ctx.Mode)=="function"and ctx.Mode()or api.Mode
+			local info={Mode=mode,Source="none",Class="none",Playing=false,Ready=false,
+				Raw=api.Level or 0,Units=api.LevelUnits or "loudness",Status=api.Status or "not sampled"}
+			if source then
+				info.Source=source.Name
+				info.Class=kind(source)or "unknown"
+				info.Playing=playing(source)==true
+				local ok,path=pcall(source.GetFullName,source)
+				if ok then info.Path=path end
+				local ready,loaded=pcall(function()return info.Class=="Sound"and source.IsLoaded or source.IsReady end)
+				info.Ready=ready and loaded==true
+			end
+			return info
 		end
 		function api.Destroy()
 			if destroyed then return end destroyed=true
@@ -55308,6 +55336,7 @@ factories["main/audio_activity"] = function(...)
 			for _,row in ipairs(old)do remove(row[1],row[2])end
 			local remaining={}for object in pairs(entries)do remaining[#remaining+1]=object end
 			for _,object in ipairs(remaining)do forget(object)end meter.Destroy()
+			table.clear(sampled)
 		end
 		return api
 	end
@@ -60529,8 +60558,7 @@ factories["main/module_library_filters"] = function(...)
 		local favorites=UI.CreateSwitch(page,"Favorites only",filters.FavoritesOnly==true)
 		favorites.Changed:Connect(function(value)change("FavoritesOnly",value)end)
 		local back=UI.CreateButton(page,"< Hurry back",18)
-		local parent
-		back.Activated:Connect(function()UI.Workspace.Back(page,parent)end)
+		back.Activated:Connect(function()UI.Workspace.Back(page)end)
 		local api={Page=page}
 		function api.Attach(listPage)
 			local search=listPage:FindFirstChild("Search")
@@ -60538,24 +60566,35 @@ factories["main/module_library_filters"] = function(...)
 			local existing=listPage:FindFirstChild("LibraryFilters")
 			if existing then return existing end
 			local button=util.Instance("TextButton",listPage)
-			button.Name,button.Text="LibraryFilters","Filters ..."
+			button.Name,button.Text="LibraryFilters",""
 			button.AnchorPoint,button.Position=Vector2.new(1,0),UDim2.new(1,0,0,0)
 			button.Size,button.BorderSizePixel=UDim2.fromOffset(60,25),0
 			button.BackgroundColor3,button.BackgroundTransparency=Color3.new(1,1,1),0
 			button.Font,button.TextSize=Enum.Font.Code,13
-			theme.ApplyFrame(button)theme.ApplyLabel(button)
+			button.ZIndex=search.ZIndex+1
+			theme.ApplyFrame(button)
+			local caption=util.Instance("TextLabel",button)
+			caption.Name="Caption"
+			caption.Size=UDim2.fromScale(1,1)
+			caption.BackgroundTransparency=1
+			caption.Font,caption.TextSize=button.Font,button.TextSize
+			caption.TextXAlignment,caption.TextYAlignment=Enum.TextXAlignment.Center,Enum.TextYAlignment.Center
+			caption.TextWrapped=false
+			caption.TextTransparency=0
+			caption.ZIndex=button.ZIndex+1
+			theme.ApplyLabel(caption)
 			local function fit()
-				local full=util.GetTextSize("Filters ...",button.TextSize,button.Font,Vector2.new(100000,100000)).X+16
+				local full=util.GetTextSize("Filters ...",caption.TextSize,caption.Font,Vector2.new(100000,100000)).X+16
 				local narrow=listPage.AbsoluteSize.X>0 and listPage.AbsoluteSize.X<full+80
-				button.Text=narrow and "..."or "Filters ..."
-				local width=narrow and math.max(30,util.GetTextSize("...",button.TextSize,button.Font,Vector2.new(100000,100000)).X+12)or full
+				caption.Text=narrow and "..."or "Filters ..."
+				local width=narrow and math.max(30,util.GetTextSize("...",caption.TextSize,caption.Font,Vector2.new(100000,100000)).X+12)or full
 				button.Size=UDim2.fromOffset(width,25)
 				search.Position,search.Size=UDim2.new(1,-width-5,0,0),UDim2.new(1,-width-40,0,25)
 			end
 			fit()
 			util.LinkDestroyI2C(button,listPage:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit))
 			util.LinkDestroyI2C(button,button.Activated:Connect(function()
-				parent=listPage api.Refresh()UI.Workspace.Open(page,listPage)
+				api.Refresh()UI.Workspace.Open(page,listPage,true)
 			end))
 			return button
 		end
@@ -74401,7 +74440,8 @@ factories["main/roserika_sunset"] = function(...)
 			fallbackName=tostring(name or "")
 			if not context.GetAudio and title.Text~=fallbackName then title.Text=fallbackName end
 		end
-		local elapsed, lastMusic, envelope = 0, nil, 0
+		local elapsed, lastMusic, envelope, reference = 0, nil, 0, 0
+		local lastRaw, lastLevel, lastUnits = 0, 0, "loudness"
 		context.Render(function(_, dt)
 			if Util.IsGuiVisible and not Util.IsGuiVisible(demo) then return end
 			if type(dt)~="number"or dt~=dt or dt<=0 then return end
@@ -74413,20 +74453,34 @@ factories["main/roserika_sunset"] = function(...)
 			if meterStatus.Text~=explanation then meterStatus.Text=explanation end
 			if title.Text~=name then title.Text=name end
 			if current~=lastMusic then
-				lastMusic=current envelope=0 sunScale.Scale,haloScale.Scale=1,1
+				lastMusic=current envelope,reference=0,0 sunScale.Scale,haloScale.Scale=1,1
 				for i=1,#history do history[i]=0 end
 			end
 			local okay,value=pcall(function()return measured~=nil and measured or current and current.PlaybackLoudness or 0 end)
 			local raw=okay and tonumber(value)or 0
 			if not raw or raw~=raw or math.abs(raw)==math.huge then raw=0 end
-			local loudness=math.clamp(raw/(units=="rms"and 1 or 1000),0,1)
+			local loudness=0
+			local floor=units=="rms"and .03 or 30
+			if raw>0 then
+				if reference==0 then
+					reference=math.max(raw,floor)
+				else
+					local tracking=raw>reference and .4 or 3.5
+					reference+=(raw-reference)*(1-math.exp(-step/tracking))
+				end
+				reference=math.max(reference,floor)
+				loudness=math.clamp(raw/(raw+reference),0,1)
+			else
+				reference=math.max(floor,reference*math.exp(-step/3.5))
+			end
+			lastRaw,lastLevel,lastUnits=raw,loudness,units
 			local response=loudness>envelope and .04 or .18
 			envelope+=(loudness-envelope)*(1-math.exp(-step/response))
 			if envelope<.001 then envelope=0 end
 			sunScale.Scale = 1 + envelope * .25
 			haloScale.Scale = sunScale.Scale + (haloScale.Scale - sunScale.Scale) * math.exp(-8 * step)
 				for i = 1, #history - 1 do history[i] = history[i + 1] end
-				history[#history]=envelope
+				history[#history]=loudness
 				local height=math.max(0,sky.AbsoluteSize.Y)
 				local floor=math.min(2,height)
 				local range=math.max(0,height*.84-floor)
@@ -74436,7 +74490,10 @@ factories["main/roserika_sunset"] = function(...)
 					line.Size = UDim2.new((1 - i / 60) * 0.5 * wave, 0, 0, 1)
 				end
 		end, demo, false, nil, true)
-		return demo, setMusicName
+		return demo, setMusicName, function()
+			return {Raw=lastRaw,Units=lastUnits,Reference=reference,Normalized=lastLevel,
+				Envelope=envelope,BarHeight=bars[#bars].Size.Y.Offset,Title=title.Text}
+		end
 	end
 end
 
@@ -75292,8 +75349,7 @@ factories["main/settings_navigation"] = function(...)
 			if parentKey==nil then UI.Workspace.RegisterRoot("settings/"..key,title,page,Color3.new(.9,.55,.22))end
 			if type(parentKey)=="string"then UI.Workspace.Owners[page]=UI.Workspace.Owners[entry.Parent]end
 			UI.CreateButton(page,"&lt; Back",20).Activated:Connect(function()
-				local state=UI.Workspace.Pages[page]
-				UI.Workspace.Back(page,state and state.Parent or entry.Parent)
+				UI.Workspace.Back(page)
 			end)
 			UI.CreateText(page,title,15,Enum.TextXAlignment.Center)
 			UI.CreateSeparator(page)
@@ -75348,7 +75404,7 @@ factories["main/settings_search"] = function(...)
 		UI.Workspace.RegisterRoot("settings/search","Find settings",page,Color3.new(.9,.55,.22))
 		UI.CreateButton(page,"&lt; Back",18).Activated:Connect(function()
 			if UI.Workspace.SetReturnAction then UI.Workspace.SetReturnAction(nil,nil)end
-			UI.Workspace.Back(page,search.Origin or ctx.Main)
+			UI.Workspace.Back(page)
 		end)
 		UI.CreateText(page,"<b>FIND A SETTING</b>",17,Enum.TextXAlignment.Left)
 		local box=UI.CreateTextbox(page,"","Search names or categories",14)
@@ -75369,6 +75425,10 @@ factories["main/settings_search"] = function(...)
 			return owner and owner.Name or (target.Name~="Frame"and target.Name or "Other settings")
 		end
 		local function open(record)
+			UI.Workspace.Open(record.Page,page)
+			-- Root tabs normally restore their last child. A search result needs
+			-- its exact page so its control can be scrolled into view.
+			if UI.Workspace.CurrentPage~=record.Page then UI.Workspace.Back(UI.Workspace.CurrentPage,record.Page)end
 			if UI.Workspace.SetReturnAction then
 				UI.Workspace.SetReturnAction("< Hurry back to Find a setting",function()
 					UI.Workspace.SetReturnAction(nil,nil)
@@ -75376,10 +75436,6 @@ factories["main/settings_search"] = function(...)
 					search.Refresh()
 				end)
 			end
-			UI.Workspace.Open(record.Page,page)
-			-- Root tabs normally restore their last child. A search result needs
-			-- its exact page so its control can be scrolled into view.
-			if UI.Workspace.CurrentPage~=record.Page then UI.Workspace.Back(UI.Workspace.CurrentPage,record.Page)end
 			if record.Anchor then task.defer(function()
 				if not record.Anchor.Parent or UI.Workspace.CurrentPage~=record.Page then return end
 				if record.Page:IsA("ScrollingFrame")then
@@ -75429,7 +75485,6 @@ factories["main/settings_search"] = function(...)
 			for i=shown+1,#search.Pool do search.Pool[i].Row.Visible=false end
 		end
 		function search.Open(from)
-			search.Origin=from or ctx.Main
 			if UI.Workspace.SetReturnAction then UI.Workspace.SetReturnAction(nil,nil)end
 			UI.Workspace.Open(page,from or ctx.Main)search.Refresh()
 		end
@@ -75510,35 +75565,28 @@ end
 
 -- source_credits
 factories["main/source_credits"] = function(...)
-	-- Added source credits. Steve's original credits and every vendored notice stay in place.
 	return {
-		{"mxsynry — Head, hair and menu integration", "Solved idle/passive Head target routing, physical-R15-only source mapping, optional owned head-accessory weld bridge, body transport diagnostics and search-return/sunset routing fixes. Existing Steve/Awes/Gelatek contracts and credits remain. see HEAD_HAIR_UI_FIXES.md."},
-		{"mxsynry — optional ragdoll pose velocity", "Independent assembly-COM/world-angular target derivatives, continuity guards, render-phase comparison and read-only actuator endpoints. Roblox physics docs informed the contract; Awes/Gelatek source credits remain. see RAGDOLL_VELOCITY.md."},
-		{"Gelatek — legacy LoadLibrary API reference", "Pinned Addons/LoadLibrary.lua at e776bcda, blob 40305100, reviewed for the RbxUtility contract. the scoped compatibility utility and local-library loader here are independent mxsynry code. removed legacy terrain calls are explicit limits. see REANIMATOR_SUPPORT.md."},
-		{"STEVETHEREALONE — original logo and artwork", "Original helper/images, gold, three particle processors, nine-segment triangle path, CFrame/perspective drawing and two-layer intro from 08cbd802. source/reanim.lua:531–566 and 1550–1807. The recreated prism renderer is removed. Source and asset credits stay with Steve."},
-		{"STEVETHEREALONE / STEVE-916-create", "the reanimate, Limb/CurrentAngle plumbing, UI, Roserika, Immersive VR and Steve .anim format. yeah, a LOT of this is Steve :D"},
-		{"BoredGal", "upstream patches. keeping the credit Steve put in his header."},
-		{"mxsynry", "this fork + independent editor, viewport preview, compatible module asset/settings merging, current-pose follower glue and R6/R15 ragdoll adapters. original module/source credits stay with their authors."},
-		{"Gelatek", "GelatekReanimate physical backend. its adapted pose reader, Head alignment and finite velocity helper are now shared with Ragdoll. the support/motion split and effect-pose glue are mxsynry fork integration."},
-		{"PRODUCTIONTAKEONE / MyWorld / Mizt / 4EYEDFOOL", "Gelatek's original credits: optimizations, delayless inspiration, hat naming and artificial heartbeat."},
-		{"MrY7zz", "CurrentAngle V2 pose-mapping reference. MIT notice + license retained."},
-		{"codedtocode", "ApexEngine: animation data, curves, evaluation and pose math. MPL-2.0. the editor here is our own."},
-		{"Robert Penner", "easing functions inside ApexEngine. original BSD notice is still there."},
-		{"kylethornton / @KYLETHORNTON", "Animation Spoofer V2 reference, asset 2537608092. GetObjects import path. ty for the reference :D"},
-		{"JustAMaleScripts / BlaaBlaa", "testing runtime/content references, GUI palettes + joint mixer, and stable Animation Creator format. old Creator dances now share native playback, editable copies and previews; Euler keys keep their authored rotation path. each pack keeps its actual author's credit. see AWES_BLAABLA_PORTS.md."},
-		{"Theo / Krystal Dance V3 mod", "inherited dance content + earlier integration. see Steve's original credits below."},
-		{"Dubmood / 4mat / MASTER BOOT RECORD / Hoster / Zabutom / Ogge", "music. the artists on the track labels still get their credit too."},
-		{"BlaaBlaa music catalog + the track artists", "repository audio discovery and supplied track credits. titles and artists come from each catalog; artists stay unstated when the source doesnt name them."},
-		{"AALib / BB Demo / rez aka @chiptune", "ascii + demo-scene inspiration. Steve's original art credits are below."},
-		{"KadeTheExploiter / Krypton", "reviewed accessory + respawn handling reference. not a second backend hiding in here lol"},
-		{"testing734 / Awes955", "UhhhhhhModded beta fork. original R6 ragdoll component from betabetafork at b3c9cbf: setup, ReceiveAge gate, joint removal and idle / angular / Patchma-style motion. Torso selection, collision repair, experimental R15 mapping, world angular/history correction, post-physics timing and camera/setting adapters are mxsynry fork integration. original gate and setup credits stay with Awes. also red / classic palettes, folder packs + custom method contract. see ORIGINAL_RAGDOLL.md + AWES_FEATURES.md. ty :D"},
-		{"Elliot12-wq / Nooby", "RootPart smoothing method + custom extension contracts; NPC workflow, isolated previews, music transport, low-end/loading modes, teleport resume, NaN fallback, weak/contact patterns and player/server tools. source roles are recorded in FORK_UNIFICATION.md. ty :D"},
-		{"dolteddown", "the existing alternate hat permadeath state method."},
-		{"Centinily", "RAGDOLLV3.txt names Centinily on Toolbox in its description. ragdoll reference supplied by u :D"},
-		{"RobloxStudioGizmos.rbxm / R6IK.rbxm", "the supplied gizmo model now provides the arrows + rings. R6IK is a reviewed reference. neither names an author, so no guessing. our drag solver is independent."},
-		{"Tool.lua / RAGDOLLV3.txt", "Tool.lua supplied the tool-to-limb layout reference; its author is unstated. RAGDOLLV3 is credited to Centinily in its own description."},
-		{"the community pack authors", "their names stay with their packs AND editable copies. importing an animation doesnt make u its author :D"},
-
+		{"STEVETHEREALONE / STEVE-916-create", "Uhhhhhh, the original UI, Limb reanimation, Roserika, artwork and .anim format."},
+		{"BoredGal", "Upstream patches."},
+		{"mxsynry", "This fork: editor, library, menu, Studio support, and the R6/R15 ragdoll integration."},
+		{"Awes955 / testing734", "Original R6 ragdoll component and UhhhhhhModded beta fork. R6/R15 changes here are mxsynry's integration."},
+		{"Nooby / Elliot12-wq", "Nooby's fork: RootPart smoothing and module ideas. NPC, preview and library workflows were reviewed as references."},
+		{"Gelatek", "GelatekReanimate and its original pose, head and velocity work. Fork-specific adapters are credited to mxsynry."},
+		{"PRODUCTIONTAKEONE / MyWorld / Mizt / 4EYEDFOOL", "Gelatek's original credits: optimizations, hat naming and artificial heartbeat."},
+		{"dolteddown", "Alternate hat permadeath method."},
+		{"MrY7zz", "CurrentAngle V2 reference. MIT license and notice retained."},
+		{"codedtocode", "ApexEngine animation data and pose math. MPL-2.0 notice retained."},
+		{"Robert Penner", "Easing functions in ApexEngine. BSD notice retained."},
+		{"JustAMaleScripts / BlaaBlaa", "Animation Creator format, palettes and music catalog references. Pack authors keep their own credits."},
+		{"Theo / Krystal Dance V3 mod", "Inherited dance content and earlier integration."},
+		{"kylethornton / @KYLETHORNTON", "Animation Spoofer V2 asset import reference."},
+		{"KadeTheExploiter / Krypton", "Accessory and respawn references."},
+		{"Centinily", "Named in the RAGDOLLV3 Toolbox description."},
+		{"RobloxStudioGizmos.rbxm / R6IK.rbxm", "Supplied editor and IK references. Their authors were not named."},
+		{"Tool.lua", "Supplied tool-to-limb layout reference. Author not named."},
+		{"AALib / BB Demo / rez aka @chiptune", "ASCII and demo-scene inspiration."},
+		{"Dubmood / 4mat / MASTER BOOT RECORD / Hoster / Zabutom / Ogge", "Music. Individual track credits stay with their tracks."},
+		{"Community pack authors", "Names stay with their packs and editable copies."},
 	}
 end
 
@@ -83936,8 +83984,6 @@ factories["main/upstream_util"] = function(...)
 	local TextService = Util.Service("TextService")
 	local GuiService: GuiService = Util.Service("GuiService")
 	function Util.GetTextSize(text, size, font, bounds, richtext)
-	-- TextService:GetTextSize requires the fourth (frameSize) argument.
-	-- Treat omitted bounds as a large, effectively unwrapped measuring area.
 	bounds = bounds or Vector2.new(100000, 100000)
 	local contentText = text
 	if richtext then
@@ -83972,7 +84018,6 @@ factories["main/upstream_util"] = function(...)
 	textBoundsTestDoneEvent.Name = "."
 	Util.ForceTextSize(textBoundsTest)
 	function Util.GetTextSize(text, size, font, bounds, richtext)
-	-- Keep this alternate path's argument order consistent with the main path.
 	bounds = bounds or Vector2.new(100000, 100000)
 	if textBoundsTestDoneEvent.Name == "WAIT" then
 	textBoundsTestDoneEvent.Event:Wait()
@@ -84849,6 +84894,7 @@ factories["main/workspace_tabs"] = function(...)
 		if Theme then Theme.ApplyFrame(returnButton)Theme.ApplyLabel(returnButton)end
 		Workspace.ReturnButton=returnButton
 		local suppressed=setmetatable({}, {__mode="k"})
+		local returnActions=setmetatable({}, {__mode="k"})
 		local function suppressBack(node)
 			if Workspace.ReturnAction and node:IsA("GuiObject")and node:GetAttribute("_UhhhhhhNavigationBack")==true then
 				if suppressed[node]==nil then suppressed[node]=node.Visible end
@@ -84859,6 +84905,16 @@ factories["main/workspace_tabs"] = function(...)
 			if not Workspace.ReturnAction or not page then return end
 			for _,node in ipairs(page:GetDescendants())do suppressBack(node)end
 		end
+		local function showReturn(root)
+			for node,visible in pairs(suppressed)do if node.Parent then node.Visible=visible end end
+			table.clear(suppressed)
+			local action=returnActions[root]
+			Workspace.ReturnAction=action and action.Callback or nil
+			returnButton.Text=action and action.Label or ""
+			returnButton.Visible=Workspace.Enabled and Workspace.ReturnAction~=nil
+			syncBackRows(Workspace.CurrentPage)
+			Workspace.SetHeaderInset(Workspace.HeaderInset or 40)
+		end
 		function Workspace.SetHeaderInset(height)
 			Workspace.HeaderInset=math.max(0,tonumber(height)or 40)
 			local top=Workspace.HeaderInset
@@ -84868,13 +84924,10 @@ factories["main/workspace_tabs"] = function(...)
 			slot.Size=UDim2.new(1,0,1,-inset)
 		end
 		function Workspace.SetReturnAction(label,callback)
-			Workspace.ReturnAction=callback
-			returnButton.Text=label or ""returnButton.Visible=Workspace.Enabled and callback~=nil
-			if not callback then
-				for node,visible in pairs(suppressed)do if node.Parent then node.Visible=visible end end
-				table.clear(suppressed)
-			else syncBackRows(Workspace.CurrentPage)end
-			Workspace.SetHeaderInset(Workspace.HeaderInset or 40)
+			if Workspace.Current then
+				returnActions[Workspace.Current]=callback and {Label=label or "",Callback=callback}or nil
+			end
+			showReturn(Workspace.Current)
 		end
 		returnButton.Activated:Connect(function()
 			local callback=Workspace.ReturnAction
@@ -84980,7 +85033,7 @@ factories["main/workspace_tabs"] = function(...)
 			cancelTransition(page)
 			Workspace.Current, Workspace.CurrentPage = root, page
 			root.Current = page
-			syncBackRows(page)
+			showReturn(root)
 			page.AnchorPoint = Vector2.new(0.5, 0.5)
 			page.Position = UDim2.new(0.5, 0, 0.5, 0)
 			for candidate in pairs(Workspace.Pages) do
@@ -85108,25 +85161,35 @@ factories["main/workspace_tabs"] = function(...)
 			display(root, page)
 			return true
 		end
-		function Workspace.Open(page, parentPage)
+		function Workspace.Open(page, parentPage, shared)
 			Workspace.Track(page)
 			local root = Workspace.Owners[page]
+			parentPage = Workspace.ResolvePage(parentPage) or parentPage
 			if root and page == root.Page then
+				if parentPage and parentPage~=page then
+					Workspace.Pages[page].Parents=Workspace.Pages[page].Parents or setmetatable({}, {__mode="k"})
+					Workspace.Pages[page].Parents[root]=parentPage
+				end
 				-- A main-menu entry reopens the last subpage, including a closed tab.
 				return Workspace.Select(root.Key)
 			end
-			parentPage = Workspace.ResolvePage(parentPage) or parentPage
-			root = root or Workspace.Owners[parentPage] or Workspace.Main
+			local parentOwner=Workspace.CurrentPage==parentPage and Workspace.Current or Workspace.Owners[parentPage]
+			root = shared and parentOwner or root or parentOwner or Workspace.Main
 			assert(root, "page opened before Mainframe registration")
 			Workspace.Owners[page] = root
 			Workspace.Pages[page].Parent = parentPage
+			Workspace.Pages[page].Parents=Workspace.Pages[page].Parents or setmetatable({}, {__mode="k"})
+			Workspace.Pages[page].Parents[root]=parentPage
 			makeButton(root)
 			display(root, page)
 			return true
 		end
 		function Workspace.Back(page, parentPage, destroyPage)
+			local owner = Workspace.CurrentPage==page and Workspace.Current or Workspace.Owners[page]
+			local state=Workspace.Pages[page]
 			parentPage = Workspace.ResolvePage(parentPage) or parentPage
-			local owner = Workspace.Owners[page]
+				or (state and state.Parents and state.Parents[owner]) or (state and state.Parent)
+				or (Workspace.Main and Workspace.Main.Page)
 			local parentOwner = Workspace.Owners[parentPage] or Workspace.Main
 			if owner == parentOwner then owner.Current = parentPage end
 			makeButton(parentOwner)
